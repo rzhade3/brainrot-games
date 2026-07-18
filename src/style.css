@@ -284,3 +284,320 @@ body {
   flex-direction: column;
   gap: 0.6rem;
 }
+
+/* ── Castle Defense HUD overlay ───────────────────────── */
+.td-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.td-top {
+  position: absolute;
+  top: env(safe-area-inset-top, 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: rgba(40, 18, 74, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.td-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 62px;
+  padding: 0 6px;
+}
+
+.td-stat + .td-stat {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.td-stat-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.td-stat-val {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.td-stat-val.td-low {
+  color: var(--bad);
+}
+
+.td-wave-stat .td-stat-val {
+  color: var(--node);
+}
+
+.td-castle {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 12px) + 66px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: min(280px, calc(100vw - 40px));
+}
+
+.td-castle-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.td-hpbar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.td-hpfill {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--good), var(--node));
+  transition: width 0.15s ease;
+}
+
+.td-hpfill.td-crit {
+  background: linear-gradient(90deg, var(--bad), var(--accent));
+}
+
+.td-bottom {
+  position: absolute;
+  bottom: env(safe-area-inset-bottom, 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: min(560px, calc(100vw - 20px));
+}
+
+.td-build-menu {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.td-build {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 68px;
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--text);
+  background: rgba(34, 21, 66, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.td-build:active {
+  transform: scale(0.95);
+}
+
+.td-build-emoji {
+  font-size: 1.3rem;
+}
+
+.td-build-name {
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
+.td-build-cost {
+  font-size: 0.66rem;
+  color: var(--muted);
+}
+
+.td-build.td-selected {
+  border-color: var(--node);
+  background: rgba(0, 229, 255, 0.16);
+  box-shadow: 0 0 16px -4px var(--node);
+}
+
+.td-build.td-unaffordable {
+  opacity: 0.42;
+}
+
+.td-btn {
+  pointer-events: auto;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: rgba(58, 26, 104, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 0.5rem 1.2rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+
+.td-btn:active {
+  transform: scale(0.96);
+}
+
+.td-btn.td-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+}
+
+.td-btn.td-primary:hover {
+  background: #9a2ff0;
+}
+
+.td-btn[hidden] {
+  display: none;
+}
+
+.td-modal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 2, 33, 0.6);
+  backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+
+.td-modal[hidden] {
+  display: none;
+}
+
+.td-card {
+  width: min(360px, calc(100vw - 40px));
+  padding: 1.75rem 1.5rem;
+  border-radius: 18px;
+  background: var(--card);
+  border: 1px solid rgba(255, 46, 151, 0.4);
+  box-shadow: 0 0 50px -8px rgba(177, 74, 255, 0.5);
+  text-align: center;
+  animation: ug-pop 0.22s ease;
+}
+
+.td-emoji {
+  font-size: 3rem;
+}
+
+.td-card h2 {
+  margin: 0.25rem 0 0.15rem;
+  font-size: 1.6rem;
+  color: var(--bad);
+}
+
+.td-card p {
+  margin: 0 0 1.25rem;
+  color: var(--muted);
+}
+
+.td-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* ── Type Rot (typing game) ───────────────────────────── */
+#tp-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  touch-action: manipulation;
+}
+
+.tp-hidden-input {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  color: transparent;
+  background: transparent;
+  caret-color: transparent;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.tp-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+.tp-bar {
+  position: absolute;
+  top: env(safe-area-inset-top, 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  background: rgba(40, 18, 74, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.tp-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 62px;
+  padding: 0 8px;
+}
+
+.tp-stat + .tp-stat {
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tp-buffer {
+  min-width: 120px;
+}
+
+.tp-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.tp-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tp-buffer .tp-val {
+  color: var(--node);
+  font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
+  letter-spacing: 0.04em;
+}

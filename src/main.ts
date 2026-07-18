@@ -17,11 +17,18 @@ const games: GameEntry[] = [
     ready: true,
   },
   {
+    title: 'Type Rot',
+    emoji: '⌨️',
+    description: 'Type the words before they escape. They only get faster.',
+    href: './games/typing/',
+    ready: true,
+  },
+  {
     title: 'Tower Defense',
     emoji: '🏰',
-    description: 'Place towers, stop the creeps. Coming soon.',
+    description: 'Mine ore, power turrets, and defend your castle from escalating waves.',
     href: './games/tower-defense/',
-    ready: false,
+    ready: true,
   },
   {
     title: 'Top Down',
