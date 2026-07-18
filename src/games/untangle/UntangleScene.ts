@@ -15,8 +15,9 @@ const FILL = 0.82; // graph half-extent as a fraction of viewRadius
 const NODE_FRAC = 0.04; // base node radius as a fraction of viewRadius
 const EDGE_FRAC = 0.006; // edge line width as a fraction of viewRadius
 const GRAB_PX = 34; // pointer pickup radius, in screen pixels
-const BASE_SIZE = 16; // starting node count (~ old "Level 6")
-const MAX_SIZE = 24;
+const MOBILE_UI_SCALE = 1.8; // enlarge nodes / strings / hit-area on touch devices
+const BASE_SIZE = 12; // starting node count (~ old "Level 6")
+const MAX_SIZE = 20;
 const FLOAT_AMP = 0.3; // idle drift amplitude, as a fraction of the base node radius
 const WIN_HOLD_MS = 650; // linger on the all-green "you won" state before collapsing
 const MERGE_MS = 200; // clique members converging into the super-node
@@ -51,6 +52,7 @@ export default class UntangleScene extends Phaser.Scene {
   private hud!: Hud;
 
   private dpr = 1;
+  private uiScale = 1; // >1 on mobile so nodes / strings are easier to see & grab
   private viewRadius = INITIAL_VIEW_RADIUS;
   private depth = 0;
   private score = 0; // cumulative nodes untangled
@@ -67,6 +69,7 @@ export default class UntangleScene extends Phaser.Scene {
 
   create(): void {
     this.dpr = getRenderScale();
+    this.uiScale = this.isMobile() ? MOBILE_UI_SCALE : 1;
     this.edgeGfx = this.add.graphics().setDepth(1);
     this.hud = this.registry.get('hud') as Hud;
 
@@ -105,14 +108,25 @@ export default class UntangleScene extends Phaser.Scene {
   }
 
   // ── Sizing helpers (all relative to the current view radius) ──────────────
-  private get nodeBaseRadius(): number {
-    return this.viewRadius * NODE_FRAC;
+  private isMobile(): boolean {
+    const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
+    const small = Math.min(window.innerWidth, window.innerHeight) < 768;
+    return coarse || small;
   }
-  private nodeRadius(level: number): number {
-    return this.nodeBaseRadius * (1 + 0.28 * level);
+  private get nodeBaseRadius(): number {
+    return this.viewRadius * NODE_FRAC * this.uiScale;
+  }
+  private nodeRadius(): number {
+    return this.nodeBaseRadius;
+  }
+  private get edgeWidth(): number {
+    return this.viewRadius * EDGE_FRAC * this.uiScale;
   }
   private get grabRadiusWorld(): number {
-    return Math.max(this.nodeRadius(0) * 2.2, (GRAB_PX * this.dpr) / this.cameras.main.zoom);
+    return Math.max(
+      this.nodeRadius() * 2.2,
+      (GRAB_PX * this.uiScale * this.dpr) / this.cameras.main.zoom
+    );
   }
   private graphSize(): number {
     return Math.min(BASE_SIZE + this.depth, MAX_SIZE);
@@ -134,8 +148,8 @@ export default class UntangleScene extends Phaser.Scene {
   // ── Node / graph construction ─────────────────────────────────────────────
   private makeNode(level: number, x: number, y: number): number {
     const id = this.nextNodeId++;
-    const r = this.nodeRadius(level);
-    const arc = this.add.circle(x, y, r, level > 0 ? COLORS.accent : COLORS.node).setDepth(4);
+    const r = this.nodeRadius();
+    const arc = this.add.circle(x, y, r, COLORS.node).setDepth(4);
     arc.setStrokeStyle(Math.max(1, r * 0.18), 0xffffff, 0.9);
     this.nodes.set(id, {
       id,
@@ -183,7 +197,7 @@ export default class UntangleScene extends Phaser.Scene {
   private placeNode(id: number, x: number, y: number): void {
     const n = this.nodes.get(id);
     if (!n) return;
-    const r = this.nodeRadius(n.level);
+    const r = this.nodeRadius();
     n.arc.setRadius(r);
     n.arc.setStrokeStyle(Math.max(1, r * 0.18), 0xffffff, 0.9);
     if (n.bx === 0 && n.by === 0 && n.x === 0 && n.y === 0) {
@@ -301,7 +315,7 @@ export default class UntangleScene extends Phaser.Scene {
     }
 
     const graph = this.graph;
-    const lineW = this.viewRadius * EDGE_FRAC;
+    const lineW = this.edgeWidth;
     const crossing = this.crossings(graph);
     let crossingEdges = 0;
 
@@ -321,7 +335,7 @@ export default class UntangleScene extends Phaser.Scene {
     const solved = crossingEdges === 0;
     for (const id of graph.nodeIds) {
       const n = this.nodes.get(id);
-      if (n) n.arc.setFillStyle(solved ? COLORS.good : n.level > 0 ? COLORS.accent : COLORS.node);
+      if (n) n.arc.setFillStyle(solved ? COLORS.good : COLORS.node);
     }
 
     this.hud.setStatus(solved ? 'Untangled!' : `Tangled strings: ${crossingEdges}`, solved);
@@ -356,7 +370,7 @@ export default class UntangleScene extends Phaser.Scene {
       .particles(0, 0, 'ug-spark', {
         lifespan: 750,
         speed: { min: vr * 0.12, max: vr * 0.55 },
-        scale: { start: vr * 0.0016, end: 0 },
+        scale: { start: vr * 0.0016 * this.uiScale, end: 0 },
         alpha: { start: 0.95, end: 0 },
         tint: [COLORS.good, COLORS.good, COLORS.node, COLORS.accent, 0xffffff],
         blendMode: 'ADD',
