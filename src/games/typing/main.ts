@@ -198,31 +198,35 @@ const gameTick = (currentTime: number): void => {
   renderWords();
 };
 
+const setBuffer = (next: string): void => {
+  buffer = next;
+  bufEl.innerText = buffer || '...';
+  renderWords();
+};
+
+const submitBuffer = (): void => {
+  for (let i = 0; i < words.length; i++) {
+    if (words[i].text === buffer) {
+      score += Math.round((words[i].text.length * speed) / opts.points_multiplier);
+      if (score !== lastDisplayedScore) {
+        scoreEl.innerText = String(score);
+        lastDisplayedScore = score;
+      }
+      words.splice(i, 1);
+      break;
+    }
+  }
+  setBuffer('');
+};
+
 const gameListener = (event: KeyboardEvent): void => {
   if (event.repeat) return;
   const key = event.key;
   if (!key.match(/^[a-z0-9 ]$/i) && key !== 'Backspace' && key !== 'Enter') return;
 
-  if (key === ' ' || key === 'Enter') {
-    for (let i = 0; i < words.length; i++) {
-      if (words[i].text === buffer) {
-        score += Math.round((words[i].text.length * speed) / opts.points_multiplier);
-        if (score !== lastDisplayedScore) {
-          scoreEl.innerText = String(score);
-          lastDisplayedScore = score;
-        }
-        words.splice(i, 1);
-        break;
-      }
-    }
-    buffer = '';
-  } else if (key === 'Backspace') {
-    buffer = buffer.slice(0, -1);
-  } else {
-    buffer += key;
-  }
-  bufEl.innerText = buffer || '...';
-  renderWords();
+  if (key === ' ' || key === 'Enter') submitBuffer();
+  else if (key === 'Backspace') setBuffer(buffer.slice(0, -1));
+  else setBuffer(buffer + key);
 };
 
 const restartListener = (event: KeyboardEvent): void => {
@@ -326,12 +330,25 @@ if (hiddenInput) {
     hiddenInput.focus();
   };
   canvas.addEventListener('pointerdown', focusInput);
-  // Some mobile keyboards emit input events instead of usable keydowns.
+
+  // Mobile keyboards don't emit reliable keydowns, so let the hidden input BE
+  // the buffer: it handles editing/backspace natively, and we just mirror its
+  // value. A trailing space (or Enter) submits the current word.
   hiddenInput.addEventListener('input', () => {
-    const typed = hiddenInput.value;
-    hiddenInput.value = '';
-    for (const ch of typed) {
-      if (currentListener) currentListener(new KeyboardEvent('keydown', { key: ch }));
+    if (currentListener === restartListener) {
+      // Menu / game-over screens: typing 'r' restarts.
+      const last = hiddenInput.value.slice(-1);
+      hiddenInput.value = '';
+      if (last === 'r' || last === 'R') stateMachine.transition('game');
+      return;
+    }
+    const value = hiddenInput.value;
+    if (/\s$/.test(value)) {
+      setBuffer(value.trimEnd().toLowerCase());
+      submitBuffer();
+      hiddenInput.value = '';
+    } else {
+      setBuffer(value.toLowerCase());
     }
   });
 }
