@@ -70,6 +70,8 @@ export default class UntangleScene extends Phaser.Scene {
     this.edgeGfx = this.add.graphics().setDepth(1);
     this.hud = this.registry.get('hud') as Hud;
 
+    this.ensureSparkTexture();
+
     this.hud.onShuffle = () => this.reshuffle();
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.onPointerDown(p));
@@ -332,7 +334,41 @@ export default class UntangleScene extends Phaser.Scene {
     // Solved: block input and hold the all-green win state for a beat, then merge.
     this.revealing = true;
     this.redraw();
+    this.spawnWinBurst();
     this.time.delayedCall(WIN_HOLD_MS, () => this.collapse());
+  }
+
+  /** Build a soft round spark texture once, reused by the win particle burst. */
+  private ensureSparkTexture(): void {
+    if (this.textures.exists('ug-spark')) return;
+    const g = this.add.graphics();
+    g.fillStyle(0xffffff, 1);
+    g.fillCircle(16, 16, 14);
+    g.generateTexture('ug-spark', 32, 32);
+    g.destroy();
+  }
+
+  /** Celebratory particle burst from every node when the graph is solved. */
+  private spawnWinBurst(): void {
+    if (!this.graph) return;
+    const vr = this.viewRadius;
+    const emitter = this.add
+      .particles(0, 0, 'ug-spark', {
+        lifespan: 750,
+        speed: { min: vr * 0.12, max: vr * 0.55 },
+        scale: { start: vr * 0.0016, end: 0 },
+        alpha: { start: 0.95, end: 0 },
+        tint: [COLORS.good, COLORS.good, COLORS.node, COLORS.accent, 0xffffff],
+        blendMode: 'ADD',
+        emitting: false,
+      })
+      .setDepth(10);
+
+    for (const id of this.graph.nodeIds) {
+      const n = this.nodes.get(id);
+      if (n) emitter.explode(9, n.x, n.y);
+    }
+    this.time.delayedCall(900, () => emitter.destroy());
   }
 
   private collapse(): void {
