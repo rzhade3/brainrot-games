@@ -12,7 +12,7 @@ const games: GameEntry[] = [
   {
     title: 'Untangle',
     emoji: '🧶',
-    description: 'Drag the nodes so none of the strings cross. Pure planarity brainrot.',
+    description: 'Untangle clusters so no strings cross. They collapse, zoom out, and never end.',
     href: './games/untangle/',
     ready: true,
   },

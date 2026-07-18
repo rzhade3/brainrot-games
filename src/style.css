@@ -161,9 +161,9 @@ body {
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 2px;
+  gap: 16px;
   padding: 8px 18px;
   border-radius: 14px;
   background: rgba(40, 18, 74, 0.72);
@@ -172,15 +172,36 @@ body {
   text-align: center;
 }
 
-.ug-level {
-  font-size: 1.05rem;
-  font-weight: 600;
+.ug-stat {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+
+.ug-stat-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.ug-stat-val {
+  font-size: 1.15rem;
+  font-weight: 700;
   color: var(--text);
+}
+
+.ug-stat-val.ug-pop {
+  animation: ug-pop 0.3s ease;
+  color: var(--good);
 }
 
 .ug-status {
   font-size: 0.85rem;
   color: var(--muted);
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  padding-left: 16px;
 }
 
 .ug-status.solved {
@@ -210,79 +231,21 @@ body {
   transform: scale(0.96);
 }
 
-.ug-btn.ug-primary {
-  background: var(--accent);
-  border-color: transparent;
-  color: #fff;
-  font-weight: 600;
-}
-
-.ug-btn.ug-primary:hover {
-  background: #9a2ff0;
-}
-
 .ug-shuffle {
   position: absolute;
   top: env(safe-area-inset-top, 12px);
   right: 12px;
 }
 
-.ug-modal {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(13, 2, 33, 0.6);
-  backdrop-filter: blur(3px);
-  pointer-events: auto;
-}
-
-.ug-modal[hidden] {
-  display: none;
-}
-
-.ug-card {
-  width: min(360px, calc(100vw - 40px));
-  padding: 1.75rem 1.5rem;
-  border-radius: 18px;
-  background: var(--card);
-  border: 1px solid rgba(0, 229, 255, 0.4);
-  box-shadow: 0 0 50px -8px rgba(177, 74, 255, 0.5);
-  text-align: center;
-  animation: ug-pop 0.22s ease;
-}
-
 @keyframes ug-pop {
   from {
-    transform: scale(0.9);
-    opacity: 0;
+    transform: scale(0.7);
+    opacity: 0.4;
   }
   to {
     transform: scale(1);
     opacity: 1;
   }
-}
-
-.ug-emoji {
-  font-size: 3rem;
-}
-
-.ug-card h2 {
-  margin: 0.25rem 0 0.15rem;
-  font-size: 1.6rem;
-  color: var(--good);
-}
-
-.ug-card p {
-  margin: 0 0 1.25rem;
-  color: var(--muted);
-}
-
-.ug-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
 }
 
 /* ── Castle Defense HUD overlay ───────────────────────── */
