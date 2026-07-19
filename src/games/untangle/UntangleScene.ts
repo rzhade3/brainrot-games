@@ -12,7 +12,7 @@ import type { Hud } from './hud';
 // as the camera zooms out level after level.
 const INITIAL_VIEW_RADIUS = 1000;
 const GROWTH = 2; // view-radius multiplier per zoom-out
-const FILL = 0.82; // graph half-extent as a fraction of viewRadius
+const PAD = 1.12; // fraction of extra margin around the fitted view
 const NODE_FRAC = 0.04; // base node radius as a fraction of viewRadius
 const EDGE_FRAC = 0.006; // edge line width as a fraction of viewRadius
 const GRAB_PX = 34; // pointer pickup radius, in screen pixels
@@ -135,8 +135,7 @@ export default class UntangleScene extends Phaser.Scene {
 
   private fitCamera(animate: boolean): void {
     const cam = this.cameras.main;
-    const pad = 1.12;
-    const zoom = Math.min(cam.width, cam.height) / (2 * this.viewRadius * pad);
+    const zoom = Math.min(cam.width, cam.height) / (2 * this.viewRadius * PAD);
     if (animate) {
       cam.pan(0, 0, MOVE_MS, 'Sine.easeInOut');
       cam.zoomTo(zoom, MOVE_MS, 'Sine.easeInOut');
@@ -144,6 +143,25 @@ export default class UntangleScene extends Phaser.Scene {
       cam.centerOn(0, 0);
       cam.setZoom(zoom);
     }
+  }
+
+  /**
+   * Half the visible world extent on each axis for the current view, matching
+   * `fitCamera`. Layouts map the unit square across this so the tangle fills the
+   * whole screen — including the long axis on a portrait phone — not just a
+   * centred blob.
+   */
+  private visibleHalf(): { x: number; y: number } {
+    const cam = this.cameras.main;
+    const minHalf = this.viewRadius * PAD;
+    const wide = cam.width >= cam.height;
+    const ratio = wide ? cam.width / cam.height : cam.height / cam.width;
+    return wide ? { x: minHalf * ratio, y: minHalf } : { x: minHalf, y: minHalf * ratio };
+  }
+
+  private localToWorld(local: Point): { x: number; y: number } {
+    const h = this.visibleHalf();
+    return { x: (local.x - 0.5) * 2 * h.x, y: (local.y - 0.5) * 2 * h.y };
   }
 
   // ── Node / graph construction ─────────────────────────────────────────────
@@ -182,12 +200,11 @@ export default class UntangleScene extends Phaser.Scene {
     while (pool.length < size) pool.push(this.makeNode(0, 0, 0));
     Phaser.Utils.Array.Shuffle(pool);
 
-    const fill = this.viewRadius * FILL;
     const nodeIds: number[] = [];
     for (let k = 0; k < size; k++) {
       const id = pool[k];
-      const local = g.start[k];
-      this.placeNode(id, (local.x - 0.5) * 2 * fill, (local.y - 0.5) * 2 * fill);
+      const w = this.localToWorld(g.start[k]);
+      this.placeNode(id, w.x, w.y);
       nodeIds.push(id);
     }
 
@@ -446,10 +463,9 @@ export default class UntangleScene extends Phaser.Scene {
     const graph = this.graph;
     const g = generateClusterGraph(graph.nodeIds.length);
     graph.edges = g.edges;
-    const fill = this.viewRadius * FILL;
     graph.nodeIds.forEach((id, k) => {
-      const local = g.start[k];
-      this.placeNode(id, (local.x - 0.5) * 2 * fill, (local.y - 0.5) * 2 * fill);
+      const w = this.localToWorld(g.start[k]);
+      this.placeNode(id, w.x, w.y);
     });
     this.redraw();
   }
