@@ -254,6 +254,74 @@ body {
   transform: scale(0.96);
 }
 
+/* ── Onboard hint overlay ─────────────────────────────── */
+.onboard-hint {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-overlay) + 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(13, 2, 33, 0.82);
+  backdrop-filter: blur(6px);
+  text-align: center;
+  padding: 2rem;
+  opacity: 0;
+  transition: opacity 0.25s var(--ease-out-expo);
+}
+
+.onboard-hint.onboard-visible {
+  opacity: 1;
+}
+
+.onboard-hint.onboard-exit {
+  opacity: 0;
+}
+
+.onboard-line1 {
+  font-size: clamp(1.15rem, 4vw, 1.5rem);
+  font-weight: 700;
+  color: var(--white);
+  margin: 0;
+  text-wrap: balance;
+}
+
+.onboard-line2 {
+  font-size: clamp(0.9rem, 3vw, 1.05rem);
+  color: var(--muted);
+  margin: 0;
+  max-width: 36ch;
+  text-wrap: pretty;
+}
+
+.onboard-dismiss {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  animation: onboard-pulse 2s var(--ease-out-expo) infinite;
+}
+
+@keyframes onboard-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-hint,
+  .onboard-hint.onboard-visible,
+  .onboard-hint.onboard-exit {
+    transition: none;
+  }
+  .onboard-dismiss {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* ── Untangle HUD overlay ─────────────────────────────── */
 
 .ug-bar {
