@@ -73,10 +73,8 @@ body {
               box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.game-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--accent);
-  box-shadow: 0 12px 30px -12px var(--accent);
+.game-card:active {
+  transform: scale(0.98);
 }
 
 .game-card.disabled {
@@ -84,10 +82,8 @@ body {
   cursor: default;
 }
 
-.game-card.disabled:hover {
+.game-card.disabled:active {
   transform: none;
-  border-color: rgba(255, 255, 255, 0.06);
-  box-shadow: none;
 }
 
 .game-card .emoji {
@@ -156,8 +152,10 @@ body {
   transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.back-link:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .back-link:hover {
+    border-color: var(--accent);
+  }
 }
 
 /* ── Untangle HUD overlay ─────────────────────────────── */
@@ -239,9 +237,11 @@ body {
               transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.ug-btn:hover {
-  background: #4a248a;
-  border-color: var(--accent);
+@media (hover: hover) {
+  .ug-btn:hover {
+    background: #4a248a;
+    border-color: var(--accent);
+  }
 }
 
 .ug-btn:active {
@@ -398,9 +398,11 @@ body {
               background 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.td-build:hover {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: rgba(58, 26, 104, 0.7);
+@media (hover: hover) {
+  .td-build:hover {
+    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(58, 26, 104, 0.7);
+  }
 }
 
 .td-build:active {
@@ -447,9 +449,11 @@ body {
               transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.td-btn:hover {
-  background: #4a248a;
-  border-color: var(--accent);
+@media (hover: hover) {
+  .td-btn:hover {
+    background: #4a248a;
+    border-color: var(--accent);
+  }
 }
 
 .td-btn:active {
@@ -463,8 +467,10 @@ body {
   font-weight: 600;
 }
 
-.td-btn.td-primary:hover {
-  background: #9a2ff0;
+@media (hover: hover) {
+  .td-btn.td-primary:hover {
+    background: #9a2ff0;
+  }
 }
 
 .td-btn[hidden] {
@@ -641,6 +647,123 @@ body {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+/* ── Hover / pointer adaptation ────────────────────────── */
+@media (hover: hover) {
+  .game-card:hover:not(.disabled) {
+    transform: translateY(-4px);
+    border-color: var(--accent);
+    box-shadow: 0 12px 30px -12px var(--accent);
+  }
+}
+
+/* ── Small-screen HUD compaction (≤480px) ─────────────── */
+@media (max-width: 480px) {
+  #app {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .hub-header {
+    margin-bottom: 1.75rem;
+  }
+
+  .game-grid {
+    gap: 1rem;
+  }
+
+  .game-card {
+    padding: 1.25rem;
+  }
+
+  /* Untangle HUD */
+  .ug-bar {
+    gap: 10px;
+    padding: 6px 12px;
+  }
+
+  .ug-stat-val {
+    font-size: 1rem;
+  }
+
+  .ug-status {
+    font-size: 0.78rem;
+    padding-left: 10px;
+  }
+
+  /* Tower Defense HUD */
+  .td-top {
+    gap: 6px;
+    padding: 5px 8px;
+  }
+
+  .td-stat {
+    min-width: 50px;
+    padding: 0 4px;
+  }
+
+  .td-stat-val {
+    font-size: 0.88rem;
+  }
+
+  .td-stat-label {
+    font-size: 0.56rem;
+  }
+
+  .td-build {
+    min-width: 58px;
+    padding: 5px 6px;
+  }
+
+  .td-build-emoji {
+    font-size: 1.1rem;
+  }
+
+  .td-build-name {
+    font-size: 0.65rem;
+  }
+
+  .td-build-cost {
+    font-size: 0.6rem;
+  }
+
+  /* Type Rot HUD */
+  .tp-bar {
+    gap: 6px;
+    padding: 5px 8px;
+  }
+
+  .tp-stat {
+    min-width: 50px;
+    padding: 0 5px;
+  }
+
+  .tp-buffer {
+    min-width: 80px;
+  }
+
+  .tp-val {
+    font-size: 0.92rem;
+  }
+
+  .tp-label {
+    font-size: 0.56rem;
+  }
+}
+
+/* ── Landscape safe-area (notch on left/right) ────────── */
+@media (orientation: landscape) {
+  .back-link {
+    left: max(12px, env(safe-area-inset-left, 12px));
+  }
+
+  .ug-shuffle {
+    right: max(12px, env(safe-area-inset-right, 12px));
+  }
+
+  .td-bottom {
+    width: min(560px, calc(100vw - env(safe-area-inset-left, 10px) - env(safe-area-inset-right, 10px) - 20px));
+  }
 }
 
 /* ── Reduced motion ───────────────────────────────────── */
