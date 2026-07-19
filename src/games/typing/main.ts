@@ -14,13 +14,13 @@ import dictionaryText from './dictionary.txt?raw';
 const C = {
   prompt: '#00e5ff',
   sub: '#a99fd6',
-  hint: '#b14aff',
+  hint: '#b958ff',
   tip: '#ffcc66',
   word: '#c9c0e6',
   match: '#3ddc97',
   over: '#ff2e97',
   score: '#00e5ff',
-  high: '#b14aff',
+  high: '#b958ff',
 };
 
 const dictionary = dictionaryText

@@ -42,11 +42,12 @@ const games: GameEntry[] = [
 const app = document.querySelector<HTMLDivElement>('#app')!;
 
 app.innerHTML = `
+  <a class="skip-link" href="#game-list">Skip to games</a>
   <header class="hub-header">
     <h1>Brainrot Games</h1>
     <p>A little arcade of browser games. Installable, offline-ready.</p>
   </header>
-  <main class="game-grid" role="list">
+  <main class="game-grid" id="game-list" role="list">
     ${games
       .map(
         (g) => `

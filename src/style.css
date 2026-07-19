@@ -1,14 +1,21 @@
 :root {
   --bg: #0d0221;
   --bg-soft: #1b1035;
+  --bg-deep: #3a0d6e;
   --card: #221542;
-  --accent: #b14aff;
+  --accent: #b958ff;
+  --accent-hover: #9a2ff0;
   --accent-2: #ff2e97;
   --node: #00e5ff;
   --good: #3ddc97;
   --bad: #ff2e97;
   --text: #f5f3ff;
+  --white: #fff;
   --muted: #a99fd6;
+  --bg-mid: #14022e;
+  --z-hidden: -1;
+  --z-nav: 10;
+  --z-overlay: 20;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -21,7 +28,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: radial-gradient(circle at 25% 0%, #3a0d6e 0%, #14022e 45%, var(--bg) 100%);
+  background: radial-gradient(circle at 25% 0%, var(--bg-deep) 0%, var(--bg-mid) 45%, var(--bg) 100%);
   color: var(--text);
 }
 
@@ -137,7 +144,7 @@ body {
   position: fixed;
   top: env(safe-area-inset-top, 12px);
   left: 12px;
-  z-index: 10;
+  z-index: var(--z-nav);
   padding: 0.5rem 0.9rem;
   min-height: 44px;
   display: inline-flex;
@@ -163,7 +170,7 @@ body {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 20;
+  z-index: var(--z-overlay);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -239,7 +246,7 @@ body {
 
 @media (hover: hover) {
   .ug-btn:hover {
-    background: #4a248a;
+    background: var(--accent-hover);
     border-color: var(--accent);
   }
 }
@@ -270,7 +277,7 @@ body {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 20;
+  z-index: var(--z-overlay);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -451,7 +458,7 @@ body {
 
 @media (hover: hover) {
   .td-btn:hover {
-    background: #4a248a;
+    background: var(--accent-hover);
     border-color: var(--accent);
   }
 }
@@ -463,13 +470,13 @@ body {
 .td-btn.td-primary {
   background: var(--accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--white);
   font-weight: 600;
 }
 
 @media (hover: hover) {
   .td-btn.td-primary:hover {
-    background: #9a2ff0;
+    background: var(--accent-hover);
   }
 }
 
@@ -545,14 +552,14 @@ body {
   background: transparent;
   caret-color: transparent;
   pointer-events: none;
-  z-index: -1;
+  z-index: var(--z-hidden);
 }
 
 .tp-overlay {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 20;
+  z-index: var(--z-overlay);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -603,6 +610,26 @@ body {
   color: var(--node);
   font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
   letter-spacing: 0.04em;
+}
+
+/* ── Skip link (a11y) ──────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1.5rem;
+  background: var(--accent);
+  color: var(--white);
+  font-weight: 600;
+  border-radius: 0 0 12px 12px;
+  text-decoration: none;
+  z-index: var(--z-overlay);
+  transition: top 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.skip-link:focus {
+  top: 0;
 }
 
 /* ── Focus indicators ─────────────────────────────────── */

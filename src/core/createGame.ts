@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 export const COLORS = {
   bg: 0x0d0221,
   bgSoft: 0x1b1035,
-  accent: 0xb14aff,
+  accent: 0xb958ff,
   accent2: 0xff2e97,
   node: 0x00e5ff,
   good: 0x3ddc97,
