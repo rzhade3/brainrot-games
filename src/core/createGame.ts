@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 export const COLORS = {
   bg: 0x0d0221,
   bgSoft: 0x1b1035,
-  accent: 0xb14aff,
+  accent: 0xb958ff,
   accent2: 0xff2e97,
   node: 0x00e5ff,
   good: 0x3ddc97,
@@ -19,6 +19,14 @@ export const COLORS = {
 export function getRenderScale(): number {
   return Math.min(window.devicePixelRatio || 1, 3);
 }
+
+/**
+ * Whether the user prefers reduced motion. Games should check this and
+ * skip/shorten non-essential animations (e.g. collapse sequences, idle drift).
+ */
+export const prefersReducedMotion: boolean =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export type CreateGameOptions = {
   scene: Phaser.Types.Scenes.SceneType | Phaser.Types.Scenes.SceneType[];

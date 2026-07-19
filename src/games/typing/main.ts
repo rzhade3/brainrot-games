@@ -1,4 +1,5 @@
 import dictionaryText from './dictionary.txt?raw';
+import { getBestScore, submitScore } from '../../core/scores';
 
 /**
  * Type Rot — a port of the standalone typing-game into brainrot-games.
@@ -14,13 +15,13 @@ import dictionaryText from './dictionary.txt?raw';
 const C = {
   prompt: '#00e5ff',
   sub: '#a99fd6',
-  hint: '#b14aff',
+  hint: '#b958ff',
   tip: '#ffcc66',
   word: '#c9c0e6',
   match: '#3ddc97',
   over: '#ff2e97',
   score: '#00e5ff',
-  high: '#b14aff',
+  high: '#b958ff',
 };
 
 const dictionary = dictionaryText
@@ -66,9 +67,9 @@ const sizeCanvas = (): void => {
 
 // ── HUD overlay (DOM, themed) ─────────────────────────────
 const hud = document.createElement('div');
-hud.className = 'tp-overlay';
+hud.className = 'hud-overlay tp-overlay';
 hud.innerHTML = `
-  <div class="tp-bar">
+  <div class="hud-bar tp-bar">
     <div class="tp-stat"><span class="tp-label">Score</span><span class="tp-val" id="tp-score">0</span></div>
     <div class="tp-stat"><span class="tp-label">Speed</span><span class="tp-val" id="tp-speed">0</span></div>
     <div class="tp-stat tp-buffer"><span class="tp-label">Buffer</span><span class="tp-val" id="tp-buf">...</span></div>
@@ -79,24 +80,8 @@ const scoreEl = hud.querySelector<HTMLElement>('#tp-score')!;
 const speedEl = hud.querySelector<HTMLElement>('#tp-speed')!;
 const bufEl = hud.querySelector<HTMLElement>('#tp-buf')!;
 
-// ── High score (localStorage) ─────────────────────────────
-const HS_KEY = 'brainrotTypingHighScore';
-const getHighScore = (): number => {
-  try {
-    const stored = localStorage.getItem(HS_KEY);
-    return stored ? parseInt(stored, 10) : 0;
-  } catch {
-    return 0;
-  }
-};
-const setHighScore = (value: number): void => {
-  try {
-    localStorage.setItem(HS_KEY, String(value));
-  } catch {
-    /* ignore storage errors */
-  }
-};
-let highScore = getHighScore();
+// ── High score (shared persistence) ───────────────────────
+let highScore = getBestScore('typing');
 
 // ── Game state ────────────────────────────────────────────
 class Word {
@@ -131,7 +116,7 @@ const initialize = (): void => {
   scoreEl.innerText = String(score);
   speedEl.innerText = String(speed);
   bufEl.innerText = buffer || '...';
-  highScore = getHighScore();
+  highScore = getBestScore('typing');
 };
 
 const findNonOverlappingY = (): number => {
@@ -288,10 +273,7 @@ const drawGameOver = (): void => {
 
 const gameOverUpdate = (): void => {
   lastFinalScore = score;
-  if (lastFinalScore > highScore) {
-    highScore = lastFinalScore;
-    setHighScore(highScore);
-  }
+  highScore = submitScore('typing', lastFinalScore);
   initialize();
   currentScreenRedraw = drawGameOver;
   drawGameOver();

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { COLORS, getRenderScale } from '../../core/createGame';
+import { COLORS, getRenderScale, prefersReducedMotion } from '../../core/createGame';
+import { submitScore } from '../../core/scores';
 import { Point, segmentsIntersect } from './geometry';
 import { generateClusterGraph } from './clusters';
 import type { Hud } from './hud';
@@ -18,13 +19,13 @@ const GRAB_PX = 34; // pointer pickup radius, in screen pixels
 const MOBILE_UI_SCALE = 1.8; // enlarge nodes / strings / hit-area on touch devices
 const BASE_SIZE = 12; // starting node count (~ old "Level 6")
 const MAX_SIZE = 20;
-const FLOAT_AMP = 0.3; // idle drift amplitude, as a fraction of the base node radius
-const WIN_HOLD_MS = 650; // linger on the all-green "you won" state before collapsing
-const MERGE_MS = 200; // clique members converging into the super-node
-const POP_MS = 190; // super-node scale-in
-const SETTLE_MS = 130; // beat the lone super-node holds before zooming out
-const MOVE_MS = 450; // node slide (reveal layout / shuffle)
-const POP_IN_MS = 360; // fresh node scale-in
+const FLOAT_AMP = prefersReducedMotion ? 0 : 0.3;
+const WIN_HOLD_MS = prefersReducedMotion ? 100 : 650;
+const MERGE_MS = prefersReducedMotion ? 1 : 200;
+const POP_MS = prefersReducedMotion ? 1 : 190;
+const SETTLE_MS = prefersReducedMotion ? 1 : 130;
+const MOVE_MS = prefersReducedMotion ? 1 : 450;
+const POP_IN_MS = prefersReducedMotion ? 1 : 360;
 
 interface GNode {
   id: number;
@@ -402,6 +403,7 @@ export default class UntangleScene extends Phaser.Scene {
 
     this.score += members.length;
     this.hud.setScore(this.score);
+    submitScore('untangle', this.score);
 
     this.tweens.add({
       targets: arcs,

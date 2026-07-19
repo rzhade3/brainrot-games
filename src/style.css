@@ -1,14 +1,47 @@
 :root {
   --bg: #0d0221;
   --bg-soft: #1b1035;
+  --bg-deep: #3a0d6e;
   --card: #221542;
-  --accent: #b14aff;
+  --accent: #b958ff;
+  --accent-hover: #9a2ff0;
   --accent-2: #ff2e97;
   --node: #00e5ff;
   --good: #3ddc97;
   --bad: #ff2e97;
   --text: #f5f3ff;
+  --white: #fff;
   --muted: #a99fd6;
+  --bg-mid: #14022e;
+  --z-hidden: -1;
+  --z-nav: 10;
+  --z-overlay: 20;
+
+  /* Surfaces (translucent glass layers) */
+  --glass-bg: rgba(40, 18, 74, 0.72);
+  --glass-bg-solid: rgba(40, 18, 74, 0.85);
+  --btn-bg: rgba(58, 26, 104, 0.9);
+  --build-bg: rgba(34, 21, 66, 0.92);
+
+  /* Borders (white at varying opacity) */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --border-mid: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-hover: rgba(255, 255, 255, 0.25);
+
+  /* Radii */
+  --radius-sm: 12px;
+  --radius-bar: 14px;
+  --radius-card: 16px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Touch */
+  --touch-min: 44px;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -21,7 +54,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: radial-gradient(circle at 25% 0%, #3a0d6e 0%, #14022e 45%, var(--bg) 100%);
+  background: radial-gradient(circle at 25% 0%, var(--bg-deep) 0%, var(--bg-mid) 45%, var(--bg) 100%);
   color: var(--text);
 }
 
@@ -39,17 +72,16 @@ body {
 .hub-header h1 {
   font-size: clamp(2.2rem, 6vw, 3.5rem);
   margin: 0 0 0.5rem;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--accent);
   letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .hub-header p {
   color: var(--muted);
   margin: 0;
   font-size: 1.05rem;
+  text-wrap: pretty;
 }
 
 .game-grid {
@@ -63,22 +95,28 @@ body {
   flex-direction: column;
   gap: 0.5rem;
   padding: 1.5rem;
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   background: var(--card);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
   text-decoration: none;
   color: inherit;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease-out-expo),
+              border-color 0.2s var(--ease-out-expo),
+              box-shadow 0.2s var(--ease-out-expo);
 }
 
-.game-card:hover {
-  transform: translateY(-4px);
-  border-color: var(--accent);
-  box-shadow: 0 12px 30px -12px var(--accent);
+.game-card:active {
+  transform: scale(0.98);
 }
 
 .game-card.disabled {
   opacity: 0.6;
+  cursor: default;
+}
+
+.game-card.disabled:active {
+  transform: none;
 }
 
 .game-card .emoji {
@@ -88,6 +126,7 @@ body {
 .game-card h2 {
   margin: 0;
   font-size: 1.3rem;
+  text-wrap: balance;
 }
 
 .game-card p {
@@ -103,7 +142,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(124, 92, 255, 0.18);
   color: var(--accent);
 }
@@ -111,6 +150,13 @@ body {
 .badge.soon {
   background: rgba(255, 92, 138, 0.15);
   color: var(--accent-2);
+}
+
+.best-score {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--node);
+  margin-top: auto;
 }
 
 /* Shared game page styles */
@@ -131,44 +177,165 @@ body {
   position: fixed;
   top: env(safe-area-inset-top, 12px);
   left: 12px;
-  z-index: 10;
-  padding: 0.4rem 0.8rem;
-  border-radius: 999px;
-  background: rgba(40, 18, 74, 0.85);
+  z-index: var(--z-nav);
+  padding: 0.5rem 0.9rem;
+  min-height: var(--touch-min);
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg-solid);
   color: var(--text);
   text-decoration: none;
   font-size: 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-mid);
   backdrop-filter: blur(6px);
+  transition: border-color 0.2s var(--ease-out-expo);
 }
 
-.back-link:hover {
-  border-color: var(--accent);
+@media (hover: hover) {
+  .back-link:hover {
+    border-color: var(--accent);
+  }
 }
 
-/* ── Untangle HUD overlay ─────────────────────────────── */
-.ug-overlay {
+/* ── Shared HUD patterns ──────────────────────────────── */
+.hud-overlay {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 20;
+  z-index: var(--z-overlay);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
-.ug-bar {
+.hud-bar {
   position: absolute;
   top: env(safe-area-inset-top, 12px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: var(--radius-bar);
+  background: var(--glass-bg);
+  border: 1px solid var(--border-soft);
+  backdrop-filter: blur(8px);
+}
+
+.hud-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.hud-val {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.game-btn {
+  pointer-events: auto;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--btn-bg);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-pill);
+  padding: 0.5rem 1.2rem;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  transition: background 0.2s var(--ease-out-expo),
+              border-color 0.2s var(--ease-out-expo),
+              transform 0.1s var(--ease-out-expo);
+}
+
+@media (hover: hover) {
+  .game-btn:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent);
+  }
+}
+
+.game-btn:active {
+  transform: scale(0.96);
+}
+
+/* ── Onboard hint overlay ─────────────────────────────── */
+.onboard-hint {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-overlay) + 1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(13, 2, 33, 0.82);
+  backdrop-filter: blur(6px);
+  text-align: center;
+  padding: 2rem;
+  opacity: 0;
+  transition: opacity 0.25s var(--ease-out-expo);
+}
+
+.onboard-hint.onboard-visible {
+  opacity: 1;
+}
+
+.onboard-hint.onboard-exit {
+  opacity: 0;
+}
+
+.onboard-line1 {
+  font-size: clamp(1.15rem, 4vw, 1.5rem);
+  font-weight: 700;
+  color: var(--white);
+  margin: 0;
+  text-wrap: balance;
+}
+
+.onboard-line2 {
+  font-size: clamp(0.9rem, 3vw, 1.05rem);
+  color: var(--muted);
+  margin: 0;
+  max-width: 36ch;
+  text-wrap: pretty;
+}
+
+.onboard-dismiss {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  animation: onboard-pulse 2s var(--ease-out-expo) infinite;
+}
+
+@keyframes onboard-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboard-hint,
+  .onboard-hint.onboard-visible,
+  .onboard-hint.onboard-exit {
+    transition: none;
+  }
+  .onboard-dismiss {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* ── Untangle HUD overlay ─────────────────────────────── */
+
+.ug-bar {
   flex-direction: row;
   align-items: center;
   gap: 16px;
   padding: 8px 18px;
-  border-radius: 14px;
-  background: rgba(40, 18, 74, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
   text-align: center;
 }
 
@@ -200,7 +367,7 @@ body {
 .ug-status {
   font-size: 0.85rem;
   color: var(--muted);
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 1px solid var(--border-strong);
   padding-left: 16px;
 }
 
@@ -210,25 +377,7 @@ body {
 }
 
 .ug-btn {
-  pointer-events: auto;
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--text);
-  background: rgba(58, 26, 104, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
   padding: 0.5rem 1rem;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
-}
-
-.ug-btn:hover {
-  background: #4a248a;
-  border-color: var(--accent);
-}
-
-.ug-btn:active {
-  transform: scale(0.96);
 }
 
 .ug-shuffle {
@@ -249,26 +398,10 @@ body {
 }
 
 /* ── Castle Defense HUD overlay ───────────────────────── */
-.td-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 20;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-}
 
 .td-top {
-  position: absolute;
-  top: env(safe-area-inset-top, 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
   gap: 10px;
   padding: 6px 10px;
-  border-radius: 14px;
-  background: rgba(40, 18, 74, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
 }
 
 .td-stat {
@@ -280,7 +413,7 @@ body {
 }
 
 .td-stat + .td-stat {
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid var(--border-mid);
 }
 
 .td-stat-label {
@@ -324,7 +457,7 @@ body {
 .td-hpbar {
   width: 100%;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
 }
@@ -332,9 +465,10 @@ body {
 .td-hpfill {
   height: 100%;
   width: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: linear-gradient(90deg, var(--good), var(--node));
-  transition: width 0.15s ease;
+  transform-origin: left center;
+  transition: transform 0.2s var(--ease-out-expo);
 }
 
 .td-hpfill.td-crit {
@@ -367,14 +501,24 @@ body {
   align-items: center;
   gap: 1px;
   min-width: 68px;
+  min-height: var(--touch-min);
   padding: 6px 8px;
   font: inherit;
   color: var(--text);
-  background: rgba(34, 21, 66, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  background: var(--build-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: transform 0.1s var(--ease-out-expo),
+              border-color 0.2s var(--ease-out-expo),
+              background 0.2s var(--ease-out-expo);
+}
+
+@media (hover: hover) {
+  .td-build:hover {
+    border-color: var(--border-hover);
+    background: rgba(58, 26, 104, 0.7);
+  }
 }
 
 .td-build:active {
@@ -405,35 +549,20 @@ body {
   opacity: 0.42;
 }
 
-.td-btn {
-  pointer-events: auto;
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--text);
-  background: rgba(58, 26, 104, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  padding: 0.5rem 1.2rem;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
-}
-
-.td-btn:active {
-  transform: scale(0.96);
-}
-
-.td-btn.td-primary {
+.game-btn.td-primary {
   background: var(--accent);
   border-color: transparent;
-  color: #fff;
+  color: var(--white);
   font-weight: 600;
 }
 
-.td-btn.td-primary:hover {
-  background: #9a2ff0;
+@media (hover: hover) {
+  .game-btn.td-primary:hover {
+    background: var(--accent-hover);
+  }
 }
 
-.td-btn[hidden] {
+.game-btn[hidden] {
   display: none;
 }
 
@@ -455,7 +584,7 @@ body {
 .td-card {
   width: min(360px, calc(100vw - 40px));
   padding: 1.75rem 1.5rem;
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   border: 1px solid rgba(255, 46, 151, 0.4);
   box-shadow: 0 0 50px -8px rgba(177, 74, 255, 0.5);
@@ -476,6 +605,13 @@ body {
 .td-card p {
   margin: 0 0 1.25rem;
   color: var(--muted);
+}
+
+.td-best {
+  margin: -0.75rem 0 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--node);
 }
 
 .td-actions {
@@ -505,29 +641,7 @@ body {
   background: transparent;
   caret-color: transparent;
   pointer-events: none;
-  z-index: -1;
-}
-
-.tp-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 20;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-}
-
-.tp-bar {
-  position: absolute;
-  top: env(safe-area-inset-top, 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 10px;
-  padding: 6px 12px;
-  border-radius: 14px;
-  background: rgba(40, 18, 74, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
+  z-index: var(--z-hidden);
 }
 
 .tp-stat {
@@ -539,7 +653,7 @@ body {
 }
 
 .tp-stat + .tp-stat {
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid var(--border-mid);
 }
 
 .tp-buffer {
@@ -563,4 +677,216 @@ body {
   color: var(--node);
   font-family: 'SF Mono', 'Monaco', 'Cascadia Code', 'Consolas', monospace;
   letter-spacing: 0.04em;
+}
+
+/* ── Skip link (a11y) ──────────────────────────────────── */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.75rem 1.5rem;
+  background: var(--accent);
+  color: var(--white);
+  font-weight: 600;
+  border-radius: 0 0 12px 12px;
+  text-decoration: none;
+  z-index: var(--z-overlay);
+  transition: top 0.2s var(--ease-out-expo);
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* ── Focus indicators ─────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.game-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent);
+  box-shadow: 0 12px 30px -12px var(--accent);
+}
+
+.game-btn:focus-visible,
+.ug-btn:focus-visible,
+.td-build:focus-visible {
+  outline: 2px solid var(--node);
+  outline-offset: 2px;
+}
+
+.back-link:focus-visible {
+  outline: 2px solid var(--node);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+/* ── Text overflow protection ─────────────────────────── */
+.game-card h2,
+.td-build-name,
+.ug-stat-val,
+.td-stat-val,
+.tp-val {
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.game-card p {
+  overflow-wrap: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Hover / pointer adaptation ────────────────────────── */
+@media (hover: hover) {
+  .game-card:hover:not(.disabled) {
+    transform: translateY(-4px);
+    border-color: var(--accent);
+    box-shadow: 0 12px 30px -12px var(--accent);
+  }
+}
+
+/* ── Small-screen HUD compaction (≤480px) ─────────────── */
+@media (max-width: 480px) {
+  #app {
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .hub-header {
+    margin-bottom: 1.75rem;
+  }
+
+  .game-grid {
+    gap: 1rem;
+  }
+
+  .game-card {
+    padding: 1.25rem;
+  }
+
+  /* Untangle HUD */
+  .ug-bar {
+    gap: 10px;
+    padding: 6px 12px;
+  }
+
+  .ug-stat-val {
+    font-size: 1rem;
+  }
+
+  .ug-status {
+    font-size: 0.78rem;
+    padding-left: 10px;
+  }
+
+  /* Tower Defense HUD */
+  .td-top {
+    gap: 6px;
+    padding: 5px 8px;
+  }
+
+  .td-stat {
+    min-width: 50px;
+    padding: 0 4px;
+  }
+
+  .td-stat-val {
+    font-size: 0.88rem;
+  }
+
+  .td-stat-label {
+    font-size: 0.56rem;
+  }
+
+  .td-build {
+    min-width: 58px;
+    padding: 5px 6px;
+  }
+
+  .td-build-emoji {
+    font-size: 1.1rem;
+  }
+
+  .td-build-name {
+    font-size: 0.65rem;
+  }
+
+  .td-build-cost {
+    font-size: 0.6rem;
+  }
+
+  /* Type Rot HUD */
+  .tp-bar {
+    gap: 6px;
+    padding: 5px 8px;
+  }
+
+  .tp-stat {
+    min-width: 50px;
+    padding: 0 5px;
+  }
+
+  .tp-buffer {
+    min-width: 80px;
+  }
+
+  .tp-val {
+    font-size: 0.92rem;
+  }
+
+  .tp-label {
+    font-size: 0.56rem;
+  }
+}
+
+/* ── Landscape safe-area (notch on left/right) ────────── */
+@media (orientation: landscape) {
+  .back-link {
+    left: max(12px, env(safe-area-inset-left, 12px));
+  }
+
+  .ug-shuffle {
+    right: max(12px, env(safe-area-inset-right, 12px));
+  }
+
+  .td-bottom {
+    width: min(560px, calc(100vw - env(safe-area-inset-left, 10px) - env(safe-area-inset-right, 10px) - 20px));
+  }
+}
+
+/* ── Reduced motion ───────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Reduced transparency (low-end GPU / user preference) ── */
+@media (prefers-reduced-transparency: reduce) {
+  .hud-bar {
+    backdrop-filter: none;
+    background: var(--glass-bg-solid);
+  }
+  .back-link {
+    backdrop-filter: none;
+  }
+  .onboard-hint {
+    backdrop-filter: none;
+    background: rgba(13, 2, 33, 0.95);
+  }
+  .td-modal {
+    backdrop-filter: none;
+    background: rgba(13, 2, 33, 0.92);
+  }
 }
