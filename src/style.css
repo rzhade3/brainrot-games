@@ -871,3 +871,22 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Reduced transparency (low-end GPU / user preference) ── */
+@media (prefers-reduced-transparency: reduce) {
+  .hud-bar {
+    backdrop-filter: none;
+    background: var(--glass-bg-solid);
+  }
+  .back-link {
+    backdrop-filter: none;
+  }
+  .onboard-hint {
+    backdrop-filter: none;
+    background: rgba(13, 2, 33, 0.95);
+  }
+  .td-modal {
+    backdrop-filter: none;
+    background: rgba(13, 2, 33, 0.92);
+  }
+}
