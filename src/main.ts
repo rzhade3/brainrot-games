@@ -46,12 +46,12 @@ app.innerHTML = `
     <h1>Brainrot Games</h1>
     <p>A little arcade of browser games. Installable, offline-ready.</p>
   </header>
-  <main class="game-grid">
+  <main class="game-grid" role="list">
     ${games
       .map(
         (g) => `
-      <a class="game-card ${g.ready ? '' : 'disabled'}" href="${g.href}">
-        <span class="emoji">${g.emoji}</span>
+      <a class="game-card ${g.ready ? '' : 'disabled'}" ${g.ready ? `href="${g.href}"` : 'aria-disabled="true" tabindex="-1"'} role="listitem">
+        <span class="emoji" aria-hidden="true">${g.emoji}</span>
         <h2>${g.title}</h2>
         <p>${g.description}</p>
         <span class="badge ${g.ready ? '' : 'soon'}">${g.ready ? 'Play' : 'Coming soon'}</span>

@@ -104,7 +104,7 @@ export function createHud(): Hud {
     },
     setCastleHp(hp, max) {
       const pct = Math.max(0, Math.min(1, hp / max));
-      hpFillEl.style.width = `${pct * 100}%`;
+      hpFillEl.style.transform = `scaleX(${pct})`;
       hpFillEl.classList.toggle('td-crit', pct < 0.3);
     },
     updateBuildMenu(ore, selected) {

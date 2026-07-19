@@ -20,6 +20,14 @@ export function getRenderScale(): number {
   return Math.min(window.devicePixelRatio || 1, 3);
 }
 
+/**
+ * Whether the user prefers reduced motion. Games should check this and
+ * skip/shorten non-essential animations (e.g. collapse sequences, idle drift).
+ */
+export const prefersReducedMotion: boolean =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 export type CreateGameOptions = {
   scene: Phaser.Types.Scenes.SceneType | Phaser.Types.Scenes.SceneType[];
   backgroundColor?: string;
