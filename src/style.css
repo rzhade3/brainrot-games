@@ -152,6 +152,13 @@ body {
   color: var(--accent-2);
 }
 
+.best-score {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--node);
+  margin-top: auto;
+}
+
 /* Shared game page styles */
 .game-page {
   margin: 0;
@@ -598,6 +605,13 @@ body {
 .td-card p {
   margin: 0 0 1.25rem;
   color: var(--muted);
+}
+
+.td-best {
+  margin: -0.75rem 0 1.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--node);
 }
 
 .td-actions {

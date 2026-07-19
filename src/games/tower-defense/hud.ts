@@ -12,7 +12,7 @@ export interface Hud {
   setCastleHp(hp: number, max: number): void;
   /** Reflect which building kinds are currently affordable + selected. */
   updateBuildMenu(ore: number, selected: BuildingKind | null): void;
-  showGameOver(waves: number): void;
+  showGameOver(waves: number, best: number): void;
   hideGameOver(): void;
   destroy(): void;
 
@@ -57,6 +57,7 @@ export function createHud(): Hud {
         <div class="td-emoji">💥</div>
         <h2>Castle destroyed</h2>
         <p id="td-modal-sub">You survived 0 waves</p>
+        <p class="td-best" id="td-modal-best"></p>
         <div class="td-actions">
           <button class="game-btn td-primary" id="td-restart">Play again</button>
           <button class="game-btn" id="td-hub">Back to hub</button>
@@ -74,6 +75,7 @@ export function createHud(): Hud {
   const startBtn = overlay.querySelector<HTMLButtonElement>('#td-start')!;
   const modalEl = overlay.querySelector<HTMLElement>('#td-modal')!;
   const subEl = overlay.querySelector<HTMLElement>('#td-modal-sub')!;
+  const bestEl = overlay.querySelector<HTMLElement>('#td-modal-best')!;
   const restartBtn = overlay.querySelector<HTMLButtonElement>('#td-restart')!;
   const hubBtn = overlay.querySelector<HTMLButtonElement>('#td-hub')!;
   const buildEls = [...overlay.querySelectorAll<HTMLButtonElement>('.td-build')];
@@ -115,8 +117,10 @@ export function createHud(): Hud {
         el.classList.toggle('td-selected', selected === kind);
       }
     },
-    showGameOver(waves) {
+    showGameOver(waves, best) {
       subEl.textContent = `You survived ${waves} wave${waves === 1 ? '' : 's'}`;
+      bestEl.textContent = `Best: ${best} wave${best === 1 ? '' : 's'}`;
+      bestEl.hidden = best <= 0;
       modalEl.hidden = false;
     },
     hideGameOver() {

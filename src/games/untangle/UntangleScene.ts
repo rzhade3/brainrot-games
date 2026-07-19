@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, getRenderScale, prefersReducedMotion } from '../../core/createGame';
+import { submitScore } from '../../core/scores';
 import { Point, segmentsIntersect } from './geometry';
 import { generateClusterGraph } from './clusters';
 import type { Hud } from './hud';
@@ -402,6 +403,7 @@ export default class UntangleScene extends Phaser.Scene {
 
     this.score += members.length;
     this.hud.setScore(this.score);
+    submitScore('untangle', this.score);
 
     this.tweens.add({
       targets: arcs,

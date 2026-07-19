@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS, getRenderScale } from '../../core/createGame';
+import { submitScore } from '../../core/scores';
 import { Grid, GridLayout, tileCenter, worldToTile } from './grid';
 import { Building, BuildingKind, BuildingManager, BUILDINGS } from './buildings';
 import { Economy } from './economy';
@@ -295,9 +296,10 @@ export default class TowerDefenseScene extends Phaser.Scene {
     this.gameOver = true;
     this.castleHp = 0;
     const survived = this.waves.phase === 'wave' ? Math.max(0, this.waves.number - 1) : this.waves.number;
+    const best = submitScore('tower-defense', survived);
     this.syncHud();
     this.render();
-    this.hud.showGameOver(survived);
+    this.hud.showGameOver(survived, best);
   }
 
   // ── HUD + rendering ───────────────────────────────────

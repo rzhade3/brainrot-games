@@ -1,4 +1,5 @@
 import dictionaryText from './dictionary.txt?raw';
+import { getBestScore, submitScore } from '../../core/scores';
 
 /**
  * Type Rot — a port of the standalone typing-game into brainrot-games.
@@ -79,24 +80,8 @@ const scoreEl = hud.querySelector<HTMLElement>('#tp-score')!;
 const speedEl = hud.querySelector<HTMLElement>('#tp-speed')!;
 const bufEl = hud.querySelector<HTMLElement>('#tp-buf')!;
 
-// ── High score (localStorage) ─────────────────────────────
-const HS_KEY = 'brainrotTypingHighScore';
-const getHighScore = (): number => {
-  try {
-    const stored = localStorage.getItem(HS_KEY);
-    return stored ? parseInt(stored, 10) : 0;
-  } catch {
-    return 0;
-  }
-};
-const setHighScore = (value: number): void => {
-  try {
-    localStorage.setItem(HS_KEY, String(value));
-  } catch {
-    /* ignore storage errors */
-  }
-};
-let highScore = getHighScore();
+// ── High score (shared persistence) ───────────────────────
+let highScore = getBestScore('typing');
 
 // ── Game state ────────────────────────────────────────────
 class Word {
@@ -131,7 +116,7 @@ const initialize = (): void => {
   scoreEl.innerText = String(score);
   speedEl.innerText = String(speed);
   bufEl.innerText = buffer || '...';
-  highScore = getHighScore();
+  highScore = getBestScore('typing');
 };
 
 const findNonOverlappingY = (): number => {
@@ -288,10 +273,7 @@ const drawGameOver = (): void => {
 
 const gameOverUpdate = (): void => {
   lastFinalScore = score;
-  if (lastFinalScore > highScore) {
-    highScore = lastFinalScore;
-    setHighScore(highScore);
-  }
+  highScore = submitScore('typing', lastFinalScore);
   initialize();
   currentScreenRedraw = drawGameOver;
   drawGameOver();
