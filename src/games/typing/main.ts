@@ -66,9 +66,9 @@ const sizeCanvas = (): void => {
 
 // ── HUD overlay (DOM, themed) ─────────────────────────────
 const hud = document.createElement('div');
-hud.className = 'tp-overlay';
+hud.className = 'hud-overlay tp-overlay';
 hud.innerHTML = `
-  <div class="tp-bar">
+  <div class="hud-bar tp-bar">
     <div class="tp-stat"><span class="tp-label">Score</span><span class="tp-val" id="tp-score">0</span></div>
     <div class="tp-stat"><span class="tp-label">Speed</span><span class="tp-val" id="tp-speed">0</span></div>
     <div class="tp-stat tp-buffer"><span class="tp-label">Buffer</span><span class="tp-val" id="tp-buf">...</span></div>

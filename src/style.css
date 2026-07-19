@@ -16,6 +16,32 @@
   --z-hidden: -1;
   --z-nav: 10;
   --z-overlay: 20;
+
+  /* Surfaces (translucent glass layers) */
+  --glass-bg: rgba(40, 18, 74, 0.72);
+  --glass-bg-solid: rgba(40, 18, 74, 0.85);
+  --btn-bg: rgba(58, 26, 104, 0.9);
+  --build-bg: rgba(34, 21, 66, 0.92);
+
+  /* Borders (white at varying opacity) */
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --border-mid: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-hover: rgba(255, 255, 255, 0.25);
+
+  /* Radii */
+  --radius-sm: 12px;
+  --radius-bar: 14px;
+  --radius-card: 16px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Touch */
+  --touch-min: 44px;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
@@ -69,15 +95,15 @@ body {
   flex-direction: column;
   gap: 0.5rem;
   padding: 1.5rem;
-  border-radius: 16px;
+  border-radius: var(--radius-card);
   background: var(--card);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-subtle);
   text-decoration: none;
   color: inherit;
   cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s var(--ease-out-expo),
+              border-color 0.2s var(--ease-out-expo),
+              box-shadow 0.2s var(--ease-out-expo);
 }
 
 .game-card:active {
@@ -116,7 +142,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   padding: 0.2rem 0.55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(124, 92, 255, 0.18);
   color: var(--accent);
 }
@@ -146,17 +172,17 @@ body {
   left: 12px;
   z-index: var(--z-nav);
   padding: 0.5rem 0.9rem;
-  min-height: 44px;
+  min-height: var(--touch-min);
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
-  background: rgba(40, 18, 74, 0.85);
+  border-radius: var(--radius-pill);
+  background: var(--glass-bg-solid);
   color: var(--text);
   text-decoration: none;
   font-size: 0.9rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--border-mid);
   backdrop-filter: blur(6px);
-  transition: border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.2s var(--ease-out-expo);
 }
 
 @media (hover: hover) {
@@ -165,8 +191,8 @@ body {
   }
 }
 
-/* ── Untangle HUD overlay ─────────────────────────────── */
-.ug-overlay {
+/* ── Shared HUD patterns ──────────────────────────────── */
+.hud-overlay {
   position: fixed;
   inset: 0;
   pointer-events: none;
@@ -174,20 +200,67 @@ body {
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
-.ug-bar {
+.hud-bar {
   position: absolute;
   top: env(safe-area-inset-top, 12px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: var(--radius-bar);
+  background: var(--glass-bg);
+  border: 1px solid var(--border-soft);
+  backdrop-filter: blur(8px);
+}
+
+.hud-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.hud-val {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.game-btn {
+  pointer-events: auto;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--btn-bg);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-pill);
+  padding: 0.5rem 1.2rem;
+  min-height: var(--touch-min);
+  cursor: pointer;
+  transition: background 0.2s var(--ease-out-expo),
+              border-color 0.2s var(--ease-out-expo),
+              transform 0.1s var(--ease-out-expo);
+}
+
+@media (hover: hover) {
+  .game-btn:hover {
+    background: var(--accent-hover);
+    border-color: var(--accent);
+  }
+}
+
+.game-btn:active {
+  transform: scale(0.96);
+}
+
+/* ── Untangle HUD overlay ─────────────────────────────── */
+
+.ug-bar {
   flex-direction: row;
   align-items: center;
   gap: 16px;
   padding: 8px 18px;
-  border-radius: 14px;
-  background: rgba(40, 18, 74, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
   text-align: center;
 }
 
@@ -219,7 +292,7 @@ body {
 .ug-status {
   font-size: 0.85rem;
   color: var(--muted);
-  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 1px solid var(--border-strong);
   padding-left: 16px;
 }
 
@@ -229,30 +302,7 @@ body {
 }
 
 .ug-btn {
-  pointer-events: auto;
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--text);
-  background: rgba(58, 26, 104, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
   padding: 0.5rem 1rem;
-  min-height: 44px;
-  cursor: pointer;
-  transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@media (hover: hover) {
-  .ug-btn:hover {
-    background: var(--accent-hover);
-    border-color: var(--accent);
-  }
-}
-
-.ug-btn:active {
-  transform: scale(0.96);
 }
 
 .ug-shuffle {
@@ -273,26 +323,10 @@ body {
 }
 
 /* ── Castle Defense HUD overlay ───────────────────────── */
-.td-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: var(--z-overlay);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-}
 
 .td-top {
-  position: absolute;
-  top: env(safe-area-inset-top, 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
   gap: 10px;
   padding: 6px 10px;
-  border-radius: 14px;
-  background: rgba(40, 18, 74, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
 }
 
 .td-stat {
@@ -304,7 +338,7 @@ body {
 }
 
 .td-stat + .td-stat {
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid var(--border-mid);
 }
 
 .td-stat-label {
@@ -348,7 +382,7 @@ body {
 .td-hpbar {
   width: 100%;
   height: 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: rgba(255, 255, 255, 0.12);
   overflow: hidden;
 }
@@ -356,10 +390,10 @@ body {
 .td-hpfill {
   height: 100%;
   width: 100%;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: linear-gradient(90deg, var(--good), var(--node));
   transform-origin: left center;
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s var(--ease-out-expo);
 }
 
 .td-hpfill.td-crit {
@@ -392,22 +426,22 @@ body {
   align-items: center;
   gap: 1px;
   min-width: 68px;
-  min-height: 44px;
+  min-height: var(--touch-min);
   padding: 6px 8px;
   font: inherit;
   color: var(--text);
-  background: rgba(34, 21, 66, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 12px;
+  background: var(--build-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              background 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.1s var(--ease-out-expo),
+              border-color 0.2s var(--ease-out-expo),
+              background 0.2s var(--ease-out-expo);
 }
 
 @media (hover: hover) {
   .td-build:hover {
-    border-color: rgba(255, 255, 255, 0.25);
+    border-color: var(--border-hover);
     background: rgba(58, 26, 104, 0.7);
   }
 }
@@ -440,34 +474,7 @@ body {
   opacity: 0.42;
 }
 
-.td-btn {
-  pointer-events: auto;
-  font: inherit;
-  font-size: 0.95rem;
-  color: var(--text);
-  background: rgba(58, 26, 104, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 999px;
-  padding: 0.5rem 1.2rem;
-  min-height: 44px;
-  cursor: pointer;
-  transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              border-color 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-@media (hover: hover) {
-  .td-btn:hover {
-    background: var(--accent-hover);
-    border-color: var(--accent);
-  }
-}
-
-.td-btn:active {
-  transform: scale(0.96);
-}
-
-.td-btn.td-primary {
+.game-btn.td-primary {
   background: var(--accent);
   border-color: transparent;
   color: var(--white);
@@ -475,12 +482,12 @@ body {
 }
 
 @media (hover: hover) {
-  .td-btn.td-primary:hover {
+  .game-btn.td-primary:hover {
     background: var(--accent-hover);
   }
 }
 
-.td-btn[hidden] {
+.game-btn[hidden] {
   display: none;
 }
 
@@ -502,7 +509,7 @@ body {
 .td-card {
   width: min(360px, calc(100vw - 40px));
   padding: 1.75rem 1.5rem;
-  border-radius: 18px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   border: 1px solid rgba(255, 46, 151, 0.4);
   box-shadow: 0 0 50px -8px rgba(177, 74, 255, 0.5);
@@ -555,28 +562,6 @@ body {
   z-index: var(--z-hidden);
 }
 
-.tp-overlay {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: var(--z-overlay);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-}
-
-.tp-bar {
-  position: absolute;
-  top: env(safe-area-inset-top, 12px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 10px;
-  padding: 6px 12px;
-  border-radius: 14px;
-  background: rgba(40, 18, 74, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(8px);
-}
-
 .tp-stat {
   display: flex;
   flex-direction: column;
@@ -586,7 +571,7 @@ body {
 }
 
 .tp-stat + .tp-stat {
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: 1px solid var(--border-mid);
 }
 
 .tp-buffer {
@@ -625,7 +610,7 @@ body {
   border-radius: 0 0 12px 12px;
   text-decoration: none;
   z-index: var(--z-overlay);
-  transition: top 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: top 0.2s var(--ease-out-expo);
 }
 
 .skip-link:focus {
@@ -645,8 +630,8 @@ body {
   box-shadow: 0 12px 30px -12px var(--accent);
 }
 
+.game-btn:focus-visible,
 .ug-btn:focus-visible,
-.td-btn:focus-visible,
 .td-build:focus-visible {
   outline: 2px solid var(--node);
   outline-offset: 2px;

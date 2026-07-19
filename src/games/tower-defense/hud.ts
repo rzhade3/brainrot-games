@@ -24,7 +24,7 @@ export interface Hud {
 
 export function createHud(): Hud {
   const overlay = document.createElement('div');
-  overlay.className = 'td-overlay';
+  overlay.className = 'hud-overlay td-overlay';
 
   const buildButtons = BUILD_ORDER.map((kind) => {
     const d = BUILDINGS[kind];
@@ -36,7 +36,7 @@ export function createHud(): Hud {
   }).join('');
 
   overlay.innerHTML = `
-    <div class="td-top">
+    <div class="hud-bar td-top">
       <div class="td-stat"><span class="td-stat-label">Ore</span><span class="td-stat-val" id="td-ore">0</span></div>
       <div class="td-stat"><span class="td-stat-label">Energy</span><span class="td-stat-val" id="td-energy">0 / 0</span></div>
       <div class="td-stat td-wave-stat"><span class="td-stat-label" id="td-wave-label">Prep</span><span class="td-stat-val" id="td-wave">1</span></div>
@@ -49,7 +49,7 @@ export function createHud(): Hud {
 
     <div class="td-bottom">
       <div class="td-build-menu">${buildButtons}</div>
-      <button class="td-btn td-primary" id="td-start">Start wave →</button>
+      <button class="game-btn td-primary" id="td-start">Start wave →</button>
     </div>
 
     <div class="td-modal" id="td-modal" hidden>
@@ -58,8 +58,8 @@ export function createHud(): Hud {
         <h2>Castle destroyed</h2>
         <p id="td-modal-sub">You survived 0 waves</p>
         <div class="td-actions">
-          <button class="td-btn td-primary" id="td-restart">Play again</button>
-          <button class="td-btn" id="td-hub">Back to hub</button>
+          <button class="game-btn td-primary" id="td-restart">Play again</button>
+          <button class="game-btn" id="td-hub">Back to hub</button>
         </div>
       </div>
     </div>

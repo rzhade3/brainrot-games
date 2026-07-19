@@ -15,14 +15,14 @@ export interface Hud {
 
 export function createHud(): Hud {
   const overlay = document.createElement('div');
-  overlay.className = 'ug-overlay';
+  overlay.className = 'hud-overlay ug-overlay';
   overlay.innerHTML = `
-    <div class="ug-bar">
+    <div class="hud-bar ug-bar">
       <span class="ug-stat"><span class="ug-stat-label">Untangled</span><span class="ug-stat-val" id="ug-score">0</span></span>
       <span class="ug-stat"><span class="ug-stat-label">Depth</span><span class="ug-stat-val" id="ug-depth">0</span></span>
       <span class="ug-status" id="ug-status">—</span>
     </div>
-    <button class="ug-btn ug-shuffle" id="ug-shuffle">↻ Shuffle</button>
+    <button class="game-btn ug-btn ug-shuffle" id="ug-shuffle">↻ Shuffle</button>
   `;
   document.body.appendChild(overlay);
 
