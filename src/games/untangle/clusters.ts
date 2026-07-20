@@ -1,4 +1,4 @@
-import { Point, segmentsIntersect } from './geometry';
+import { Point, segmentsIntersect, edgesShareNode } from './geometry';
 
 export type ClusterGraph = {
   /** Node start positions, normalized to 0..1 (scrambled / tangled). */
@@ -42,8 +42,9 @@ export function generateClusterGraph(size: number): ClusterGraph {
   const maxDegree = 4;
 
   const crossesExisting = (a: number, b: number): boolean => {
-    for (const [c, d] of edges) {
-      if (a === c || a === d || b === c || b === d) continue;
+    for (const edge of edges) {
+      if (edgesShareNode([a, b], edge)) continue;
+      const [c, d] = edge;
       if (segmentsIntersect(solution[a], solution[b], solution[c], solution[d])) {
         return true;
       }

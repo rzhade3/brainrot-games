@@ -1,17 +1,21 @@
 import Phaser from 'phaser';
 import { COLORS, getRenderScale, prefersReducedMotion } from '../../core/createGame';
 import { submitScore } from '../../core/scores';
-import { Point, segmentsIntersect } from './geometry';
+import { Point, segmentsIntersect, edgesShareNode } from './geometry';
 import { generateClusterGraph } from './clusters';
 import type { Hud } from './hud';
 
 // A single tangled graph fills the screen. Untangle it fully and it collapses
-// into one super-node; the camera then zooms out so that node becomes one
-// vertex of the next, larger graph. World is centred on (0,0) and everything is
-// sized relative to `viewRadius`, so apparent (on-screen) sizes stay constant
-// as the camera zooms out level after level.
+// into one super-node; the world then "zooms out" so that node becomes one
+// vertex of the next graph. World is centred on (0,0) and sized relative to a
+// constant `viewRadius`, so the camera never moves. The zoom-out is faked by
+// `zoomScale`: a freshly revealed graph starts enlarged/spread out (zoomScale =
+// GROWTH) and shrinks its nodes, edges and positions down to true size
+// (zoomScale = 1). Coordinates therefore never exceed ~GROWTH × viewRadius, so
+// they stay well within 32-bit float precision no matter how many levels pass —
+// the old approach grew the world unboundedly and nodes vanished around level 15+.
 const INITIAL_VIEW_RADIUS = 1000;
-const GROWTH = 2; // view-radius multiplier per zoom-out
+const GROWTH = 2; // apparent zoom-out factor applied to each freshly revealed graph
 const PAD = 1.12; // fraction of extra margin around the fitted view
 const NODE_FRAC = 0.04; // base node radius as a fraction of viewRadius
 const EDGE_FRAC = 0.006; // edge line width as a fraction of viewRadius
@@ -29,7 +33,6 @@ const POP_IN_MS = prefersReducedMotion ? 1 : 360;
 
 interface GNode {
   id: number;
-  level: number; // 0 = base node, +1 each time it results from a collapse
   bx: number; // base world position (target the node "wants" to sit at)
   by: number;
   x: number; // live display position (base + idle drift)
@@ -54,7 +57,8 @@ export default class UntangleScene extends Phaser.Scene {
 
   private dpr = 1;
   private uiScale = 1; // >1 on mobile so nodes / strings are easier to see & grab
-  private viewRadius = INITIAL_VIEW_RADIUS;
+  private viewRadius = INITIAL_VIEW_RADIUS; // constant sizing base; the camera never moves
+  private zoomScale = 1; // >1 during a reveal to fake a zoom-out, animating back to 1
   private depth = 0;
   private score = 0; // cumulative nodes untangled
 
@@ -83,11 +87,11 @@ export default class UntangleScene extends Phaser.Scene {
     this.input.on('pointerup', () => this.onPointerUp());
     this.input.on('pointerupoutside', () => this.onPointerUp());
 
-    this.scale.on('resize', () => this.fitCamera(false));
+    this.scale.on('resize', () => this.fitCamera());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.hud?.destroy());
 
     this.cameras.main.centerOn(0, 0);
-    this.fitCamera(false);
+    this.fitCamera();
 
     this.hud.setScore(0);
     this.hud.setDepth(0);
@@ -95,14 +99,15 @@ export default class UntangleScene extends Phaser.Scene {
     this.redraw();
   }
 
-  /** Per-frame idle drift: nodes gently float around their base positions. */
+  /** Per-frame idle drift: nodes gently float around their (scaled) base positions. */
   update(time: number): void {
     if (this.nodes.size === 0) return;
-    const amp = this.nodeBaseRadius * FLOAT_AMP;
+    const s = this.zoomScale;
+    const amp = this.nodeBaseRadius * FLOAT_AMP * s;
     for (const n of this.nodes.values()) {
       if (n.id === this.dragId) continue; // dragged node tracks the pointer exactly
-      n.x = n.bx + Math.sin(time * n.sp1 + n.ph1) * amp;
-      n.y = n.by + Math.cos(time * n.sp2 + n.ph2) * amp;
+      n.x = n.bx * s + Math.sin(time * n.sp1 + n.ph1) * amp;
+      n.y = n.by * s + Math.cos(time * n.sp2 + n.ph2) * amp;
       n.arc.setPosition(n.x, n.y);
     }
     this.redraw();
@@ -118,10 +123,10 @@ export default class UntangleScene extends Phaser.Scene {
     return this.viewRadius * NODE_FRAC * this.uiScale;
   }
   private nodeRadius(): number {
-    return this.nodeBaseRadius;
+    return this.nodeBaseRadius * this.zoomScale;
   }
   private get edgeWidth(): number {
-    return this.viewRadius * EDGE_FRAC * this.uiScale;
+    return this.viewRadius * EDGE_FRAC * this.uiScale * this.zoomScale;
   }
   private get grabRadiusWorld(): number {
     return Math.max(
@@ -133,16 +138,11 @@ export default class UntangleScene extends Phaser.Scene {
     return Math.min(BASE_SIZE + this.depth, MAX_SIZE);
   }
 
-  private fitCamera(animate: boolean): void {
+  private fitCamera(): void {
     const cam = this.cameras.main;
     const zoom = Math.min(cam.width, cam.height) / (2 * this.viewRadius * PAD);
-    if (animate) {
-      cam.pan(0, 0, MOVE_MS, 'Sine.easeInOut');
-      cam.zoomTo(zoom, MOVE_MS, 'Sine.easeInOut');
-    } else {
-      cam.centerOn(0, 0);
-      cam.setZoom(zoom);
-    }
+    cam.centerOn(0, 0);
+    cam.setZoom(zoom);
   }
 
   /**
@@ -165,14 +165,13 @@ export default class UntangleScene extends Phaser.Scene {
   }
 
   // ── Node / graph construction ─────────────────────────────────────────────
-  private makeNode(level: number, x: number, y: number): number {
+  private makeNode(x: number, y: number): number {
     const id = this.nextNodeId++;
     const r = this.nodeRadius();
     const arc = this.add.circle(x, y, r, COLORS.node).setDepth(4);
     arc.setStrokeStyle(Math.max(1, r * 0.18), 0xffffff, 0.9);
     this.nodes.set(id, {
       id,
-      level,
       bx: x,
       by: y,
       x,
@@ -197,7 +196,7 @@ export default class UntangleScene extends Phaser.Scene {
 
     const pool: number[] = [];
     if (carryId != null) pool.push(carryId);
-    while (pool.length < size) pool.push(this.makeNode(0, 0, 0));
+    while (pool.length < size) pool.push(this.makeNode(0, 0));
     Phaser.Utils.Array.Shuffle(pool);
 
     const nodeIds: number[] = [];
@@ -306,9 +305,9 @@ export default class UntangleScene extends Phaser.Scene {
     const crossing = new Array(edges.length).fill(false);
     for (let a = 0; a < edges.length; a++) {
       for (let b = a + 1; b < edges.length; b++) {
+        if (edgesShareNode(edges[a], edges[b])) continue;
         const [a1, a2] = edges[a];
         const [b1, b2] = edges[b];
-        if (a1 === b1 || a1 === b2 || a2 === b1 || a2 === b2) continue;
         if (
           segmentsIntersect(
             this.nodePoint(nodeIds[a1]),
@@ -413,7 +412,6 @@ export default class UntangleScene extends Phaser.Scene {
     const members = graph.nodeIds.map((id) => this.nodes.get(id)!).filter(Boolean);
     const cx = members.reduce((s, n) => s + n.x, 0) / members.length;
     const cy = members.reduce((s, n) => s + n.y, 0) / members.length;
-    const level = Math.max(...members.map((n) => n.level)) + 1;
 
     const arcs = members.map((n) => n.arc);
     for (const n of members) this.nodes.delete(n.id);
@@ -431,7 +429,7 @@ export default class UntangleScene extends Phaser.Scene {
       ease: 'Quad.easeIn',
       onComplete: () => {
         arcs.forEach((a) => a.destroy());
-        const id = this.makeNode(level, cx, cy);
+        const id = this.makeNode(cx, cy);
         const n = this.nodes.get(id)!;
         n.arc.setScale(0);
         this.tweens.add({ targets: n.arc, scale: 1, duration: POP_MS, ease: 'Back.easeOut' });
@@ -445,16 +443,45 @@ export default class UntangleScene extends Phaser.Scene {
   private reveal(superId: number): void {
     this.depth++;
     this.hud.setDepth(this.depth);
-    this.viewRadius *= GROWTH;
 
     this.buildGraph(superId);
-    this.fitCamera(true);
+    this.zoomOutReveal();
     this.redraw();
+  }
 
-    this.time.delayedCall(MOVE_MS + 80, () => {
-      this.revealing = false;
-      this.redraw();
+  /**
+   * Fake a zoom-out without moving the camera: the freshly built graph starts
+   * enlarged and spread out (`zoomScale` = GROWTH) and shrinks to its true size
+   * (`zoomScale` = 1). Positions (via `update`), node radii and edge widths are
+   * all derived from `zoomScale`, so the whole graph appears to recede into
+   * place. Because coordinates never exceed ~GROWTH × viewRadius, 32-bit float
+   * precision stays intact no matter how deep the run goes.
+   */
+  private zoomOutReveal(): void {
+    this.zoomScale = GROWTH;
+    this.applyNodeScale();
+    this.tweens.add({
+      targets: this,
+      zoomScale: 1,
+      duration: MOVE_MS,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => this.applyNodeScale(),
+      onComplete: () => {
+        this.zoomScale = 1;
+        this.applyNodeScale();
+        this.revealing = false;
+        this.redraw();
+      },
     });
+  }
+
+  /** Resize every node's arc to match the current `zoomScale`. */
+  private applyNodeScale(): void {
+    const r = this.nodeRadius();
+    for (const n of this.nodes.values()) {
+      n.arc.setRadius(r);
+      n.arc.setStrokeStyle(Math.max(1, r * 0.18), 0xffffff, 0.9);
+    }
   }
 
   // ── Shuffle (re-scramble the current graph) ───────────────────────────────
