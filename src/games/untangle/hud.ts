@@ -17,12 +17,15 @@ export function createHud(): Hud {
   const overlay = document.createElement('div');
   overlay.className = 'hud-overlay ug-overlay';
   overlay.innerHTML = `
-    <div class="hud-bar ug-bar">
-      <span class="ug-stat"><span class="ug-stat-label">Untangled</span><span class="ug-stat-val" id="ug-score">0</span></span>
-      <span class="ug-stat"><span class="ug-stat-label">Depth</span><span class="ug-stat-val" id="ug-depth">0</span></span>
-      <span class="ug-status" id="ug-status">—</span>
+    <div class="hud-topbar">
+      <a class="back-link" href="../../">← Hub</a>
+      <div class="hud-bar ug-bar">
+        <span class="ug-stat"><span class="ug-stat-label">Untangled</span><span class="ug-stat-val" id="ug-score">0</span></span>
+        <span class="ug-stat"><span class="ug-stat-label">Depth</span><span class="ug-stat-val" id="ug-depth">0</span></span>
+        <span class="ug-status" id="ug-status">—</span>
+      </div>
+      <button class="game-btn ug-btn ug-shuffle" id="ug-shuffle">↻ Shuffle</button>
     </div>
-    <button class="game-btn ug-btn ug-shuffle" id="ug-shuffle">↻ Shuffle</button>
   `;
   document.body.appendChild(overlay);
 

@@ -36,10 +36,13 @@ export function createHud(): Hud {
   }).join('');
 
   overlay.innerHTML = `
-    <div class="hud-bar td-top">
-      <div class="td-stat"><span class="td-stat-label">Ore</span><span class="td-stat-val" id="td-ore">0</span></div>
-      <div class="td-stat"><span class="td-stat-label">Energy</span><span class="td-stat-val" id="td-energy">0 / 0</span></div>
-      <div class="td-stat td-wave-stat"><span class="td-stat-label" id="td-wave-label">Prep</span><span class="td-stat-val" id="td-wave">1</span></div>
+    <div class="hud-topbar">
+      <a class="back-link" href="../../">← Hub</a>
+      <div class="hud-bar td-top">
+        <div class="td-stat"><span class="td-stat-label">Ore</span><span class="td-stat-val" id="td-ore">0</span></div>
+        <div class="td-stat"><span class="td-stat-label">Energy</span><span class="td-stat-val" id="td-energy">0 / 0</span></div>
+        <div class="td-stat td-wave-stat"><span class="td-stat-label" id="td-wave-label">Prep</span><span class="td-stat-val" id="td-wave">1</span></div>
+      </div>
     </div>
 
     <div class="td-castle">

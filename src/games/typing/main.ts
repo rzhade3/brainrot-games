@@ -69,10 +69,13 @@ const sizeCanvas = (): void => {
 const hud = document.createElement('div');
 hud.className = 'hud-overlay tp-overlay';
 hud.innerHTML = `
-  <div class="hud-bar tp-bar">
-    <div class="tp-stat"><span class="tp-label">Score</span><span class="tp-val" id="tp-score">0</span></div>
-    <div class="tp-stat"><span class="tp-label">Speed</span><span class="tp-val" id="tp-speed">0</span></div>
-    <div class="tp-stat tp-buffer"><span class="tp-label">Buffer</span><span class="tp-val" id="tp-buf">...</span></div>
+  <div class="hud-topbar">
+    <a class="back-link" href="../../">← Hub</a>
+    <div class="hud-bar tp-bar">
+      <div class="tp-stat"><span class="tp-label">Score</span><span class="tp-val" id="tp-score">0</span></div>
+      <div class="tp-stat"><span class="tp-label">Speed</span><span class="tp-val" id="tp-speed">0</span></div>
+      <div class="tp-stat tp-buffer"><span class="tp-label">Buffer</span><span class="tp-val" id="tp-buf">...</span></div>
+    </div>
   </div>
 `;
 document.body.appendChild(hud);
