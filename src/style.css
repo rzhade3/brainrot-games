@@ -65,7 +65,7 @@ body {
 #app {
   max-width: 960px;
   margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
+  padding: calc(2rem + env(safe-area-inset-top, 0px)) 1.25rem 4rem;
 }
 
 .hub-header {
@@ -801,7 +801,7 @@ body {
 /* ── Small-screen HUD compaction (≤480px) ─────────────── */
 @media (max-width: 480px) {
   #app {
-    padding: 1.5rem 1rem 3rem;
+    padding: calc(1.5rem + env(safe-area-inset-top, 0px)) 1rem 3rem;
   }
 
   .hub-header {
