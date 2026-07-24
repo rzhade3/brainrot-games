@@ -3,7 +3,7 @@ import { resolve } from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: './',
+  base: '/',
   build: {
     rollupOptions: {
       input: {
@@ -29,7 +29,8 @@ export default defineConfig({
         theme_color: '#0d0221',
         background_color: '#0d0221',
         display: 'standalone',
-        start_url: './',
+        scope: '/',
+        start_url: '/',
         icons: [
           {
             src: 'icons/icon-192.png',
