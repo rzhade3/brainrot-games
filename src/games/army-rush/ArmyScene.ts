@@ -143,28 +143,64 @@ function buildGatePair(level: number, armyEst: number): { left: Gate; right: Gat
   return { left: makeGate(L[0], L[1]), right: makeGate(R[0], R[1]) };
 }
 
-function buildLevel(level: number, gameW: number): WorldObject[] {
+/**
+ * Builds a level guaranteed to be passable with optimal play.
+ *
+ * Algorithm:
+ *   1. Generate gate pairs using the player's actual current army for scaling.
+ *   2. Simulate the optimal path (always take the numerically better gate).
+ *   3. After each gate, cap the enemy-wall count so it never exceeds half
+ *      the optimal army, ensuring ≥ half always survives each wall.
+ *   4. Set boss HP = 75 % of the optimal army that arrives at the boss
+ *      (beatable by anyone who played reasonably, not just perfectly).
+ */
+function buildLevel(level: number, gameW: number, startArmy: number): WorldObject[] {
   const gateCount = 2 + Math.floor(level / 2);
   const maxCols = Math.floor((gameW - LANE_PAD * 2) / (ENEMY_RADIUS * 2 + 5));
+
+  const gatePairs: { left: Gate; right: Gate }[] = [];
+  const enemyCounts: number[] = [];
+
+  // Simulate optimal path while generating, adjusting enemy counts as needed.
+  let optArmy = Math.max(startArmy, 1);
+
+  for (let i = 0; i < gateCount; i++) {
+    const pair = buildGatePair(level, optArmy);
+    gatePairs.push(pair);
+
+    // Optimal choice: whichever gate yields the larger army
+    const afterLeft  = applyGate(optArmy, pair.left);
+    const afterRight = applyGate(optArmy, pair.right);
+    optArmy = Math.max(afterLeft, afterRight);
+
+    // Enemy wall: cap at half the optimal army so the player always survives
+    const rawCount = Math.min(4 + level * 2 + i * 2, maxCols * 2);
+    const count = Math.max(0, Math.min(rawCount, Math.floor(optArmy / 2)));
+    enemyCounts.push(count);
+    optArmy -= count;
+  }
+
+  // Safety floor so boss HP maths can't go negative
+  optArmy = Math.max(optArmy, 2);
+
+  // Boss is strictly beatable with optimal play; requires decent play in practice
+  const bossHp = Math.min(Math.floor(optArmy * 0.75), optArmy - 1);
+
+  // Build world objects
   const objects: WorldObject[] = [];
-  let armyEst = 10;
   let y = SECTION * 0.6;
 
   for (let i = 0; i < gateCount; i++) {
-    const { left, right } = buildGatePair(level, armyEst);
-    objects.push({ type: 'gate', worldY: y, left, right, triggered: false, chosenSide: null });
-    armyEst = Math.max(1, applyGate(armyEst, Math.random() < 0.5 ? left : right));
+    objects.push({ type: 'gate', worldY: y, left: gatePairs[i].left, right: gatePairs[i].right, triggered: false, chosenSide: null });
     y += SECTION;
 
-    const count = Math.min(4 + level * 2 + i * 2, maxCols * 2);
-    const spread = 12 + Math.sqrt(count) * 5;
+    const count = enemyCounts[i];
+    const spread = 12 + Math.sqrt(Math.max(count, 1)) * 5;
     objects.push({ type: 'enemies', worldY: y, count, triggered: false, offsets: buildHordeOffsets(count, spread) });
     y += SECTION;
   }
 
-  const bossHp = Math.round(25 * Math.pow(1.45, level - 1));
   objects.push({ type: 'boss', worldY: y, hp: bossHp, maxHp: bossHp, triggered: false });
-
   return objects;
 }
 
@@ -367,7 +403,7 @@ export default class ArmyScene extends Phaser.Scene {
   private enterLevelStart(): void {
     this.cameraY = 0;
     this.gateFlashTimer = 0;
-    this.worldObjects = buildLevel(this.level, this.gameW);
+    this.worldObjects = buildLevel(this.level, this.gameW, this.armySize);
     this.marchSpeed = BASE_MARCH_SPEED + (this.level - 1) * MARCH_SPEED_INC;
 
     this.overlayTitle.setText(`LEVEL ${this.level}`).setStyle({ fontSize: '52px', fontStyle: 'bold', color: '#b958ff' }).setVisible(true);
@@ -423,6 +459,9 @@ export default class ArmyScene extends Phaser.Scene {
   }
 
   private triggerEnemies(wall: WorldEnemies): void {
+    // Empty wall (capped to 0 by level builder) — just pass through
+    if (wall.count <= 0) return;
+
     this.flashArmyStart  = this.armySize;
     this.flashEnemyStart = wall.count;
     this.flashDuration   = COMBAT_MS;
