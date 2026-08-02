@@ -42,6 +42,15 @@ const games: GameEntry[] = [
     scoreLabel: 'waves',
   },
   {
+    title: 'Army Rush',
+    emoji: '⚔️',
+    description: 'Grow your army through math gates, shoot waves of enemies, then take down the boss.',
+    href: './games/army-rush/',
+    ready: true,
+    scoreKey: 'army-rush',
+    scoreLabel: 'levels',
+  },
+  {
     title: 'Top Down',
     emoji: '🕹️',
     description: 'A top-down adventure. Coming soon.',
