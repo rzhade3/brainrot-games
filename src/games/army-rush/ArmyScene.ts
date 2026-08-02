@@ -9,7 +9,6 @@ const ARMY_BOTTOM_MARGIN = 90; // px from bottom
 const BULLET_SPEED = 500; // px/s
 const SHOOT_INTERVAL = 220; // ms between volleys
 const GATE_DESCENT_SPEED = 130; // px/s
-const GATE_HALT_Y_OFFSET = 220; // halts this far above army
 const GATE_W = 150;
 const GATE_H = 70;
 const ENEMY_RADIUS = 18;
@@ -221,6 +220,7 @@ export default class ArmyScene extends Phaser.Scene {
   private gameH = 700;
   private dpr = 1;
   private armyY = 0;
+  private armyX = 195; // horizontal position, follows pointer drag
 
   // Game state
   private phase: GamePhase = 'start';
@@ -228,10 +228,12 @@ export default class ArmyScene extends Phaser.Scene {
   private armySize = 10;
   private bestScore = 0;
 
+  // Pointer / drag
+  private pointerDown = false;
+
   // Gates
   private pendingGatePairs: GatePair[] = [];
   private currentGatePair: GatePair | null = null;
-  private gatesHalted = false;
   private gateChoiceMade = false;
   private gateChoiceTimer = 0;
 
@@ -329,15 +331,33 @@ export default class ArmyScene extends Phaser.Scene {
 
     this.scale.on('resize', () => this.relayout());
 
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.onPointerDown(p));
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      this.pointerDown = true;
+      this.updateArmyX(p.x);
+      this.onPointerDown(p);
+    });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (this.pointerDown) this.updateArmyX(p.x);
+    });
+    this.input.on('pointerup', () => {
+      this.pointerDown = false;
+    });
 
     this.transitionTo('start');
   }
 
   private relayout(): void {
-    this.gameW = Math.min(Math.floor(this.scale.width / this.dpr), GAME_MAX_W);
+    const newW = Math.min(Math.floor(this.scale.width / this.dpr), GAME_MAX_W);
+    if (newW !== this.gameW && this.gameW > 0) {
+      this.armyX = clamp((this.armyX / this.gameW) * newW, 30, newW - 30);
+    }
+    this.gameW = newW;
     this.gameH = Math.floor(this.scale.height / this.dpr);
     this.armyY = this.gameH - ARMY_BOTTOM_MARGIN;
+  }
+
+  private updateArmyX(rawPx: number): void {
+    this.armyX = clamp(rawPx / this.dpr, 30, this.gameW - 30);
   }
 
   update(_time: number, delta: number): void {
@@ -404,6 +424,7 @@ export default class ArmyScene extends Phaser.Scene {
   private showStartScreen(): void {
     this.armySize = 10;
     this.level = 1;
+    this.armyX = this.gameW / 2;
     this.enemies = [];
     this.bullets = [];
     this.boss = null;
@@ -417,7 +438,7 @@ export default class ArmyScene extends Phaser.Scene {
 
     this.overlaySubText
       .setText(
-        'Tap left/right to pick gates\nShoot down the enemy wave\nThen defeat the boss!\n\nTap to start'
+        'Drag to steer your army through gates\nShoot down the enemy wave\nThen defeat the boss!\n\nTap to start'
       )
       .setStyle({ fontSize: '18px', color: '#a99fd6' })
       .setVisible(true);
@@ -456,7 +477,6 @@ export default class ArmyScene extends Phaser.Scene {
       generateGatePair(this.level, this.armySize, this.gameW)
     );
     this.currentGatePair = null;
-    this.gatesHalted = false;
     this.gateChoiceMade = false;
     this.spawnNextGatePair();
   }
@@ -469,7 +489,6 @@ export default class ArmyScene extends Phaser.Scene {
     this.currentGatePair = this.pendingGatePairs.shift()!;
     this.currentGatePair.left.y = -GATE_H / 2 - 20;
     this.currentGatePair.right.y = -GATE_H / 2 - 20;
-    this.gatesHalted = false;
     this.gateChoiceMade = false;
     this.gateChoiceTimer = 0;
   }
@@ -478,30 +497,22 @@ export default class ArmyScene extends Phaser.Scene {
     if (!this.currentGatePair) return;
 
     const { left, right } = this.currentGatePair;
-    const haltY = this.armyY - GATE_HALT_Y_OFFSET;
 
-    if (!this.gateChoiceMade && !this.gatesHalted) {
+    if (!this.gateChoiceMade) {
       left.y += GATE_DESCENT_SPEED * dt;
       right.y += GATE_DESCENT_SPEED * dt;
-      if (left.y >= haltY) {
-        left.y = haltY;
-        right.y = haltY;
-        this.gatesHalted = true;
-      }
-    }
 
-    // Show instruction text when halted
-    if (this.gatesHalted && !this.gateChoiceMade) {
-      this.gateChoiceText
-        .setText('Tap left or right to choose!')
-        .setPosition(this.gameW / 2, this.armyY - 140)
-        .setStyle({ fontSize: '16px', color: '#ffcc66' })
-        .setVisible(true);
+      // Auto-select whichever gate the army is under when gate reaches army
+      if (left.y + GATE_H / 2 >= this.armyY - 20) {
+        const leftDist = Math.abs(this.armyX - left.x);
+        const rightDist = Math.abs(this.armyX - right.x);
+        this.chooseGate(leftDist <= rightDist ? 'left' : 'right');
+      }
     }
 
     if (this.gateChoiceMade) {
       this.gateChoiceTimer += dt * 1000;
-      if (this.gateChoiceTimer >= 600) {
+      if (this.gateChoiceTimer >= 500) {
         this.gateChoiceText.setVisible(false);
         this.currentGatePair = null;
         this.spawnNextGatePair();
@@ -596,24 +607,11 @@ export default class ArmyScene extends Phaser.Scene {
     const alive = this.enemies.filter((e) => !e.dead);
     if (alive.length === 0) return;
 
-    // Sort by y descending (lowest = closest to army = most dangerous)
-    alive.sort((a, b) => b.y - a.y);
-
     const shots = Math.max(1, Math.floor(Math.sqrt(this.armySize)));
+    const spread = Math.min(50, shots * 6);
     for (let i = 0; i < shots; i++) {
-      const target = alive[i % alive.length];
-      // Spawn bullet from random position within army cluster, aimed toward target
-      const bx = clamp(
-        target.x + rand(-target.radius, target.radius),
-        10,
-        this.gameW - 10
-      );
-      this.bullets.push({
-        x: bx,
-        y: this.armyY - 10,
-        vy: -BULLET_SPEED,
-        dead: false,
-      });
+      const bx = this.armyX + rand(-spread, spread);
+      this.bullets.push({ x: bx, y: this.armyY - 10, vy: -BULLET_SPEED, dead: false });
     }
   }
 
@@ -676,15 +674,10 @@ export default class ArmyScene extends Phaser.Scene {
   private fireAtBoss(): void {
     if (!this.boss) return;
     const shots = Math.max(1, Math.floor(Math.sqrt(this.armySize)));
+    const spread = Math.min(50, shots * 6);
     for (let i = 0; i < shots; i++) {
-      const spread = Math.min(60, this.boss.radius * 1.5);
-      const bx = this.gameW / 2 + rand(-spread / 2, spread / 2);
-      this.bullets.push({
-        x: bx,
-        y: this.armyY - 10,
-        vy: -BULLET_SPEED,
-        dead: false,
-      });
+      const bx = this.armyX + rand(-spread, spread);
+      this.bullets.push({ x: bx, y: this.armyY - 10, vy: -BULLET_SPEED, dead: false });
     }
   }
 
@@ -744,13 +737,8 @@ export default class ArmyScene extends Phaser.Scene {
       case 'start':
         this.level = 1;
         this.armySize = 10;
+        this.armyX = this.gameW / 2;
         this.transitionTo('level_start');
-        break;
-
-      case 'gates':
-        if (this.gatesHalted && !this.gateChoiceMade) {
-          this.chooseGate(px < this.gameW / 2 ? 'left' : 'right');
-        }
         break;
 
       case 'level_complete':
@@ -763,6 +751,7 @@ export default class ArmyScene extends Phaser.Scene {
       case 'game_over':
         this.level = 1;
         this.armySize = 10;
+        this.armyX = this.gameW / 2;
         this.transitionTo('start');
         break;
     }
@@ -821,7 +810,7 @@ export default class ArmyScene extends Phaser.Scene {
   }
 
   private drawArmy(): void {
-    const cx = this.gameW / 2;
+    const cx = this.armyX;
     const cy = this.armyY + 10;
     const visible = Math.min(this.armySize, 80);
     const cols = Math.ceil(Math.sqrt(visible * 2));
@@ -839,7 +828,7 @@ export default class ArmyScene extends Phaser.Scene {
       this.armyGfx.fillCircle(x, y, spacing * 0.35);
     }
 
-    // Count label
+    // Count label above cluster
     this.armyCountText
       .setText(String(this.armySize))
       .setPosition(cx, this.armyY - 34)
@@ -853,34 +842,46 @@ export default class ArmyScene extends Phaser.Scene {
     const gh = GATE_H;
     const radius = 12;
 
+    // Determine which gate army is aimed at
+    const leftDist = Math.abs(this.armyX - left.x);
+    const rightDist = Math.abs(this.armyX - right.x);
+    const targeted = leftDist <= rightDist ? left : right;
+
     for (const gate of [left, right]) {
       const x = gate.x - gw / 2;
       const y = gate.y - gh / 2;
       const borderColor = gate.isPositive ? COLORS.good : COLORS.bad;
-      const fillAlpha = this.gateChoiceMade ? 0.15 : 0.22;
+      const isTargeted = gate === targeted && !this.gateChoiceMade;
+      const fillAlpha = this.gateChoiceMade ? 0.12 : isTargeted ? 0.35 : 0.15;
+      const borderAlpha = isTargeted ? 1 : 0.5;
 
       // Fill
       this.gateGfx.fillStyle(gate.isPositive ? COLORS.good : COLORS.bad, fillAlpha);
       this.gateGfx.fillRoundedRect(x, y, gw, gh, radius);
 
-      // Border
-      this.gateGfx.lineStyle(2.5, borderColor, 0.9);
+      // Border (brighter for targeted gate)
+      this.gateGfx.lineStyle(isTargeted ? 3.5 : 2, borderColor, borderAlpha);
       this.gateGfx.strokeRoundedRect(x, y, gw, gh, radius);
 
       // Vertical gate posts
-      this.gateGfx.lineStyle(3, borderColor, 0.6);
+      this.gateGfx.lineStyle(3, borderColor, 0.5);
       this.gateGfx.beginPath();
       this.gateGfx.moveTo(gate.x - gw / 2, y);
       this.gateGfx.lineTo(gate.x - gw / 2, y + gh + 30);
       this.gateGfx.moveTo(gate.x + gw / 2, y);
       this.gateGfx.lineTo(gate.x + gw / 2, y + gh + 30);
       this.gateGfx.strokePath();
+
+      // Dashed guide line from army to targeted gate
+      if (isTargeted && gate.y > 0) {
+        this.gateGfx.lineStyle(1.5, COLORS.node, 0.3);
+        this.gateGfx.beginPath();
+        this.gateGfx.moveTo(this.armyX, this.armyY - 35);
+        this.gateGfx.lineTo(gate.x, gate.y + gh / 2 + 30);
+        this.gateGfx.strokePath();
+      }
     }
 
-    // Gate labels rendered via a temporary text approach (draw text on graphics is limited)
-    // We use fixed-position text objects pooled; here we update via Graphics text fallback.
-    // Since Phaser Graphics can't draw text, we render operation labels using the scene's
-    // Text pool. We store them as cached objects on the scene.
     this.drawGateLabel(left);
     this.drawGateLabel(right);
   }
