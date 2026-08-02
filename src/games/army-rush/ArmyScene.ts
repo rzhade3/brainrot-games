@@ -7,15 +7,15 @@ import { getBestScore, submitScore } from '../../core/scores';
 const GAME_MAX_W = 430;
 const LANE_PAD = 26;                 // px from screen edge army can reach
 const ARMY_SCREEN_Y_RATIO = 0.78;   // army sits this far down the screen
-const BASE_MARCH_SPEED = 110;        // px / s at level 1
-const MARCH_SPEED_INC = 12;          // added per level
+const BASE_MARCH_SPEED = 230;        // px / s at level 1
+const MARCH_SPEED_INC = 22;          // added per level
 const GATE_H = 78;                   // height of gate frame in px
-const SECTION = 460;                 // world-space gap between objects
-const ENEMY_RADIUS = 16;
+const SECTION = 340;                 // world-space gap between objects
+const ENEMY_RADIUS = 7;              // radius of each enemy unit circle
 const BOSS_RADIUS = 50;
-const LEVEL_BANNER_MS = 1800;
-const COMBAT_MS = 950;               // enemy-wall fight animation duration
-const BOSS_FIGHT_MS = 2400;          // boss fight animation duration
+const LEVEL_BANNER_MS = 1000;
+const COMBAT_MS = 650;               // enemy-wall fight animation duration
+const BOSS_FIGHT_MS = 1800;          // boss fight animation duration
 const HUB_URL = '../../';
 const SCORE_KEY = 'army-rush';
 
@@ -46,11 +46,18 @@ interface WorldGate {
   chosenSide: 'left' | 'right' | null;
 }
 
+interface HordeUnit {
+  dx: number;
+  dy: number;
+  phase: number;   // random phase offset for wobble animation
+}
+
 interface WorldEnemies {
   type: 'enemies';
   worldY: number;
   count: number;
   triggered: boolean;
+  offsets: HordeUnit[];
 }
 
 interface WorldBoss {
@@ -64,6 +71,18 @@ interface WorldBoss {
 type WorldObject = WorldGate | WorldEnemies | WorldBoss;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
+
+/** Sunflower / Fibonacci packing — produces organic cluster positions */
+function buildHordeOffsets(n: number, spread: number): HordeUnit[] {
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  const out: HordeUnit[] = [];
+  for (let i = 0; i < n; i++) {
+    const r = Math.sqrt(i / Math.max(n - 1, 1)) * spread;
+    const theta = i * golden;
+    out.push({ dx: Math.cos(theta) * r, dy: Math.sin(theta) * r * 0.7, phase: Math.random() * Math.PI * 2 });
+  }
+  return out;
+}
 
 function rand(min: number, max: number) {
   return Math.random() * (max - min) + min;
@@ -138,11 +157,12 @@ function buildLevel(level: number, gameW: number): WorldObject[] {
     y += SECTION;
 
     const count = Math.min(4 + level * 2 + i * 2, maxCols * 2);
-    objects.push({ type: 'enemies', worldY: y, count, triggered: false });
+    const spread = 12 + Math.sqrt(count) * 5;
+    objects.push({ type: 'enemies', worldY: y, count, triggered: false, offsets: buildHordeOffsets(count, spread) });
     y += SECTION;
   }
 
-  const bossHp = Math.round(150 * Math.pow(1.5, level - 1));
+  const bossHp = Math.round(25 * Math.pow(1.45, level - 1));
   objects.push({ type: 'boss', worldY: y, hp: bossHp, maxHp: bossHp, triggered: false });
 
   return objects;
@@ -165,6 +185,10 @@ export default class ArmyScene extends Phaser.Scene {
   private cameraY = 0;
   private marchSpeed = BASE_MARCH_SPEED;
   private worldObjects: WorldObject[] = [];
+
+  // Horde rendering
+  private soldierOffsets: HordeUnit[] = [];
+  private elapsed = 0;
 
   // State
   private phase: GamePhase = 'start';
@@ -219,6 +243,9 @@ export default class ArmyScene extends Phaser.Scene {
     this.dpr = getRenderScale();
     this.bestScore = getBestScore(SCORE_KEY);
     this.relayout();
+
+    // Pre-compute soldier positions for max expected army size
+    this.soldierOffsets = buildHordeOffsets(150, 42);
 
     this.bgGfx = this.add.graphics().setDepth(0);
     this.worldGfx = this.add.graphics().setDepth(1);
@@ -281,6 +308,7 @@ export default class ArmyScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const dt = delta / 1000;
+    this.elapsed += dt;
     this.relayout();
 
     switch (this.phase) {
@@ -667,29 +695,25 @@ export default class ArmyScene extends Phaser.Scene {
 
   private drawEnemyWall(wall: WorldEnemies, sy: number): void {
     if (wall.triggered) return;
-    const cols = Math.min(wall.count, Math.floor((this.gameW - LANE_PAD * 2) / (ENEMY_RADIUS * 2 + 5)));
-    const rows = Math.ceil(wall.count / cols);
-    const cellW = ENEMY_RADIUS * 2 + 5;
-    const cellH = ENEMY_RADIUS * 2 + 5;
-    const totalW = cols * cellW;
-    const startX = (this.gameW - totalW) / 2 + ENEMY_RADIUS;
+    const cx = this.gameW / 2;
+    const t = this.elapsed;
 
-    for (let i = 0; i < wall.count; i++) {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const ex = startX + col * cellW;
-      const ey = sy - (rows - 1 - row) * cellH;
-
-      this.worldGfx.fillStyle(COLORS.bad, 0.9);
+    for (let i = 0; i < wall.offsets.length; i++) {
+      const o = wall.offsets[i];
+      const wobble = Math.sin(t * 2.8 + o.phase) * 2;
+      const ex = cx + o.dx;
+      const ey = sy + o.dy + wobble;
+      this.worldGfx.fillStyle(COLORS.bad, 0.92);
       this.worldGfx.fillCircle(ex, ey, ENEMY_RADIUS);
-      this.worldGfx.lineStyle(1.5, 0xff6bb0, 0.45);
-      this.worldGfx.strokeCircle(ex, ey, ENEMY_RADIUS);
+      this.worldGfx.fillStyle(0xffffff, 0.2);
+      this.worldGfx.fillCircle(ex - 1.2, ey - 1.5, 2.5);
     }
 
-    // Count above the wall
+    // Count label above cluster
+    const topY = sy + wall.offsets.reduce((m, o) => Math.min(m, o.dy), 0) - ENEMY_RADIUS - 6;
     const lbl = this.getLabel();
     lbl.setText(String(wall.count))
-      .setPosition(this.gameW / 2, sy - (rows * cellH) - 4)
+      .setPosition(cx, topY)
       .setStyle({ color: '#ff2e97', fontSize: '22px', fontStyle: 'bold' });
   }
 
@@ -723,21 +747,24 @@ export default class ArmyScene extends Phaser.Scene {
 
   private drawArmy(): void {
     const cx = this.armyX;
-    const cy = this.armyScreenY + 12;
-    const visible = Math.min(this.armySize, 80);
-    const cols = Math.ceil(Math.sqrt(visible * 2));
-    const spacing = clamp((this.gameW * 0.7) / cols, 6, 13);
-    const rows = Math.ceil(visible / cols);
-    const sx = cx - (cols / 2) * spacing + spacing / 2;
-    const sy = cy - (rows / 2) * spacing;
+    const cy = this.armyScreenY + 18;
+    const visible = Math.min(this.armySize, this.soldierOffsets.length);
+    const t = this.elapsed;
 
     for (let i = 0; i < visible; i++) {
-      this.armyGfx.fillStyle(COLORS.node, 0.9);
-      this.armyGfx.fillCircle(sx + (i % cols) * spacing, sy + Math.floor(i / cols) * spacing, spacing * 0.36);
+      const o = this.soldierOffsets[i];
+      const wobble = Math.sin(t * 3.5 + o.phase) * 1.8;
+      const ex = cx + o.dx;
+      const ey = cy + o.dy + wobble;
+      this.armyGfx.fillStyle(COLORS.node, 0.92);
+      this.armyGfx.fillCircle(ex, ey, 5);
+      // Lighter highlight dot
+      this.armyGfx.fillStyle(0xffffff, 0.3);
+      this.armyGfx.fillCircle(ex - 1.2, ey - 1.5, 2);
     }
 
     const showCount = this.phase !== 'start' && this.phase !== 'game_over';
-    this.armyCountText.setText(String(this.armySize)).setPosition(cx, this.armyScreenY - 30).setVisible(showCount);
+    this.armyCountText.setText(String(this.armySize)).setPosition(cx, this.armyScreenY - 38).setVisible(showCount);
   }
 
   // ── Fight overlay (drawn on top during combat / boss_fight) ───────────────
