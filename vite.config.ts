@@ -12,6 +12,7 @@ export default defineConfig({
         towerDefense: resolve(__dirname, 'games/tower-defense/index.html'),
         topDown: resolve(__dirname, 'games/top-down/index.html'),
         typing: resolve(__dirname, 'games/typing/index.html'),
+        armyRush: resolve(__dirname, 'games/army-rush/index.html'),
       },
     },
   },
