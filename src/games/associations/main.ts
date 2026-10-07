@@ -11,6 +11,7 @@ import {
   hasAnyMove,
   isWon,
   listTargets,
+  sameSource,
   type Card,
   type GameState,
   type Source,
@@ -177,6 +178,10 @@ function isSelected(src: Source): boolean {
 }
 
 function render(): void {
+  const focused = document.activeElement as HTMLElement | null;
+  const focusKey = focused && board.contains(focused)
+    ? focused.dataset.src ? `[data-src="${focused.dataset.src}"]` : focused.dataset.drop ? `[data-drop="${focused.dataset.drop}"]` : ''
+    : '';
   const { ch } = layout();
 
   // HUD
@@ -268,6 +273,12 @@ function render(): void {
 
   fitText();
   highlightTargets();
+
+  board.querySelectorAll<HTMLElement>('[data-src], [data-drop]').forEach((el) => {
+    el.tabIndex = 0;
+    el.setAttribute('role', 'button');
+  });
+  if (focusKey) board.querySelector<HTMLElement>(focusKey)?.focus();
 }
 
 /** Shrink card text that would overflow so long words never break mid-word. */
@@ -290,7 +301,7 @@ function highlightTargets(): void {
   const run = getRun(state, src);
   if (!run) return;
   for (const t of listTargets(state)) {
-    if (src.zone === 'column' && t.zone === 'column' && t.index === src.index) continue;
+    if (sameSource(src, t)) continue;
     if (canDrop(state, run, t)) board.querySelector(`[data-drop="${t.zone}:${t.index}"]`)?.classList.add('as-valid');
   }
 }
@@ -378,6 +389,22 @@ modalPrimaryEl.addEventListener('click', () => onModalPrimary());
 
 newBtn.addEventListener('click', () => startLevel(1));
 stockEl.addEventListener('click', doDraw);
+
+// Keyboard: Enter/Space on a focused card selects it; on a slot or column it drops the selection there.
+board.addEventListener('keydown', (e) => {
+  if (gameOver || (e.key !== 'Enter' && e.key !== ' ')) return;
+  const el = e.target as HTMLElement;
+  const source = parseSource(el.dataset.src);
+  const target = parseTarget(el.dataset.drop);
+  if (!source && !target) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (source) {
+    handleTap(source);
+  } else if (selected && target && !tryMove(selected, target)) {
+    flashStatus("That card doesn't go there.", 'bad');
+  }
+});
 
 window.addEventListener('keydown', (e) => {
   if (!modalEl.hidden) return;

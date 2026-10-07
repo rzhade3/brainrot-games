@@ -148,8 +148,8 @@ export function canDrop(state: GameState, run: Card[], target: Target): boolean 
   const hasCategory = run.some((c) => c.kind === 'category');
 
   if (target.zone === 'slot') {
-    const slot = state.slots[target.index];
     if (target.index < 0 || target.index >= state.slots.length) return false;
+    const slot = state.slots[target.index];
     if (!slot) return hasCategory;
     return !hasCategory && first.cat === slot.cat;
   }
@@ -162,7 +162,7 @@ export function canDrop(state: GameState, run: Card[], target: Target): boolean 
   return top.cat === first.cat;
 }
 
-function sameSource(src: Source, target: Target): boolean {
+export function sameSource(src: Source, target: Target): boolean {
   return src.zone === 'column' && target.zone === 'column' && src.index === target.index;
 }
 
