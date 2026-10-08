@@ -1,24 +1,25 @@
-import { CATEGORIES } from './categories';
+import { CATEGORIES, ORDERED_CATEGORIES } from './categories';
+import type { LevelSpec } from './levels';
 
 /**
  * Pure game rules for Associations (solitaire-style word grouping).
  *
  * - Word cards belong to exactly one category; category cards say how many
  *   word cards belong to them.
- * - Five deck slots: an empty slot accepts a category card (optionally carrying
- *   a run of its words beneath it); a slot holding a category accepts that
- *   category's word cards. Once every word is stacked, the slot clears.
- * - Tableau columns: an empty column accepts anything. Otherwise word cards
- *   stack on words of the same category. A category card may be stacked on a
- *   word of its own category, but it caps the column — nothing can be stacked
- *   on top of a category card.
+ * - Deck slots (3–5 per level): an empty slot accepts a category card
+ *   (optionally carrying its words beneath it); a slot holding a category
+ *   accepts that category's word cards. Once every word is in, the slot clears.
+ * - Tableau columns (3–5 per level): an empty column accepts anything.
+ *   Otherwise word cards stack on words of the same category. A category card
+ *   may be stacked on a word of its own category, but it caps the column —
+ *   nothing can be stacked on top of a category card.
+ * - A column's face-up cards always move together as one stack.
+ * - Ordered categories must enter their slot first→last, so they stack
+ *   last→first down a column (a category card caps only the first word).
  * - Cards are dealt face down with the top of each column face up; the stock
  *   ("house cards") draws one at a time to the waste and recycles when empty.
  * - Every move (including draws and recycles) costs one from a finite budget.
  */
-
-export const SLOT_COUNT = 5;
-export const COLUMN_COUNT = 5;
 
 export type CardKind = 'word' | 'category';
 
@@ -28,17 +29,22 @@ export interface Card {
   kind: CardKind;
   label: string;
   faceUp: boolean;
+  /** Position within an ordered category (0 = first); -1 otherwise. */
+  rank: number;
 }
 
 export interface CategoryInfo {
   name: string;
   /** Number of word cards in this category. */
   size: number;
+  ordered: boolean;
 }
 
 export interface Slot {
   cat: number;
   filled: number;
+  /** Label of the last word placed (shown for ordered groups). */
+  last?: string;
 }
 
 export interface GameState {
@@ -53,16 +59,18 @@ export interface GameState {
   completed: number;
 }
 
-export type Source = { zone: 'column'; index: number; start: number } | { zone: 'waste' };
+export type Source = { zone: 'column'; index: number } | { zone: 'waste' };
 export type Target = { zone: 'column'; index: number } | { zone: 'slot'; index: number };
 
 export interface MoveResult {
   ok: boolean;
   /** Category index completed by this move, if any. */
   completedCat?: number;
+  /** Slot that held the completed category. */
+  completedSlot?: number;
 }
 
-function shuffle<T>(arr: T[], rng: () => number): T[] {
+export function shuffle<T>(arr: T[], rng: () => number): T[] {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -70,96 +78,100 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   return arr;
 }
 
-/** Number of categories and word-count range for a level. */
-export function levelConfig(level: number): { cats: number; minWords: number; maxWords: number } {
-  return {
-    cats: Math.min(4 + level, 8),
-    minWords: level >= 3 ? 3 : 2,
-    maxWords: Math.min(3 + level, 6),
-  };
-}
-
-export function deal(level: number, rng: () => number = Math.random): GameState {
-  const cfg = levelConfig(level);
-  const pool = shuffle([...CATEGORIES], rng).slice(0, cfg.cats);
+/** Deal a random deck for a level spec. `movesTotal` is set by the generator. */
+export function deal(level: number, spec: LevelSpec, rng: () => number = Math.random): GameState {
+  const plain = shuffle([...CATEGORIES], rng).slice(0, spec.groups - spec.ordered);
+  const ordered = shuffle([...ORDERED_CATEGORIES], rng).slice(0, spec.ordered);
+  const pool = shuffle([...plain, ...ordered], rng);
   const categories: CategoryInfo[] = [];
   const cards: Card[] = [];
   let id = 0;
 
   pool.forEach((def, cat) => {
-    const count = cfg.minWords + Math.floor(rng() * (cfg.maxWords - cfg.minWords + 1));
-    const words = shuffle([...def.words], rng).slice(0, Math.min(count, def.words.length));
-    categories.push({ name: def.name, size: words.length });
-    cards.push({ id: id++, cat, kind: 'category', label: def.name, faceUp: false });
-    for (const w of words) cards.push({ id: id++, cat, kind: 'word', label: w, faceUp: false });
+    const want = spec.minWords + Math.floor(rng() * (spec.maxWords - spec.minWords + 1));
+    const count = Math.min(want, def.words.length);
+    let words: string[];
+    if (def.ordered) {
+      const start = Math.floor(rng() * (def.words.length - count + 1));
+      words = def.words.slice(start, start + count);
+    } else {
+      words = shuffle([...def.words], rng).slice(0, count);
+    }
+    const isOrdered = !!def.ordered;
+    categories.push({ name: def.name, size: words.length, ordered: isOrdered });
+    cards.push({ id: id++, cat, kind: 'category', label: def.name, faceUp: false, rank: -1 });
+    words.forEach((w, r) =>
+      cards.push({ id: id++, cat, kind: 'word', label: w, faceUp: false, rank: isOrdered ? r : -1 })
+    );
   });
 
   shuffle(cards, rng);
 
   const columns: Card[][] = [];
-  for (let c = 0; c < COLUMN_COUNT; c++) {
+  for (let c = 0; c < spec.columns; c++) {
     const col = cards.splice(0, c + 1);
     if (col.length) col[col.length - 1].faceUp = true;
     columns.push(col);
   }
 
-  const stock = cards; // remaining cards, face down; last element is drawn first
-  const total = categories.reduce((n, c) => n + c.size + 1, 0);
-  // Budget tightens each level: roughly one move per card plus a shrinking
-  // allowance for house-card draws and shuffling.
-  const slack = Math.max(2, 14 - 3 * (level - 1));
-  const movesTotal = total + stock.length + slack;
-
   return {
     level,
     categories,
     columns,
-    stock,
+    stock: cards, // remaining cards, face down; last element is drawn first
     waste: [],
-    slots: Array.from({ length: SLOT_COUNT }, () => null),
-    movesLeft: movesTotal,
-    movesTotal,
+    slots: Array.from({ length: spec.slots }, () => null),
+    movesLeft: 0,
+    movesTotal: 0,
     completed: 0,
   };
 }
 
-/** Cards that would move from a source, or null if the source can't be picked up. */
+/** Index of the first face-up card in a column (column length if none). */
+export function firstFaceUp(col: Card[]): number {
+  let i = col.length;
+  while (i > 0 && col[i - 1].faceUp) i--;
+  return i;
+}
+
+/** Cards that would move from a source: the waste top, or a column's whole face-up stack. */
 export function getRun(state: GameState, src: Source): Card[] | null {
   if (src.zone === 'waste') {
     const top = state.waste[state.waste.length - 1];
     return top ? [top] : null;
   }
   const col = state.columns[src.index];
-  if (!col || src.start < 0 || src.start >= col.length) return null;
-  const run = col.slice(src.start);
-  const cat = run[0].cat;
-  for (let i = 0; i < run.length; i++) {
-    const c = run[i];
-    if (!c.faceUp || c.cat !== cat) return null;
-    // A category card can only ever be the top (last) card of a run.
-    if (c.kind === 'category' && i !== run.length - 1) return null;
-  }
-  return run;
+  if (!col || !col.length) return null;
+  const run = col.slice(firstFaceUp(col));
+  return run.length ? run : null;
 }
 
 export function canDrop(state: GameState, run: Card[], target: Target): boolean {
   if (!run.length) return false;
   const first = run[0];
-  const hasCategory = run.some((c) => c.kind === 'category');
+  const last = run[run.length - 1];
+  const hasCategory = last.kind === 'category';
+  const ordered = state.categories[first.cat].ordered;
 
   if (target.zone === 'slot') {
     if (target.index < 0 || target.index >= state.slots.length) return false;
     const slot = state.slots[target.index];
-    if (!slot) return hasCategory;
-    return !hasCategory && first.cat === slot.cat;
+    if (!slot) {
+      if (!hasCategory) return false;
+      // Words beneath the category pour in top-down, so the top word must come first.
+      return !ordered || run.length === 1 || run[run.length - 2].rank === 0;
+    }
+    if (hasCategory || first.cat !== slot.cat) return false;
+    return !ordered || last.rank === slot.filled;
   }
 
   const col = state.columns[target.index];
   if (!col) return false;
   if (!col.length) return true;
   const top = col[col.length - 1];
-  if (!top.faceUp || top.kind === 'category') return false;
-  return top.cat === first.cat;
+  if (!top.faceUp || top.kind === 'category' || top.cat !== first.cat) return false;
+  if (!ordered) return true;
+  return first.kind === 'category' ? top.rank === 0 : first.rank === top.rank - 1;
 }
 
 export function sameSource(src: Source, target: Target): boolean {
@@ -171,12 +183,11 @@ export function applyMove(state: GameState, src: Source, target: Target): MoveRe
   const run = getRun(state, src);
   if (!run || !canDrop(state, run, target)) return { ok: false };
 
-  // Remove from source.
   if (src.zone === 'waste') {
     state.waste.pop();
   } else {
     const col = state.columns[src.index];
-    col.splice(src.start);
+    col.splice(col.length - run.length);
     const top = col[col.length - 1];
     if (top && !top.faceUp) top.faceUp = true;
   }
@@ -188,19 +199,21 @@ export function applyMove(state: GameState, src: Source, target: Target): MoveRe
     return { ok: true };
   }
 
-  const words = run.filter((c) => c.kind === 'word').length;
+  const words = run.filter((c) => c.kind === 'word');
   let slot = state.slots[target.index];
   if (!slot) {
     slot = { cat: run[0].cat, filled: 0 };
     state.slots[target.index] = slot;
   }
-  slot.filled += words;
+  slot.filled += words.length;
+  // Words enter top card first, so the bottom word of the stack lands last.
+  if (words.length) slot.last = words[0].label;
 
   if (slot.filled >= state.categories[slot.cat].size) {
     const cat = slot.cat;
     state.slots[target.index] = null;
     state.completed++;
-    return { ok: true, completedCat: cat };
+    return { ok: true, completedCat: cat, completedSlot: target.index };
   }
   return { ok: true };
 }
@@ -224,56 +237,4 @@ export function draw(state: GameState): boolean {
 
 export function isWon(state: GameState): boolean {
   return state.completed >= state.categories.length;
-}
-
-/** All legal sources currently on the board. */
-export function listSources(state: GameState): Source[] {
-  const out: Source[] = [];
-  if (state.waste.length) out.push({ zone: 'waste' });
-  state.columns.forEach((col, index) => {
-    for (let start = 0; start < col.length; start++) {
-      if (getRun(state, { zone: 'column', index, start })) out.push({ zone: 'column', index, start });
-    }
-  });
-  return out;
-}
-
-export function listTargets(state: GameState): Target[] {
-  return [
-    ...state.slots.map((_, index): Target => ({ zone: 'slot', index })),
-    ...state.columns.map((_, index): Target => ({ zone: 'column', index })),
-  ];
-}
-
-/** True if any card move or draw is still possible (ignores the move budget). */
-export function hasAnyMove(state: GameState): boolean {
-  if (state.stock.length || state.waste.length > 1) return true;
-  for (const src of listSources(state)) {
-    const run = getRun(state, src)!;
-    for (const t of listTargets(state)) {
-      if (sameSource(src, t)) continue;
-      // Moving a whole column into another empty column is never progress.
-      if (src.zone === 'column' && src.start === 0 && t.zone === 'column' && !state.columns[t.index].length) continue;
-      if (canDrop(state, run, t)) return true;
-    }
-  }
-  return false;
-}
-
-/** Best automatic destination for a run (used for tap-again / double-tap). */
-export function autoTarget(state: GameState, src: Source): Target | null {
-  const run = getRun(state, src);
-  if (!run) return null;
-  const slots = listTargets(state).filter((t) => t.zone === 'slot');
-  // Prefer a slot already holding this category, then an empty slot.
-  const matching = slots.find((t) => state.slots[t.index] && canDrop(state, run, t));
-  if (matching) return matching;
-  const empty = slots.find((t) => canDrop(state, run, t));
-  if (empty) return empty;
-  for (const t of listTargets(state)) {
-    if (t.zone !== 'column' || sameSource(src, t)) continue;
-    if (!state.columns[t.index].length) continue;
-    if (canDrop(state, run, t)) return t;
-  }
-  return null;
 }

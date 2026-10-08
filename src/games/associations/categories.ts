@@ -2,10 +2,15 @@
  * Category pool for Associations. Each deal picks a handful of categories and
  * a random subset of their words, so card counts vary per category.
  * Words must be unique across the whole pool to keep every card unambiguous.
+ *
+ * Ordered categories list their words in sequence. A deal uses a contiguous
+ * window of that sequence; the words must enter the slot first→last and be
+ * stacked last→first down a column.
  */
 export interface CategoryDef {
   name: string;
   words: string[];
+  ordered?: boolean;
 }
 
 export const CATEGORIES: CategoryDef[] = [
@@ -33,4 +38,15 @@ export const CATEGORIES: CategoryDef[] = [
   { name: 'Birds', words: ['Penguin', 'Toucan', 'Flamingo', 'Pelican', 'Ostrich', 'Parrot', 'Owl'] },
   { name: 'Currencies', words: ['Dollar', 'Euro', 'Yen', 'Peso', 'Rupee', 'Franc', 'Won'] },
   { name: 'Greek Letters', words: ['Alpha', 'Beta', 'Gamma', 'Delta', 'Omega', 'Lambda', 'Epsilon'] },
+];
+
+export const ORDERED_CATEGORIES: CategoryDef[] = [
+  { name: 'Time Units', ordered: true, words: ['Second', 'Minute', 'Hour', 'Day', 'Week', 'Month', 'Year', 'Decade', 'Century'] },
+  { name: 'Weekdays', ordered: true, words: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] },
+  { name: 'Months', ordered: true, words: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August'] },
+  { name: 'Rainbow', ordered: true, words: ['Red', 'Orange', 'Yellow', 'Green', 'Blue', 'Indigo', 'Violet'] },
+  { name: 'Do Re Mi', ordered: true, words: ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'] },
+  { name: 'Data Sizes', ordered: true, words: ['Bit', 'Byte', 'Kilobyte', 'Megabyte', 'Gigabyte', 'Terabyte', 'Petabyte'] },
+  { name: 'Life Stages', ordered: true, words: ['Baby', 'Toddler', 'Child', 'Teen', 'Adult', 'Senior'] },
+  { name: 'Counting', ordered: true, words: ['One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight'] },
 ];

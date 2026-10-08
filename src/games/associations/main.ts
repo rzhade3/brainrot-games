@@ -1,17 +1,12 @@
 import { getBestScore, submitScore } from '../../core/scores';
 import { showOnboardHint } from '../../core/onboardHint';
+import { LEVELS } from './levels';
+import { checkViable, generateLevel } from './generate';
 import {
-  COLUMN_COUNT,
   applyMove,
-  autoTarget,
-  canDrop,
-  deal,
   draw,
-  getRun,
-  hasAnyMove,
+  firstFaceUp,
   isWon,
-  listTargets,
-  sameSource,
   type Card,
   type GameState,
   type Source,
@@ -23,15 +18,18 @@ import {
  *
  * DOM-rendered: the whole board is re-rendered from `state` after every move.
  * Cards can be dragged (mouse/touch) or tapped: tap a card to select it, then
- * tap a destination; tapping a selected card again auto-moves it to a slot.
+ * tap a destination. A column's face-up cards always move as one stack.
+ * The board never hints where a card belongs; illegal drops just bounce back.
  */
 
 const SCORE_KEY = 'associations';
+const LAST_LEVEL = LEVELS.length;
+const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 showOnboardHint({
-  key: SCORE_KEY,
+  key: 'associations-v2',
   line1: 'Stack every word on its category.',
-  line2: 'Put category cards in the five slots, then drop matching words on them. Moves are limited — house cards cost a move too.',
+  line2: 'Put category cards in the slots, then drop matching words on them. Face-up stacks move as a whole. Groups marked “in order” go into the slot first→last. Moves are limited — house cards cost a move too.',
 });
 
 const root = document.getElementById('game-root')!;
@@ -96,17 +94,23 @@ const slotsEl = board.querySelector<HTMLElement>('#as-slots')!;
 const tableauEl = board.querySelector<HTMLElement>('#as-tableau')!;
 
 // ── State ─────────────────────────────────────────────────
-let state: GameState = deal(1);
+let state: GameState;
 let selected: Source | null = null;
 let gameOver = false;
 let statusTimer: number | undefined;
+/** Bumped on every state change so stale viability checks are ignored. */
+let version = 0;
 
 function startLevel(level: number): void {
-  state = deal(level);
+  state = generateLevel(level);
+  version++;
   selected = null;
   gameOver = false;
   modalEl.hidden = true;
-  setStatus(level === 1 ? 'Drag a category card into a slot to begin.' : `Level ${level} — more groups, fewer spare moves.`);
+  const spec = LEVELS[level - 1];
+  setStatus(level === 1
+    ? 'Drag a category card into a slot to begin.'
+    : `Level ${level}: ${spec.columns} columns, ${spec.slots} slots, ${spec.groups} groups.`);
   render();
 }
 
@@ -126,32 +130,33 @@ function layout(): { cw: number; ch: number } {
   const W = window.innerWidth;
   const H = window.innerHeight;
   const sidePad = 12;
+  const n = Math.max(state.columns.length, state.slots.length, 3);
   const gap = Math.max(6, Math.min(14, W * 0.02));
-  const cw = Math.max(54, Math.min(112, (Math.min(W, 760) - sidePad * 2 - gap * (COLUMN_COUNT - 1)) / COLUMN_COUNT));
+  const cw = Math.max(54, Math.min(112, (Math.min(W, 760) - sidePad * 2 - gap * (n - 1)) / n));
   // Keep two fixed rows plus at least a few fanned cards visible on short screens.
   const ch = Math.min(cw * 1.38, Math.max(64, (H - 80) / 4.6));
-  document.documentElement.style.setProperty('--as-cw', `${cw}px`);
-  document.documentElement.style.setProperty('--as-ch', `${ch}px`);
-  document.documentElement.style.setProperty('--as-gap', `${gap}px`);
+  const rootStyle = document.documentElement.style;
+  rootStyle.setProperty('--as-cw', `${cw}px`);
+  rootStyle.setProperty('--as-ch', `${ch}px`);
+  rootStyle.setProperty('--as-gap', `${gap}px`);
+  rootStyle.setProperty('--as-n', String(n));
+  rootStyle.setProperty('--as-cols', String(state.columns.length));
+  rootStyle.setProperty('--as-slot-n', String(state.slots.length));
   return { cw, ch };
 }
 
 // ── Rendering ─────────────────────────────────────────────
-function cardHTML(card: Card, opts: { slotFilled?: number } = {}): string {
-  if (!card.faceUp) return '';
-  if (card.kind === 'word') {
-    return `<span class="as-wordtext">${escapeHTML(card.label)}</span>`;
-  }
-  const size = state.categories[card.cat].size;
-  const count = opts.slotFilled != null
-    ? `${opts.slotFilled}/${size}`
-    : `${size} card${size === 1 ? '' : 's'}`;
-  const pct = opts.slotFilled != null ? Math.round((opts.slotFilled / size) * 100) : 0;
+function categoryHTML(cat: number, slot?: { filled: number; last?: string }): string {
+  const info = state.categories[cat];
+  const count = slot ? `${slot.filled}/${info.size}` : `${info.size} card${info.size === 1 ? '' : 's'}`;
+  const pct = slot ? Math.round((slot.filled / info.size) * 100) : 0;
+  const lastWord = slot && info.ordered && slot.last ? `<span class="as-last">↳ ${escapeHTML(slot.last)}</span>` : '';
   return `
-    <span class="as-tag">Category</span>
-    <span class="as-name">${escapeHTML(card.label)}</span>
+    <span class="as-tag">${info.ordered ? '<span aria-hidden="true">⇣</span> In order' : 'Category'}</span>
+    <span class="as-name">${escapeHTML(info.name)}</span>
+    ${lastWord}
     <span class="as-count">${count}</span>
-    ${opts.slotFilled != null ? `<span class="as-progress"><span style="width:${pct}%"></span></span>` : ''}
+    ${slot ? `<span class="as-progress"><span style="width:${pct}%"></span></span>` : ''}
   `;
 }
 
@@ -161,11 +166,15 @@ function escapeHTML(s: string): string {
 
 function makeCard(card: Card, extra = ''): HTMLDivElement {
   const el = document.createElement('div');
-  el.className = `as-card ${card.faceUp ? `as-${card.kind}` : 'as-facedown'} ${extra}`.trim();
-  el.innerHTML = cardHTML(card);
+  const ordered = card.kind === 'category' && state.categories[card.cat].ordered;
+  el.className = `as-card ${card.faceUp ? `as-${card.kind}` : 'as-facedown'} ${ordered ? 'as-ordered' : ''} ${extra}`
+    .replace(/\s+/g, ' ')
+    .trim();
   if (card.faceUp) {
+    el.innerHTML = card.kind === 'word' ? `<span class="as-wordtext">${escapeHTML(card.label)}</span>` : categoryHTML(card.cat);
+    const info = state.categories[card.cat];
     el.setAttribute('aria-label', card.kind === 'category'
-      ? `Category ${card.label}, ${state.categories[card.cat].size} cards`
+      ? `Category ${card.label}, ${info.size} cards${info.ordered ? ', in order' : ''}`
       : `Word ${card.label}`);
   }
   return el;
@@ -174,7 +183,11 @@ function makeCard(card: Card, extra = ''): HTMLDivElement {
 function isSelected(src: Source): boolean {
   if (!selected) return false;
   if (selected.zone === 'waste') return src.zone === 'waste';
-  return src.zone === 'column' && src.index === selected.index && src.start >= selected.start;
+  return src.zone === 'column' && src.index === selected.index;
+}
+
+function srcKey(src: Source): string {
+  return src.zone === 'waste' ? 'waste' : `column:${src.index}`;
 }
 
 function render(): void {
@@ -185,7 +198,7 @@ function render(): void {
   const { ch } = layout();
 
   // HUD
-  levelEl.textContent = String(state.level);
+  levelEl.textContent = `${state.level}/${LAST_LEVEL}`;
   movesEl.textContent = String(state.movesLeft);
   movesEl.classList.toggle('as-low', state.movesLeft <= 10);
   groupsEl.textContent = `${state.completed}/${state.categories.length}`;
@@ -198,7 +211,7 @@ function render(): void {
     ? `House cards: ${state.stock.length} left, draw one`
     : state.waste.length ? 'Recycle house cards' : 'No house cards left');
   if (state.stock.length) {
-    const back = makeCard({ id: -1, cat: 0, kind: 'word', label: '', faceUp: false });
+    const back = makeCard({ id: -1, cat: 0, kind: 'word', label: '', faceUp: false, rank: -1 });
     back.innerHTML = `<span class="as-stock-count">${state.stock.length}</span>`;
     stockEl.appendChild(back);
   } else {
@@ -222,10 +235,10 @@ function render(): void {
     el.className = 'as-pile as-slot';
     el.dataset.drop = `slot:${i}`;
     if (slot) {
-      const cat = state.categories[slot.cat];
-      const card = makeCard({ id: -1, cat: slot.cat, kind: 'category', label: cat.name, faceUp: true });
-      card.innerHTML = cardHTML({ id: -1, cat: slot.cat, kind: 'category', label: cat.name, faceUp: true }, { slotFilled: slot.filled });
-      card.setAttribute('aria-label', `Slot: ${cat.name}, ${slot.filled} of ${cat.size}`);
+      const info = state.categories[slot.cat];
+      const card = makeCard({ id: -1, cat: slot.cat, kind: 'category', label: info.name, faceUp: true, rank: -1 });
+      card.innerHTML = categoryHTML(slot.cat, slot);
+      card.setAttribute('aria-label', `Slot: ${info.name}, ${slot.filled} of ${info.size}${info.ordered && slot.last ? `, last ${slot.last}` : ''}`);
       el.appendChild(card);
     } else {
       el.innerHTML = `<span class="as-pile-label">Slot</span>`;
@@ -245,7 +258,7 @@ function render(): void {
     colEl.setAttribute('aria-label', `Column ${index + 1}`);
 
     // Fan offsets shrink so tall columns still fit in the viewport.
-    const down = col.filter((c) => !c.faceUp).length;
+    const down = firstFaceUp(col);
     const up = col.length - down;
     let upOff = ch * 0.3;
     let downOff = ch * 0.12;
@@ -256,13 +269,14 @@ function render(): void {
       downOff *= k;
     }
 
+    const src: Source = { zone: 'column', index };
     let y = 0;
-    col.forEach((card, start) => {
-      const src: Source = { zone: 'column', index, start };
-      const el = makeCard(card, isSelected(src) && card.faceUp ? 'as-selected' : '');
+    col.forEach((card, i) => {
+      const el = makeCard(card, card.faceUp && isSelected(src) ? 'as-selected' : '');
       el.style.top = `${y}px`;
-      el.style.zIndex = String(start + 1);
-      if (card.faceUp && getRun(state, src)) el.dataset.src = `column:${index}:${start}`;
+      el.style.zIndex = String(i + 1);
+      // Every face-up card picks up the whole face-up stack.
+      if (card.faceUp) el.dataset.src = srcKey(src);
       colEl.appendChild(el);
       y += card.faceUp ? upOff : downOff;
     });
@@ -272,7 +286,6 @@ function render(): void {
   });
 
   fitText();
-  highlightTargets();
 
   board.querySelectorAll<HTMLElement>('[data-src], [data-drop]').forEach((el) => {
     el.tabIndex = 0;
@@ -282,8 +295,8 @@ function render(): void {
 }
 
 /** Shrink card text that would overflow so long words never break mid-word. */
-function fitText(): void {
-  board.querySelectorAll<HTMLElement>('.as-wordtext, .as-name').forEach((span) => {
+function fitText(root: ParentNode = board): void {
+  root.querySelectorAll<HTMLElement>('.as-wordtext, .as-name').forEach((span) => {
     span.style.fontSize = '';
     const card = span.parentElement!;
     const avail = card.clientWidth - 6;
@@ -294,24 +307,120 @@ function fitText(): void {
   });
 }
 
-function highlightTargets(): void {
-  board.querySelectorAll('.as-valid').forEach((el) => el.classList.remove('as-valid'));
-  const src = dragging?.source ?? selected;
-  if (!src) return;
-  const run = getRun(state, src);
-  if (!run) return;
-  for (const t of listTargets(state)) {
-    if (sameSource(src, t)) continue;
-    if (canDrop(state, run, t)) board.querySelector(`[data-drop="${t.zone}:${t.index}"]`)?.classList.add('as-valid');
+// ── Celebration effects ───────────────────────────────────
+const CONFETTI_COLORS = ['#b958ff', '#ff2e97', '#00e5ff', '#3ddc97', '#ffcc66', '#f5f3ff'];
+
+function confetti(x: number, y: number, count: number, spread: number): void {
+  if (prefersReducedMotion) return;
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('span');
+    p.className = 'as-confetti';
+    p.style.left = `${x}px`;
+    p.style.top = `${y}px`;
+    p.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    if (i % 3 === 0) p.style.borderRadius = '50%';
+    document.body.appendChild(p);
+    const angle = Math.random() * Math.PI * 2;
+    const dist = spread * (0.45 + Math.random() * 0.75);
+    const dx = Math.cos(angle) * dist;
+    const dy = Math.sin(angle) * dist - spread * 0.35;
+    const rot = (Math.random() - 0.5) * 900;
+    const anim = p.animate(
+      [
+        { transform: 'translate(-50%, -50%) scale(1)', opacity: 1 },
+        { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) rotate(${rot / 2}deg) scale(1)`, opacity: 1, offset: 0.55 },
+        { transform: `translate(calc(-50% + ${dx * 1.1}px), calc(-50% + ${dy + spread * 0.6}px)) rotate(${rot}deg) scale(0.6)`, opacity: 0 },
+      ],
+      { duration: 900 + Math.random() * 500, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+    );
+    anim.onfinish = () => p.remove();
   }
+}
+
+function popHud(el: HTMLElement): void {
+  el.classList.remove('as-pop');
+  void el.offsetWidth;
+  el.classList.add('as-pop');
+}
+
+/** Burst the completed category out of its slot and fly it to the Groups counter. */
+function celebrateGroup(slotIndex: number, cat: number): void {
+  const slotEl = slotsEl.querySelector<HTMLElement>(`[data-drop="slot:${slotIndex}"]`);
+  const info = state.categories[cat];
+  if (!slotEl) return;
+  const r = slotEl.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+
+  const toast = document.createElement('div');
+  toast.className = 'as-toast';
+  toast.textContent = `✓ ${info.name}`;
+  toast.style.left = `${cx}px`;
+  toast.style.top = `${r.top}px`;
+  document.body.appendChild(toast);
+  toast
+    .animate(
+      [
+        { transform: 'translate(-50%, 0) scale(0.6)', opacity: 0 },
+        { transform: 'translate(-50%, -18px) scale(1.1)', opacity: 1, offset: 0.2 },
+        { transform: 'translate(-50%, -34px) scale(1)', opacity: 1, offset: 0.75 },
+        { transform: 'translate(-50%, -48px) scale(1)', opacity: 0 },
+      ],
+      { duration: prefersReducedMotion ? 1200 : 1400, easing: 'ease-out' }
+    )
+    .onfinish = () => toast.remove();
+
+  slotEl.classList.add('as-flash');
+  window.setTimeout(() => slotEl.classList.remove('as-flash'), 700);
+
+  if (prefersReducedMotion) {
+    popHud(groupsEl);
+    return;
+  }
+
+  const ghost = document.createElement('div');
+  ghost.className = 'as-card as-category as-complete';
+  ghost.innerHTML = `
+    <span class="as-tag">Complete</span>
+    <span class="as-name">${escapeHTML(info.name)}</span>
+    <span class="as-check" aria-hidden="true">✓</span>
+  `;
+  ghost.style.left = `${r.left}px`;
+  ghost.style.top = `${r.top}px`;
+  ghost.style.width = `${r.width}px`;
+  ghost.style.height = `${r.height}px`;
+  document.body.appendChild(ghost);
+  fitText(ghost);
+
+  const g = groupsEl.getBoundingClientRect();
+  const dx = g.left + g.width / 2 - cx;
+  const dy = g.top + g.height / 2 - cy;
+  const anim = ghost.animate(
+    [
+      { transform: 'scale(1) rotate(0deg)', filter: 'brightness(1)' },
+      { transform: 'scale(1.22) rotate(-4deg)', filter: 'brightness(1.5)', offset: 0.22 },
+      { transform: 'scale(1.12) rotate(3deg)', filter: 'brightness(1.2)', offset: 0.45 },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.18) rotate(12deg)`, filter: 'brightness(1)', opacity: 0.2 },
+    ],
+    { duration: 1000, easing: 'cubic-bezier(0.5, 0, 0.3, 1)' }
+  );
+  anim.onfinish = () => {
+    ghost.remove();
+    popHud(groupsEl);
+  };
+  confetti(cx, cy, 28, Math.max(70, r.width * 1.1));
+}
+
+function celebrateLevel(): void {
+  confetti(window.innerWidth / 2, window.innerHeight * 0.4, 80, Math.min(window.innerWidth, 520) * 0.55);
 }
 
 // ── Moves ─────────────────────────────────────────────────
 function parseSource(attr: string | undefined): Source | null {
   if (!attr) return null;
   if (attr === 'waste') return { zone: 'waste' };
-  const [, i, s] = attr.split(':');
-  return { zone: 'column', index: Number(i), start: Number(s) };
+  const [zone, i] = attr.split(':');
+  return zone === 'column' ? { zone: 'column', index: Number(i) } : null;
 }
 
 function parseTarget(attr: string | undefined): Target | null {
@@ -326,12 +435,9 @@ function tryMove(src: Source, target: Target): boolean {
   const res = applyMove(state, src, target);
   if (!res.ok) return false;
   selected = null;
-  if (res.completedCat != null) {
-    flashStatus(`✓ ${state.categories[res.completedCat].name} complete!`, 'good');
-  } else {
-    setStatus('');
-  }
+  setStatus('');
   afterMove();
+  if (res.completedCat != null && res.completedSlot != null) celebrateGroup(res.completedSlot, res.completedCat);
   return true;
 }
 
@@ -345,32 +451,53 @@ function doDraw(): void {
 }
 
 function afterMove(): void {
+  version++;
   render();
   if (isWon(state)) {
     gameOver = true;
     const best = submitScore(SCORE_KEY, state.level);
-    showModal({
-      emoji: '🎉',
-      title: `Level ${state.level} cleared!`,
-      sub: `All ${state.categories.length} groups associated with ${state.movesLeft} move${state.movesLeft === 1 ? '' : 's'} to spare.`,
-      best: `Best: ${best} level${best === 1 ? '' : 's'}`,
-      primary: 'Next level →',
-      onPrimary: () => startLevel(state.level + 1),
-      win: true,
-    });
-  } else if (state.movesLeft <= 0 || !hasAnyMove(state)) {
-    gameOver = true;
-    const best = getBestScore(SCORE_KEY);
-    showModal({
-      emoji: state.movesLeft <= 0 ? '⌛' : '🧱',
-      title: state.movesLeft <= 0 ? 'Out of moves' : 'No moves left',
-      sub: `You reached level ${state.level} and finished ${state.completed} of ${state.categories.length} groups.`,
-      best: best > 0 ? `Best: ${best} level${best === 1 ? '' : 's'}` : '',
-      primary: 'Play again',
-      onPrimary: () => startLevel(1),
-      win: false,
-    });
+    const final = state.level >= LAST_LEVEL;
+    window.setTimeout(() => {
+      celebrateLevel();
+      showModal({
+        emoji: final ? '🏆' : '🎉',
+        title: final ? 'All levels cleared!' : `Level ${state.level} cleared!`,
+        sub: `All ${state.categories.length} groups associated with ${state.movesLeft} move${state.movesLeft === 1 ? '' : 's'} to spare.`,
+        best: `Best: ${best} level${best === 1 ? '' : 's'}`,
+        primary: final ? 'Play again' : 'Next level →',
+        onPrimary: () => startLevel(final ? 1 : state.level + 1),
+        win: true,
+      });
+    }, prefersReducedMotion ? 300 : 900);
+    return;
   }
+  if (state.movesLeft <= 0) {
+    lose('⌛', 'Out of moves');
+    return;
+  }
+  // Fail as soon as the deck can no longer be finished. The check runs after
+  // this frame paints so the move itself always shows first.
+  const checked = version;
+  window.setTimeout(() => {
+    if (checked !== version || gameOver) return;
+    if (checkViable(state) === 'dead') lose('🧱', 'Dead end', 'There is no way to finish this deck in the moves left.');
+  }, 60);
+}
+
+function lose(emoji: string, title: string, reason = ''): void {
+  gameOver = true;
+  selected = null;
+  render();
+  const best = getBestScore(SCORE_KEY);
+  showModal({
+    emoji,
+    title,
+    sub: `${reason ? `${reason} ` : ''}You reached level ${state.level} and finished ${state.completed} of ${state.categories.length} groups.`,
+    best: best > 0 ? `Best: ${best} level${best === 1 ? '' : 's'}` : '',
+    primary: 'Play again',
+    onPrimary: () => startLevel(1),
+    win: false,
+  });
 }
 
 let onModalPrimary: () => void = () => {};
@@ -436,7 +563,9 @@ board.addEventListener('pointerdown', (e) => {
   const source = parseSource(cardEl?.dataset.src);
   if (!cardEl || !source) return;
   e.preventDefault();
-  const rect = cardEl.getBoundingClientRect();
+  // Anchor the drag to the bottom card of the stack so the whole stack follows the pointer.
+  const anchor = sourceElements(source)[0] ?? cardEl;
+  const rect = anchor.getBoundingClientRect();
   dragging = {
     source,
     pointerId: e.pointerId,
@@ -464,7 +593,7 @@ function sourceElements(src: Source): HTMLElement[] {
   if (src.zone === 'waste') return [wasteEl.querySelector<HTMLElement>('[data-src="waste"]')!].filter(Boolean);
   const colEl = tableauEl.children[src.index] as HTMLElement | undefined;
   if (!colEl) return [];
-  return Array.from(colEl.querySelectorAll<HTMLElement>('.as-card')).slice(src.start);
+  return Array.from(colEl.querySelectorAll<HTMLElement>('[data-src]'));
 }
 
 function beginDrag(d: DragState): void {
@@ -489,7 +618,6 @@ function beginDrag(d: DragState): void {
   ghost.style.transform = `translate(${baseRect.left}px, ${baseRect.top}px)`;
   document.body.appendChild(ghost);
   d.ghost = ghost;
-  highlightTargets();
 }
 
 function dropTargetAt(x: number, y: number): Target | null {
@@ -518,7 +646,9 @@ window.addEventListener('pointerup', (e) => {
       if (atCard) candidates.push(atCard);
     }
     if (!candidates.some((t) => tryMove(d.source, t))) {
-      if (candidates.length) flashStatus("That card doesn't go there.", 'bad');
+      if (candidates.some((t) => !(t.zone === 'column' && d.source.zone === 'column' && t.index === d.source.index))) {
+        flashStatus("That card doesn't go there.", 'bad');
+      }
       render();
     }
     return;
@@ -535,17 +665,13 @@ window.addEventListener('pointercancel', () => {
 
 function sameSrc(a: Source, b: Source): boolean {
   if (a.zone === 'waste' || b.zone === 'waste') return a.zone === b.zone;
-  return a.index === b.index && a.start === b.start;
+  return a.index === b.index;
 }
 
 function handleTap(source: Source): void {
   if (selected && sameSrc(selected, source)) {
-    // Second tap on the same card: auto-move it somewhere useful.
-    const t = autoTarget(state, source);
-    if (!t || !tryMove(source, t)) {
-      selected = null;
-      render();
-    }
+    selected = null;
+    render();
     return;
   }
   if (selected && source.zone === 'column' && tryMove(selected, { zone: 'column', index: source.index })) return;
@@ -567,7 +693,7 @@ board.addEventListener('click', (e) => {
   }
 });
 
-window.addEventListener('resize', render);
-window.addEventListener('orientationchange', render);
+window.addEventListener('resize', () => render());
+window.addEventListener('orientationchange', () => render());
 
 startLevel(1);
