@@ -3,9 +3,9 @@
  * a random subset of their words, so card counts vary per category.
  * Words must be unique across the whole pool to keep every card unambiguous.
  *
- * Ordered categories list their words in sequence. A deal uses a contiguous
- * window of that sequence; the words must enter the slot first→last and be
- * stacked last→first down a column.
+ * Ordered categories list their words in sequence. A deal uses the first N
+ * words so every category always starts from the same familiar point; the
+ * words must enter the slot first→last and be stacked last→first down a column.
  */
 export interface CategoryDef {
   name: string;

@@ -27,9 +27,9 @@ const LAST_LEVEL = LEVELS.length;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 showOnboardHint({
-  key: 'associations-v2',
+  key: 'associations-v3',
   line1: 'Stack every word on its category.',
-  line2: 'Put category cards in the slots, then drop matching words on them. Face-up stacks move as a whole. Groups marked “in order” go into the slot first→last. Moves are limited — house cards cost a move too.',
+  line2: 'Put category cards in the slots, then drop matching words on them. Cards marked ⇣ are ordered: stack them last→first, then send them into the slot first→last. Face-up stacks move as a whole. Moves are limited — house cards cost a move too.',
 });
 
 const root = document.getElementById('game-root')!;
@@ -155,11 +155,11 @@ function categoryHTML(cat: number, slot?: { filled: number; last?: string }): st
   const info = state.categories[cat];
   const count = slot ? `${slot.filled}/${info.size}` : `${info.size} card${info.size === 1 ? '' : 's'}`;
   const pct = slot ? Math.round((slot.filled / info.size) * 100) : 0;
-  const lastWord = slot && info.ordered && slot.last ? `<span class="as-last">↳ ${escapeHTML(slot.last)}</span>` : '';
+  const nextCue = slot && info.ordered ? '<span class="as-last">Next in sequence</span>' : '';
   return `
     <span class="as-tag">${info.ordered ? '<span aria-hidden="true">⇣</span> In order' : 'Category'}</span>
     <span class="as-name">${escapeHTML(info.name)}</span>
-    ${lastWord}
+    ${nextCue}
     <span class="as-count">${count}</span>
     ${slot ? `<span class="as-progress"><span style="width:${pct}%"></span></span>` : ''}
   `;
@@ -171,16 +171,18 @@ function escapeHTML(s: string): string {
 
 function makeCard(card: Card, extra = ''): HTMLDivElement {
   const el = document.createElement('div');
-  const ordered = card.kind === 'category' && state.categories[card.cat].ordered;
+  const info = state.categories[card.cat];
+  const ordered = info.ordered;
   el.className = `as-card ${card.faceUp ? `as-${card.kind}` : 'as-facedown'} ${ordered ? 'as-ordered' : ''} ${extra}`
     .replace(/\s+/g, ' ')
     .trim();
   if (card.faceUp) {
-    el.innerHTML = card.kind === 'word' ? `<span class="as-wordtext">${escapeHTML(card.label)}</span>` : categoryHTML(card.cat);
-    const info = state.categories[card.cat];
+    el.innerHTML = card.kind === 'word'
+      ? `${ordered ? '<span class="as-order-mark" aria-hidden="true">⇣</span>' : ''}<span class="as-wordtext">${escapeHTML(card.label)}</span>`
+      : categoryHTML(card.cat);
     el.setAttribute('aria-label', card.kind === 'category'
       ? `Category ${card.label}, ${info.size} cards${info.ordered ? ', in order' : ''}`
-      : `Word ${card.label}`);
+      : `Word ${card.label}${ordered ? ', ordered card' : ''}`);
   }
   return el;
 }
