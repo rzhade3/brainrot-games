@@ -243,7 +243,9 @@ function categoryHTML(cat: number, slot?: { filled: number; last?: string }): st
   const info = state.categories[cat];
   const count = slot ? `${slot.filled}/${info.size}` : `${info.size} card${info.size === 1 ? '' : 's'}`;
   const pct = slot ? Math.round((slot.filled / info.size) * 100) : 0;
-  const nextCue = slot && info.ordered ? '<span class="as-last">Next in sequence</span>' : '';
+  const nextCue = slot && info.ordered
+    ? `<span class="as-last">${slot.last ? `${escapeHTML(slot.last)} → ?` : 'Start with first'}</span>`
+    : '';
   return `
     <span class="as-tag">${info.ordered ? '<span aria-hidden="true">⇣</span> In order' : 'Category'}</span>
     <span class="as-name">${escapeHTML(info.name)}</span>
@@ -333,7 +335,12 @@ function render(): void {
       const info = state.categories[slot.cat];
       const card = makeCard({ id: -1, cat: slot.cat, kind: 'category', label: info.name, faceUp: true, rank: -1 });
       card.innerHTML = categoryHTML(slot.cat, slot);
-      card.setAttribute('aria-label', `Slot: ${info.name}, ${slot.filled} of ${info.size}${info.ordered && slot.last ? `, last ${slot.last}` : ''}`);
+      card.setAttribute(
+        'aria-label',
+        `Slot: ${info.name}, ${slot.filled} of ${info.size}${info.ordered
+          ? slot.last ? `, last ${slot.last}, choose the next word` : ', start with the first word'
+          : ''}`
+      );
       el.appendChild(card);
     } else {
       el.innerHTML = `<span class="as-pile-label">Slot</span>`;
