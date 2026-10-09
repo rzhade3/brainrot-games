@@ -42,6 +42,15 @@ const games: GameEntry[] = [
     scoreLabel: 'waves',
   },
   {
+    title: 'Associations',
+    emoji: '🃏',
+    description: 'Word solitaire: stack every word on its category before your moves run out.',
+    href: './games/associations/',
+    ready: true,
+    scoreKey: 'associations',
+    scoreLabel: 'levels',
+  },
+  {
     title: 'Top Down',
     emoji: '🕹️',
     description: 'A top-down adventure. Coming soon.',

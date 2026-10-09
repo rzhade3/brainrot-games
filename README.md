@@ -7,6 +7,7 @@ A little arcade of browser games. Installable, offline-ready PWA built with Vite
 - 🧶 **Untangle** — drag nodes so no strings cross.
 - 🏰 **Tower Defense** — mine ore, power turrets, defend your castle.
 - ⌨️ **Type Rot** — type the words before they escape.
+- 🃏 **Associations** — word solitaire: 30 levels of stacking every word on its category (some in order) before your moves run out.
 
 ## Develop
 
