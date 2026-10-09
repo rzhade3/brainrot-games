@@ -1,6 +1,6 @@
 /**
- * Category pool for Associations. Each deal picks a handful of categories and
- * a random subset of their words, so card counts vary per category.
+ * Category pool for Associations. The layout builder picks categories and a
+ * subset of their words for each fixed, solver-validated level.
  * Words must be unique across the whole pool to keep every card unambiguous.
  *
  * Ordered categories list their words in sequence. A deal uses the first N

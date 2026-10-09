@@ -1,5 +1,6 @@
 import { getBestScore, submitScore } from '../../core/scores';
 import { showOnboardHint } from '../../core/onboardHint';
+import { getLevelCardCount } from './layouts';
 import { LEVELS } from './levels';
 import { checkViable, generateLevel } from './generate';
 import {
@@ -41,11 +42,13 @@ hud.innerHTML = `
   <div class="hud-topbar">
     <a class="back-link" href="../../">← Hub</a>
     <div class="hud-bar as-bar">
-      <div class="as-stat"><span class="as-label">Level</span><span class="as-val" id="as-level">1</span></div>
+      <button class="as-stat as-level-open" id="as-level-open" type="button" aria-label="Choose level">
+        <span class="as-label">Level</span><span class="as-val" id="as-level">1</span>
+      </button>
       <div class="as-stat"><span class="as-label">Moves</span><span class="as-val" id="as-moves">0</span></div>
       <div class="as-stat"><span class="as-label">Groups</span><span class="as-val" id="as-groups">0/0</span></div>
     </div>
-    <button class="game-btn as-new" id="as-new" type="button">↻ New</button>
+    <button class="game-btn as-new" id="as-new" type="button">↻ Retry</button>
   </div>
   <div class="td-modal" id="as-modal" hidden>
     <div class="td-card as-modal-card" role="dialog" aria-modal="true" aria-labelledby="as-modal-title">
@@ -55,13 +58,28 @@ hud.innerHTML = `
       <p class="td-best" id="as-modal-best"></p>
       <div class="td-actions">
         <button class="game-btn td-primary" id="as-modal-primary" type="button">Play again</button>
+        <button class="game-btn" id="as-modal-levels" type="button">Choose level</button>
         <a class="game-btn as-hub-btn" href="../../">Back to hub</a>
       </div>
+    </div>
+  </div>
+  <div class="td-modal as-level-select" id="as-level-select" hidden>
+    <div class="td-card as-level-card" role="dialog" aria-modal="true" aria-labelledby="as-level-title">
+      <div class="as-level-head">
+        <div>
+          <p class="as-level-eyebrow">Associations</p>
+          <h2 id="as-level-title">Choose a level</h2>
+        </div>
+        <button class="game-btn as-level-close" id="as-level-close" type="button" aria-label="Close level selector">×</button>
+      </div>
+      <p class="as-level-help" id="as-level-help"></p>
+      <div class="as-level-grid" id="as-level-grid"></div>
     </div>
   </div>
 `;
 document.body.appendChild(hud);
 
+const levelOpenBtn = hud.querySelector<HTMLButtonElement>('#as-level-open')!;
 const levelEl = hud.querySelector<HTMLElement>('#as-level')!;
 const movesEl = hud.querySelector<HTMLElement>('#as-moves')!;
 const groupsEl = hud.querySelector<HTMLElement>('#as-groups')!;
@@ -71,7 +89,12 @@ const modalTitleEl = hud.querySelector<HTMLElement>('#as-modal-title')!;
 const modalSubEl = hud.querySelector<HTMLElement>('#as-modal-sub')!;
 const modalBestEl = hud.querySelector<HTMLElement>('#as-modal-best')!;
 const modalPrimaryEl = hud.querySelector<HTMLButtonElement>('#as-modal-primary')!;
+const modalLevelsBtn = hud.querySelector<HTMLButtonElement>('#as-modal-levels')!;
 const newBtn = hud.querySelector<HTMLButtonElement>('#as-new')!;
+const levelSelectEl = hud.querySelector<HTMLElement>('#as-level-select')!;
+const levelCloseBtn = hud.querySelector<HTMLButtonElement>('#as-level-close')!;
+const levelHelpEl = hud.querySelector<HTMLElement>('#as-level-help')!;
+const levelGridEl = hud.querySelector<HTMLElement>('#as-level-grid')!;
 
 // ── Board skeleton ────────────────────────────────────────
 const board = document.createElement('div');
@@ -99,17 +122,82 @@ let selected: Source | null = null;
 let gameOver = false;
 let statusTimer: number | undefined;
 let lossTimer: number | undefined;
+let winTimer: number | undefined;
+let selectorReturnsToModal = false;
 /** Bumped on every state change so stale viability checks are ignored. */
 let version = 0;
 
+function highestUnlockedLevel(): number {
+  return Math.min(LAST_LEVEL, Math.max(1, getBestScore(SCORE_KEY) + 1));
+}
+
+function renderLevelSelector(): void {
+  const completed = Math.min(LAST_LEVEL, getBestScore(SCORE_KEY));
+  const unlocked = highestUnlockedLevel();
+  levelHelpEl.textContent = completed >= LAST_LEVEL
+    ? 'All levels cleared. Replay any layout.'
+    : `Levels 1–${unlocked} unlocked. Clear level ${unlocked} to continue.`;
+  levelGridEl.innerHTML = '';
+
+  LEVELS.forEach((spec, index) => {
+    const level = index + 1;
+    const isLocked = level > unlocked;
+    const isComplete = level <= completed;
+    const isCurrent = level === state.level;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `as-level-option${isComplete ? ' as-level-complete' : ''}${isCurrent ? ' as-level-current' : ''}`;
+    button.disabled = isLocked;
+    button.setAttribute(
+      'aria-label',
+      isLocked
+        ? `Level ${level}, locked`
+        : `Level ${level}, ${spec.groups} groups, ${getLevelCardCount(level)} cards${isComplete ? ', completed' : ''}${isCurrent ? ', current' : ''}`
+    );
+    button.innerHTML = `
+      <span class="as-level-number">${isLocked ? '🔒' : isComplete ? '✓' : level}</span>
+      <span class="as-level-name">Level ${level}</span>
+      <span class="as-level-meta">${spec.groups} groups · ${getLevelCardCount(level)} cards</span>
+      ${spec.ordered ? `<span class="as-level-ordered">⇣ ${spec.ordered} ordered</span>` : ''}
+    `;
+    if (!isLocked) button.addEventListener('click', () => startLevel(level));
+    levelGridEl.appendChild(button);
+  });
+}
+
+function openLevelSelector(returnToModal = !modalEl.hidden): void {
+  version++;
+  selectorReturnsToModal = returnToModal;
+  if (returnToModal) modalEl.hidden = true;
+  renderLevelSelector();
+  levelSelectEl.hidden = false;
+  levelCloseBtn.focus();
+}
+
+function closeLevelSelector(): void {
+  levelSelectEl.hidden = true;
+  if (selectorReturnsToModal) {
+    selectorReturnsToModal = false;
+    modalEl.hidden = false;
+    modalPrimaryEl.focus();
+  } else {
+    levelOpenBtn.focus();
+  }
+}
+
 function startLevel(level: number): void {
   window.clearTimeout(lossTimer);
+  window.clearTimeout(winTimer);
   lossTimer = undefined;
+  winTimer = undefined;
   state = generateLevel(level);
   version++;
   selected = null;
   gameOver = false;
   modalEl.hidden = true;
+  levelSelectEl.hidden = true;
+  selectorReturnsToModal = false;
+  levelOpenBtn.disabled = false;
   movesEl.classList.remove('as-loss-pending');
   statusEl.classList.remove('as-loss-pending');
   const spec = LEVELS[level - 1];
@@ -455,7 +543,7 @@ function parseTarget(attr: string | undefined): Target | null {
 }
 
 function tryMove(src: Source, target: Target): boolean {
-  if (gameOver) return false;
+  if (gameOver || !levelSelectEl.hidden) return false;
   const previousFilled = target.zone === 'slot' ? state.slots[target.index]?.filled ?? 0 : 0;
   const res = applyMove(state, src, target);
   if (!res.ok) return false;
@@ -472,7 +560,7 @@ function tryMove(src: Source, target: Target): boolean {
 }
 
 function doDraw(): void {
-  if (gameOver) return;
+  if (gameOver || !levelSelectEl.hidden) return;
   if (draw(state)) {
     selected = null;
     setStatus('');
@@ -485,9 +573,11 @@ function afterMove(): void {
   render();
   if (isWon(state)) {
     gameOver = true;
+    levelOpenBtn.disabled = true;
     const best = submitScore(SCORE_KEY, state.level);
     const final = state.level >= LAST_LEVEL;
-    window.setTimeout(() => {
+    winTimer = window.setTimeout(() => {
+      winTimer = undefined;
       celebrateLevel();
       showModal({
         emoji: final ? '🏆' : '🎉',
@@ -517,7 +607,9 @@ function afterMove(): void {
 }
 
 function scheduleLoss(emoji: string, title: string, reason = ''): void {
+  const lostLevel = state.level;
   gameOver = true;
+  levelOpenBtn.disabled = true;
   selected = null;
   setStatus(title === 'Out of moves' ? 'No moves left.' : 'No solution from here.', 'bad');
   statusEl.classList.add('as-loss-pending');
@@ -532,7 +624,7 @@ function scheduleLoss(emoji: string, title: string, reason = ''): void {
       sub: `${reason ? `${reason} ` : ''}You reached level ${state.level} and finished ${state.completed} of ${state.categories.length} groups.`,
       best: best > 0 ? `Best: ${best} level${best === 1 ? '' : 's'}` : '',
       primary: 'Play again',
-      onPrimary: () => startLevel(1),
+      onPrimary: () => startLevel(lostLevel),
       win: false,
     });
   }, prefersReducedMotion ? 280 : 700);
@@ -551,13 +643,19 @@ function showModal(o: { emoji: string; title: string; sub: string; best: string;
   modalPrimaryEl.focus();
 }
 modalPrimaryEl.addEventListener('click', () => onModalPrimary());
+modalLevelsBtn.addEventListener('click', () => openLevelSelector(true));
+levelOpenBtn.addEventListener('click', () => openLevelSelector(false));
+levelCloseBtn.addEventListener('click', closeLevelSelector);
+levelSelectEl.addEventListener('click', (e) => {
+  if (e.target === levelSelectEl) closeLevelSelector();
+});
 
-newBtn.addEventListener('click', () => startLevel(1));
+newBtn.addEventListener('click', () => startLevel(state.level));
 stockEl.addEventListener('click', doDraw);
 
 // Keyboard: Enter/Space on a focused card selects it; on a slot or column it drops the selection there.
 board.addEventListener('keydown', (e) => {
-  if (gameOver || (e.key !== 'Enter' && e.key !== ' ')) return;
+  if (gameOver || !levelSelectEl.hidden || (e.key !== 'Enter' && e.key !== ' ')) return;
   const el = e.target as HTMLElement;
   const source = parseSource(el.dataset.src);
   const target = parseTarget(el.dataset.drop);
@@ -572,6 +670,10 @@ board.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !levelSelectEl.hidden) {
+    closeLevelSelector();
+    return;
+  }
   if (!modalEl.hidden) return;
   if (e.key === 'd' || e.key === 'D') doDraw();
   if (e.key === 'Escape' && selected) {
@@ -596,7 +698,7 @@ let dragging: DragState | null = null;
 const DRAG_THRESHOLD = 6;
 
 board.addEventListener('pointerdown', (e) => {
-  if (gameOver || e.button !== 0) return;
+  if (gameOver || !levelSelectEl.hidden || e.button !== 0) return;
   const cardEl = (e.target as HTMLElement).closest<HTMLElement>('[data-src]');
   const source = parseSource(cardEl?.dataset.src);
   if (!cardEl || !source) return;
@@ -719,7 +821,7 @@ function handleTap(source: Source): void {
 
 // Taps on empty drop zones (slots, empty columns, column background) while a card is selected.
 board.addEventListener('click', (e) => {
-  if (!selected || gameOver) return;
+  if (!selected || gameOver || !levelSelectEl.hidden) return;
   const el = e.target as HTMLElement;
   if (el.closest('[data-src]')) return;
   const t = parseTarget(el.closest<HTMLElement>('[data-drop]')?.dataset.drop);
@@ -734,4 +836,4 @@ board.addEventListener('click', (e) => {
 window.addEventListener('resize', () => render());
 window.addEventListener('orientationchange', () => render());
 
-startLevel(1);
+startLevel(highestUnlockedLevel());
