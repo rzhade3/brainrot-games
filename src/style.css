@@ -969,6 +969,10 @@ body {
   color: var(--bad);
 }
 
+.as-val.as-loss-pending {
+  animation: as-loss-count 0.7s var(--ease-out-expo);
+}
+
 .hud-topbar .as-new {
   justify-self: end;
   align-self: stretch;
@@ -1031,6 +1035,22 @@ body {
 
 .as-status[data-tone='bad'] {
   color: var(--bad);
+}
+
+.as-status.as-loss-pending {
+  animation: as-loss-status 0.7s var(--ease-out-expo);
+}
+
+@keyframes as-loss-count {
+  0% { transform: scale(1); text-shadow: none; }
+  45% { transform: scale(1.5); text-shadow: 0 0 14px var(--bad); }
+  100% { transform: scale(1); text-shadow: none; }
+}
+
+@keyframes as-loss-status {
+  0% { transform: translateY(4px); opacity: 0; }
+  35% { transform: translateY(0); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 
 .as-pile {
@@ -1352,6 +1372,8 @@ button.as-pile {
     transition: none;
   }
   .as-val.as-pop,
+  .as-val.as-loss-pending,
+  .as-status.as-loss-pending,
   .as-slot.as-flash,
   .as-slot.as-receive,
   .as-slot.as-receive > .as-card,

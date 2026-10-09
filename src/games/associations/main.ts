@@ -98,15 +98,20 @@ let state: GameState;
 let selected: Source | null = null;
 let gameOver = false;
 let statusTimer: number | undefined;
+let lossTimer: number | undefined;
 /** Bumped on every state change so stale viability checks are ignored. */
 let version = 0;
 
 function startLevel(level: number): void {
+  window.clearTimeout(lossTimer);
+  lossTimer = undefined;
   state = generateLevel(level);
   version++;
   selected = null;
   gameOver = false;
   modalEl.hidden = true;
+  movesEl.classList.remove('as-loss-pending');
+  statusEl.classList.remove('as-loss-pending');
   const spec = LEVELS[level - 1];
   setStatus(level === 1
     ? 'Drag a category card into a slot to begin.'
@@ -495,7 +500,7 @@ function afterMove(): void {
     return;
   }
   if (state.movesLeft <= 0) {
-    lose('⌛', 'Out of moves');
+    scheduleLoss('⌛', 'Out of moves');
     return;
   }
   // Fail as soon as the deck can no longer be finished. The check runs after
@@ -503,24 +508,32 @@ function afterMove(): void {
   const checked = version;
   window.setTimeout(() => {
     if (checked !== version || gameOver) return;
-    if (checkViable(state) === 'dead') lose('🧱', 'Dead end', 'There is no way to finish this deck in the moves left.');
+    if (checkViable(state) === 'dead') {
+      scheduleLoss('🧱', 'Dead end', 'There is no way to finish this deck from here.');
+    }
   }, 60);
 }
 
-function lose(emoji: string, title: string, reason = ''): void {
+function scheduleLoss(emoji: string, title: string, reason = ''): void {
   gameOver = true;
   selected = null;
-  render();
-  const best = getBestScore(SCORE_KEY);
-  showModal({
-    emoji,
-    title,
-    sub: `${reason ? `${reason} ` : ''}You reached level ${state.level} and finished ${state.completed} of ${state.categories.length} groups.`,
-    best: best > 0 ? `Best: ${best} level${best === 1 ? '' : 's'}` : '',
-    primary: 'Play again',
-    onPrimary: () => startLevel(1),
-    win: false,
-  });
+  setStatus(title === 'Out of moves' ? 'No moves left.' : 'No solution from here.', 'bad');
+  statusEl.classList.add('as-loss-pending');
+  if (title === 'Out of moves') movesEl.classList.add('as-loss-pending');
+
+  lossTimer = window.setTimeout(() => {
+    lossTimer = undefined;
+    const best = getBestScore(SCORE_KEY);
+    showModal({
+      emoji,
+      title,
+      sub: `${reason ? `${reason} ` : ''}You reached level ${state.level} and finished ${state.completed} of ${state.categories.length} groups.`,
+      best: best > 0 ? `Best: ${best} level${best === 1 ? '' : 's'}` : '',
+      primary: 'Play again',
+      onPrimary: () => startLevel(1),
+      win: false,
+    });
+  }, prefersReducedMotion ? 280 : 700);
 }
 
 let onModalPrimary: () => void = () => {};
