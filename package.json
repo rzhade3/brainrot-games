@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:associations-layouts": "tsx scripts/build-associations-layouts.ts",
+    "check:associations-layouts": "tsx scripts/build-associations-layouts.ts --check",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -13,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
+    "tsx": "^4.23.15",
     "typescript": "^5.5.4",
     "vite": "^5.4.0",
     "vite-plugin-pwa": "^0.20.1"

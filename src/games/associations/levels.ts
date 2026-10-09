@@ -1,14 +1,13 @@
 /**
  * Fixed level table for Associations.
  *
- * Each level's deal is still shuffled at runtime, but generate.ts only
- * accepts deals the solver proves winnable, and the move budget is the
- * solver's solution length plus `spare`.
+ * Categories, words, and deck order are generated deterministically into
+ * layouts.json. The layout builder only accepts deals the solver proves
+ * winnable, and the move budget is the solution length plus `spare`.
  *
- * Difficulty was pre-validated offline: a simulated player (knows every
- * category, picks greedily, 30% random moves) played 80–100 fresh deals per
- * level. Its win rate is the trailing comment on each row. Levels are sorted
- * so that rate never rises. Level 1 matches the original single-level game.
+ * The trailing win rates came from the earlier randomized-deal simulation and
+ * remain a guide to the intended difficulty curve. Level 1 matches the
+ * original single-level game.
  */
 export interface LevelSpec {
   /** Tableau columns (3–5). Column n is dealt n cards. */

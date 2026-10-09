@@ -92,8 +92,7 @@ export function deal(level: number, spec: LevelSpec, rng: () => number = Math.ra
     const count = Math.min(want, def.words.length);
     let words: string[];
     if (def.ordered) {
-      const start = Math.floor(rng() * (def.words.length - count + 1));
-      words = def.words.slice(start, start + count);
+      words = def.words.slice(0, count);
     } else {
       words = shuffle([...def.words], rng).slice(0, count);
     }

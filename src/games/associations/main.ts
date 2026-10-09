@@ -1,5 +1,6 @@
 import { getBestScore, submitScore } from '../../core/scores';
 import { showOnboardHint } from '../../core/onboardHint';
+import { getLevelCardCount } from './layouts';
 import { LEVELS } from './levels';
 import { checkViable, generateLevel } from './generate';
 import {
@@ -27,9 +28,9 @@ const LAST_LEVEL = LEVELS.length;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 showOnboardHint({
-  key: 'associations-v2',
+  key: 'associations-v3',
   line1: 'Stack every word on its category.',
-  line2: 'Put category cards in the slots, then drop matching words on them. Face-up stacks move as a whole. Groups marked “in order” go into the slot first→last. Moves are limited — house cards cost a move too.',
+  line2: 'Put category cards in the slots, then drop matching words on them. Cards marked ⇣ are ordered: stack them last→first, then send them into the slot first→last. Face-up stacks move as a whole. Moves are limited — house cards cost a move too.',
 });
 
 const root = document.getElementById('game-root')!;
@@ -41,11 +42,13 @@ hud.innerHTML = `
   <div class="hud-topbar">
     <a class="back-link" href="../../">← Hub</a>
     <div class="hud-bar as-bar">
-      <div class="as-stat"><span class="as-label">Level</span><span class="as-val" id="as-level">1</span></div>
+      <button class="as-stat as-level-open" id="as-level-open" type="button" aria-label="Choose level">
+        <span class="as-label">Level</span><span class="as-val" id="as-level">1</span>
+      </button>
       <div class="as-stat"><span class="as-label">Moves</span><span class="as-val" id="as-moves">0</span></div>
       <div class="as-stat"><span class="as-label">Groups</span><span class="as-val" id="as-groups">0/0</span></div>
     </div>
-    <button class="game-btn as-new" id="as-new" type="button">↻ New</button>
+    <button class="game-btn as-new" id="as-new" type="button">↻ Retry</button>
   </div>
   <div class="td-modal" id="as-modal" hidden>
     <div class="td-card as-modal-card" role="dialog" aria-modal="true" aria-labelledby="as-modal-title">
@@ -55,13 +58,28 @@ hud.innerHTML = `
       <p class="td-best" id="as-modal-best"></p>
       <div class="td-actions">
         <button class="game-btn td-primary" id="as-modal-primary" type="button">Play again</button>
+        <button class="game-btn" id="as-modal-levels" type="button">Choose level</button>
         <a class="game-btn as-hub-btn" href="../../">Back to hub</a>
       </div>
+    </div>
+  </div>
+  <div class="td-modal as-level-select" id="as-level-select" hidden>
+    <div class="td-card as-level-card" role="dialog" aria-modal="true" aria-labelledby="as-level-title">
+      <div class="as-level-head">
+        <div>
+          <p class="as-level-eyebrow">Associations</p>
+          <h2 id="as-level-title">Choose a level</h2>
+        </div>
+        <button class="game-btn as-level-close" id="as-level-close" type="button" aria-label="Close level selector">×</button>
+      </div>
+      <p class="as-level-help" id="as-level-help"></p>
+      <div class="as-level-grid" id="as-level-grid"></div>
     </div>
   </div>
 `;
 document.body.appendChild(hud);
 
+const levelOpenBtn = hud.querySelector<HTMLButtonElement>('#as-level-open')!;
 const levelEl = hud.querySelector<HTMLElement>('#as-level')!;
 const movesEl = hud.querySelector<HTMLElement>('#as-moves')!;
 const groupsEl = hud.querySelector<HTMLElement>('#as-groups')!;
@@ -71,7 +89,12 @@ const modalTitleEl = hud.querySelector<HTMLElement>('#as-modal-title')!;
 const modalSubEl = hud.querySelector<HTMLElement>('#as-modal-sub')!;
 const modalBestEl = hud.querySelector<HTMLElement>('#as-modal-best')!;
 const modalPrimaryEl = hud.querySelector<HTMLButtonElement>('#as-modal-primary')!;
+const modalLevelsBtn = hud.querySelector<HTMLButtonElement>('#as-modal-levels')!;
 const newBtn = hud.querySelector<HTMLButtonElement>('#as-new')!;
+const levelSelectEl = hud.querySelector<HTMLElement>('#as-level-select')!;
+const levelCloseBtn = hud.querySelector<HTMLButtonElement>('#as-level-close')!;
+const levelHelpEl = hud.querySelector<HTMLElement>('#as-level-help')!;
+const levelGridEl = hud.querySelector<HTMLElement>('#as-level-grid')!;
 
 // ── Board skeleton ────────────────────────────────────────
 const board = document.createElement('div');
@@ -98,15 +121,85 @@ let state: GameState;
 let selected: Source | null = null;
 let gameOver = false;
 let statusTimer: number | undefined;
+let lossTimer: number | undefined;
+let winTimer: number | undefined;
+let selectorReturnsToModal = false;
 /** Bumped on every state change so stale viability checks are ignored. */
 let version = 0;
 
+function highestUnlockedLevel(): number {
+  return Math.min(LAST_LEVEL, Math.max(1, getBestScore(SCORE_KEY) + 1));
+}
+
+function renderLevelSelector(): void {
+  const completed = Math.min(LAST_LEVEL, getBestScore(SCORE_KEY));
+  const unlocked = highestUnlockedLevel();
+  levelHelpEl.textContent = completed >= LAST_LEVEL
+    ? 'All levels cleared. Replay any layout.'
+    : `Levels 1–${unlocked} unlocked. Clear level ${unlocked} to continue.`;
+  levelGridEl.innerHTML = '';
+
+  LEVELS.forEach((spec, index) => {
+    const level = index + 1;
+    const isLocked = level > unlocked;
+    const isComplete = level <= completed;
+    const isCurrent = level === state.level;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `as-level-option${isComplete ? ' as-level-complete' : ''}${isCurrent ? ' as-level-current' : ''}`;
+    button.disabled = isLocked;
+    button.setAttribute(
+      'aria-label',
+      isLocked
+        ? `Level ${level}, locked`
+        : `Level ${level}, ${spec.groups} groups, ${getLevelCardCount(level)} cards${isComplete ? ', completed' : ''}${isCurrent ? ', current' : ''}`
+    );
+    button.innerHTML = `
+      <span class="as-level-number">${isLocked ? '🔒' : isComplete ? '✓' : level}</span>
+      <span class="as-level-name">Level ${level}</span>
+      <span class="as-level-meta">${spec.groups} groups · ${getLevelCardCount(level)} cards</span>
+      ${spec.ordered ? `<span class="as-level-ordered">⇣ ${spec.ordered} ordered</span>` : ''}
+    `;
+    if (!isLocked) button.addEventListener('click', () => startLevel(level));
+    levelGridEl.appendChild(button);
+  });
+}
+
+function openLevelSelector(returnToModal = !modalEl.hidden): void {
+  version++;
+  selectorReturnsToModal = returnToModal;
+  if (returnToModal) modalEl.hidden = true;
+  renderLevelSelector();
+  levelSelectEl.hidden = false;
+  levelCloseBtn.focus();
+}
+
+function closeLevelSelector(): void {
+  levelSelectEl.hidden = true;
+  if (selectorReturnsToModal) {
+    selectorReturnsToModal = false;
+    modalEl.hidden = false;
+    modalPrimaryEl.focus();
+  } else {
+    levelOpenBtn.focus();
+  }
+}
+
 function startLevel(level: number): void {
+  window.clearTimeout(lossTimer);
+  window.clearTimeout(winTimer);
+  lossTimer = undefined;
+  winTimer = undefined;
   state = generateLevel(level);
   version++;
   selected = null;
   gameOver = false;
   modalEl.hidden = true;
+  levelSelectEl.hidden = true;
+  selectorReturnsToModal = false;
+  levelOpenBtn.disabled = false;
+  movesEl.classList.remove('as-loss-pending');
+  statusEl.classList.remove('as-loss-pending');
   const spec = LEVELS[level - 1];
   setStatus(level === 1
     ? 'Drag a category card into a slot to begin.'
@@ -150,11 +243,13 @@ function categoryHTML(cat: number, slot?: { filled: number; last?: string }): st
   const info = state.categories[cat];
   const count = slot ? `${slot.filled}/${info.size}` : `${info.size} card${info.size === 1 ? '' : 's'}`;
   const pct = slot ? Math.round((slot.filled / info.size) * 100) : 0;
-  const lastWord = slot && info.ordered && slot.last ? `<span class="as-last">↳ ${escapeHTML(slot.last)}</span>` : '';
+  const nextCue = slot && info.ordered
+    ? `<span class="as-last">${slot.last ? `${escapeHTML(slot.last)} → ?` : 'Start with first'}</span>`
+    : '';
   return `
     <span class="as-tag">${info.ordered ? '<span aria-hidden="true">⇣</span> In order' : 'Category'}</span>
     <span class="as-name">${escapeHTML(info.name)}</span>
-    ${lastWord}
+    ${nextCue}
     <span class="as-count">${count}</span>
     ${slot ? `<span class="as-progress"><span style="width:${pct}%"></span></span>` : ''}
   `;
@@ -166,16 +261,18 @@ function escapeHTML(s: string): string {
 
 function makeCard(card: Card, extra = ''): HTMLDivElement {
   const el = document.createElement('div');
-  const ordered = card.kind === 'category' && state.categories[card.cat].ordered;
+  const info = state.categories[card.cat];
+  const ordered = info.ordered;
   el.className = `as-card ${card.faceUp ? `as-${card.kind}` : 'as-facedown'} ${ordered ? 'as-ordered' : ''} ${extra}`
     .replace(/\s+/g, ' ')
     .trim();
   if (card.faceUp) {
-    el.innerHTML = card.kind === 'word' ? `<span class="as-wordtext">${escapeHTML(card.label)}</span>` : categoryHTML(card.cat);
-    const info = state.categories[card.cat];
+    el.innerHTML = card.kind === 'word'
+      ? `${ordered ? '<span class="as-order-mark" aria-hidden="true">⇣</span>' : ''}<span class="as-wordtext">${escapeHTML(card.label)}</span>`
+      : categoryHTML(card.cat);
     el.setAttribute('aria-label', card.kind === 'category'
       ? `Category ${card.label}, ${info.size} cards${info.ordered ? ', in order' : ''}`
-      : `Word ${card.label}`);
+      : `Word ${card.label}${ordered ? ', ordered card' : ''}`);
   }
   return el;
 }
@@ -238,7 +335,12 @@ function render(): void {
       const info = state.categories[slot.cat];
       const card = makeCard({ id: -1, cat: slot.cat, kind: 'category', label: info.name, faceUp: true, rank: -1 });
       card.innerHTML = categoryHTML(slot.cat, slot);
-      card.setAttribute('aria-label', `Slot: ${info.name}, ${slot.filled} of ${info.size}${info.ordered && slot.last ? `, last ${slot.last}` : ''}`);
+      card.setAttribute(
+        'aria-label',
+        `Slot: ${info.name}, ${slot.filled} of ${info.size}${info.ordered
+          ? slot.last ? `, last ${slot.last}, choose the next word` : ', start with the first word'
+          : ''}`
+      );
       el.appendChild(card);
     } else {
       el.innerHTML = `<span class="as-pile-label">Slot</span>`;
@@ -343,6 +445,23 @@ function popHud(el: HTMLElement): void {
   el.classList.add('as-pop');
 }
 
+/** Give each successful partial addition a quick, tactile-looking confirmation. */
+function celebrateCardAdded(slotIndex: number, count: number): void {
+  const slotEl = slotsEl.querySelector<HTMLElement>(`[data-drop="slot:${slotIndex}"]`);
+  if (!slotEl) return;
+
+  slotEl.classList.add('as-receive');
+  window.setTimeout(() => slotEl.classList.remove('as-receive'), 550);
+
+  if (prefersReducedMotion) return;
+  const pop = document.createElement('span');
+  pop.className = 'as-add-pop';
+  pop.textContent = `+${count}`;
+  pop.setAttribute('aria-hidden', 'true');
+  slotEl.appendChild(pop);
+  pop.addEventListener('animationend', () => pop.remove(), { once: true });
+}
+
 /** Burst the completed category out of its slot and fly it to the Groups counter. */
 function celebrateGroup(slotIndex: number, cat: number): void {
   const slotEl = slotsEl.querySelector<HTMLElement>(`[data-drop="slot:${slotIndex}"]`);
@@ -431,18 +550,24 @@ function parseTarget(attr: string | undefined): Target | null {
 }
 
 function tryMove(src: Source, target: Target): boolean {
-  if (gameOver) return false;
+  if (gameOver || !levelSelectEl.hidden) return false;
+  const previousFilled = target.zone === 'slot' ? state.slots[target.index]?.filled ?? 0 : 0;
   const res = applyMove(state, src, target);
   if (!res.ok) return false;
   selected = null;
   setStatus('');
   afterMove();
-  if (res.completedCat != null && res.completedSlot != null) celebrateGroup(res.completedSlot, res.completedCat);
+  if (res.completedCat != null && res.completedSlot != null) {
+    celebrateGroup(res.completedSlot, res.completedCat);
+  } else if (target.zone === 'slot') {
+    const added = (state.slots[target.index]?.filled ?? 0) - previousFilled;
+    if (added > 0) celebrateCardAdded(target.index, added);
+  }
   return true;
 }
 
 function doDraw(): void {
-  if (gameOver) return;
+  if (gameOver || !levelSelectEl.hidden) return;
   if (draw(state)) {
     selected = null;
     setStatus('');
@@ -455,9 +580,11 @@ function afterMove(): void {
   render();
   if (isWon(state)) {
     gameOver = true;
+    levelOpenBtn.disabled = true;
     const best = submitScore(SCORE_KEY, state.level);
     const final = state.level >= LAST_LEVEL;
-    window.setTimeout(() => {
+    winTimer = window.setTimeout(() => {
+      winTimer = undefined;
       celebrateLevel();
       showModal({
         emoji: final ? '🏆' : '🎉',
@@ -472,7 +599,7 @@ function afterMove(): void {
     return;
   }
   if (state.movesLeft <= 0) {
-    lose('⌛', 'Out of moves');
+    scheduleLoss('⌛', 'Out of moves');
     return;
   }
   // Fail as soon as the deck can no longer be finished. The check runs after
@@ -480,24 +607,34 @@ function afterMove(): void {
   const checked = version;
   window.setTimeout(() => {
     if (checked !== version || gameOver) return;
-    if (checkViable(state) === 'dead') lose('🧱', 'Dead end', 'There is no way to finish this deck in the moves left.');
+    if (checkViable(state) === 'dead') {
+      scheduleLoss('🧱', 'Dead end', 'There is no way to finish this deck from here.');
+    }
   }, 60);
 }
 
-function lose(emoji: string, title: string, reason = ''): void {
+function scheduleLoss(emoji: string, title: string, reason = ''): void {
+  const lostLevel = state.level;
   gameOver = true;
+  levelOpenBtn.disabled = true;
   selected = null;
-  render();
-  const best = getBestScore(SCORE_KEY);
-  showModal({
-    emoji,
-    title,
-    sub: `${reason ? `${reason} ` : ''}You reached level ${state.level} and finished ${state.completed} of ${state.categories.length} groups.`,
-    best: best > 0 ? `Best: ${best} level${best === 1 ? '' : 's'}` : '',
-    primary: 'Play again',
-    onPrimary: () => startLevel(1),
-    win: false,
-  });
+  setStatus(title === 'Out of moves' ? 'No moves left.' : 'No solution from here.', 'bad');
+  statusEl.classList.add('as-loss-pending');
+  if (title === 'Out of moves') movesEl.classList.add('as-loss-pending');
+
+  lossTimer = window.setTimeout(() => {
+    lossTimer = undefined;
+    const best = getBestScore(SCORE_KEY);
+    showModal({
+      emoji,
+      title,
+      sub: `${reason ? `${reason} ` : ''}You reached level ${state.level} and finished ${state.completed} of ${state.categories.length} groups.`,
+      best: best > 0 ? `Best: ${best} level${best === 1 ? '' : 's'}` : '',
+      primary: 'Play again',
+      onPrimary: () => startLevel(lostLevel),
+      win: false,
+    });
+  }, prefersReducedMotion ? 280 : 700);
 }
 
 let onModalPrimary: () => void = () => {};
@@ -513,13 +650,19 @@ function showModal(o: { emoji: string; title: string; sub: string; best: string;
   modalPrimaryEl.focus();
 }
 modalPrimaryEl.addEventListener('click', () => onModalPrimary());
+modalLevelsBtn.addEventListener('click', () => openLevelSelector(true));
+levelOpenBtn.addEventListener('click', () => openLevelSelector(false));
+levelCloseBtn.addEventListener('click', closeLevelSelector);
+levelSelectEl.addEventListener('click', (e) => {
+  if (e.target === levelSelectEl) closeLevelSelector();
+});
 
-newBtn.addEventListener('click', () => startLevel(1));
+newBtn.addEventListener('click', () => startLevel(state.level));
 stockEl.addEventListener('click', doDraw);
 
 // Keyboard: Enter/Space on a focused card selects it; on a slot or column it drops the selection there.
 board.addEventListener('keydown', (e) => {
-  if (gameOver || (e.key !== 'Enter' && e.key !== ' ')) return;
+  if (gameOver || !levelSelectEl.hidden || (e.key !== 'Enter' && e.key !== ' ')) return;
   const el = e.target as HTMLElement;
   const source = parseSource(el.dataset.src);
   const target = parseTarget(el.dataset.drop);
@@ -534,6 +677,10 @@ board.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !levelSelectEl.hidden) {
+    closeLevelSelector();
+    return;
+  }
   if (!modalEl.hidden) return;
   if (e.key === 'd' || e.key === 'D') doDraw();
   if (e.key === 'Escape' && selected) {
@@ -558,7 +705,7 @@ let dragging: DragState | null = null;
 const DRAG_THRESHOLD = 6;
 
 board.addEventListener('pointerdown', (e) => {
-  if (gameOver || e.button !== 0) return;
+  if (gameOver || !levelSelectEl.hidden || e.button !== 0) return;
   const cardEl = (e.target as HTMLElement).closest<HTMLElement>('[data-src]');
   const source = parseSource(cardEl?.dataset.src);
   if (!cardEl || !source) return;
@@ -681,7 +828,7 @@ function handleTap(source: Source): void {
 
 // Taps on empty drop zones (slots, empty columns, column background) while a card is selected.
 board.addEventListener('click', (e) => {
-  if (!selected || gameOver) return;
+  if (!selected || gameOver || !levelSelectEl.hidden) return;
   const el = e.target as HTMLElement;
   if (el.closest('[data-src]')) return;
   const t = parseTarget(el.closest<HTMLElement>('[data-drop]')?.dataset.drop);
@@ -696,4 +843,4 @@ board.addEventListener('click', (e) => {
 window.addEventListener('resize', () => render());
 window.addEventListener('orientationchange', () => render());
 
-startLevel(1);
+startLevel(highestUnlockedLevel());
