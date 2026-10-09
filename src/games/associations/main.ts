@@ -343,6 +343,23 @@ function popHud(el: HTMLElement): void {
   el.classList.add('as-pop');
 }
 
+/** Give each successful partial addition a quick, tactile-looking confirmation. */
+function celebrateCardAdded(slotIndex: number, count: number): void {
+  const slotEl = slotsEl.querySelector<HTMLElement>(`[data-drop="slot:${slotIndex}"]`);
+  if (!slotEl) return;
+
+  slotEl.classList.add('as-receive');
+  window.setTimeout(() => slotEl.classList.remove('as-receive'), 550);
+
+  if (prefersReducedMotion) return;
+  const pop = document.createElement('span');
+  pop.className = 'as-add-pop';
+  pop.textContent = `+${count}`;
+  pop.setAttribute('aria-hidden', 'true');
+  slotEl.appendChild(pop);
+  pop.addEventListener('animationend', () => pop.remove(), { once: true });
+}
+
 /** Burst the completed category out of its slot and fly it to the Groups counter. */
 function celebrateGroup(slotIndex: number, cat: number): void {
   const slotEl = slotsEl.querySelector<HTMLElement>(`[data-drop="slot:${slotIndex}"]`);
@@ -432,12 +449,18 @@ function parseTarget(attr: string | undefined): Target | null {
 
 function tryMove(src: Source, target: Target): boolean {
   if (gameOver) return false;
+  const previousFilled = target.zone === 'slot' ? state.slots[target.index]?.filled ?? 0 : 0;
   const res = applyMove(state, src, target);
   if (!res.ok) return false;
   selected = null;
   setStatus('');
   afterMove();
-  if (res.completedCat != null && res.completedSlot != null) celebrateGroup(res.completedSlot, res.completedCat);
+  if (res.completedCat != null && res.completedSlot != null) {
+    celebrateGroup(res.completedSlot, res.completedCat);
+  } else if (target.zone === 'slot') {
+    const added = (state.slots[target.index]?.filled ?? 0) - previousFilled;
+    if (added > 0) celebrateCardAdded(target.index, added);
+  }
   return true;
 }
 
