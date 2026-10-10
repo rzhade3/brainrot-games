@@ -15,6 +15,13 @@ type GameEntry = {
 
 const games: GameEntry[] = [
   {
+    title: 'Pocket Factory',
+    emoji: '🏭',
+    description: 'Build an isometric factory. Complete a Guided Run or explore Free Play, with local autosave and offline resume.',
+    href: './games/factory/',
+    ready: true,
+  },
+  {
     title: 'Untangle',
     emoji: '🧶',
     description: 'Untangle clusters so no strings cross. They collapse, zoom out, and never end.',
