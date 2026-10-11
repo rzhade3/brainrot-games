@@ -1,11 +1,11 @@
 import { Building, BuildingKind, BuildableKind, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isConveyor, isTool, NAMES, outputDirections, Point, Scenario, Tile, tileKey, Tool } from './model';
-import { FARM_TICKS, KITCHEN_CAPACITY, MEAL_TICKS, RESIDENT_NAMES, Resident, SettlementSave } from './settlement';
+import { RESIDENT_NAMES, Resident, SettlementSave } from './settlement';
 import { DEFAULT_WORLD, FactoryWorld } from './world';
 import {
-  ASSEMBLE_TICKS, BELT_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, EXTRACT_TICKS, FactorySummary,
-  depotNextItem, inventoryText, itemCount, ITEM_NAMES, MachineState, ObjectiveSummary, PROJECTS, ProjectSummary,
-  SMELT_TICKS, STEP_MS, UPGRADED_EXTRACT_TICKS,
+  FactorySummary, depotNextItem, inventoryText, itemCount, ITEM_NAMES, MachineInspection, ObjectiveSummary, PROJECTS, ProjectSummary,
+  STEP_MS, UPGRADED_EXTRACT_TICKS,
 } from './simulation';
+import { inputCapacity } from './machineRules';
 
 export type Action = Tool | 'remove' | 'recover' | 'rotate' | 'zoom-in' | 'zoom-out' | 'home' | 'pause' | 'close'
   | 'focus-copper' | 'focus-iron' | 'focus-outpost' | 'build-route' | 'swap-bend' | 'cancel-route' | 'undo-trail'
@@ -678,7 +678,8 @@ export class FactoryHud {
       : `Carrying ${item}`;
   }
 
-  setMachine(machine: Readonly<MachineState>, status: string, paused: boolean, world: FactoryWorld = DEFAULT_WORLD): void {
+  setMachine(inspection: MachineInspection, paused: boolean, world: FactoryWorld = DEFAULT_WORLD): void {
+    const { machine, status, cycleTicks, recipe: machineRecipe } = inspection;
     const kind = machine.building.kind;
     const state = this.inspector.querySelector<HTMLElement>('#factory-machine-state');
     if (state) {
@@ -688,9 +689,9 @@ export class FactoryHud {
     }
     const input = this.inspector.querySelector<HTMLElement>('#factory-machine-input')!;
     input.textContent = isConveyor(kind) ? machine.item ? `1/1 · ${ITEM_NAMES[machine.item]}` : '0/1 · Empty'
-      : `${itemCount(machine.input)}/${kind === 'storage' ? DEPOT_CAPACITY : kind === 'kitchen' ? KITCHEN_CAPACITY : BUFFER_CAPACITY} · ${inventoryText(machine.input)}`;
+      : `${itemCount(machine.input)}/${inspection.inputCapacity} · ${inventoryText(machine.input)}`;
     const output = this.inspector.querySelector<HTMLElement>('#factory-machine-output');
-    if (output) output.textContent = `${itemCount(machine.output)}/${BUFFER_CAPACITY} · ${inventoryText(machine.output)}`;
+    if (output) output.textContent = `${itemCount(machine.output)}/${inspection.outputCapacity} · ${inventoryText(machine.output)}`;
     if (kind === 'miner') input.textContent = `${world.at(machine.building).deposit === 'copper' ? 'Copper' : 'Iron'} deposit`;
     if (kind === 'food-plot') {
       const farmer = this.settlement?.residents.find(resident => resident.job?.kind === 'farm' &&
@@ -698,7 +699,7 @@ export class FactoryHud {
       input.textContent = farmer ? RESIDENT_NAMES[farmer.id] : 'Unassigned';
     }
     if (kind === 'home') input.textContent = String(this.settlement?.residents.length ?? 0);
-    if (kind === 'assembler') input.textContent = `Iron ${machine.input['iron-plate']}/4 · Copper ${machine.input['copper-plate']}/4`;
+    if (kind === 'assembler') input.textContent = `Iron ${machine.input['iron-plate']}/${inputCapacity(kind, 'iron-plate')} · Copper ${machine.input['copper-plate']}/${inputCapacity(kind, 'copper-plate')}`;
     if (kind === 'splitter') this.inspector.querySelector<HTMLElement>('#factory-next-output')!.textContent =
       DIRECTION_NAMES[outputDirections(machine.building)[machine.nextOutput]];
     const delivery = this.objectiveState && !this.objectiveState.complete ? this.objectiveState
@@ -709,21 +710,20 @@ export class FactoryHud {
       ? `${accepted}/${delivery.quantity} ${ITEM_NAMES[delivery.item].toLowerCase()} delivered` : 'No active delivery';
     const pace = this.inspector.querySelector<HTMLElement>('#factory-machine-pace');
     if (pace) {
-      const ticks = kind === 'miner' ? machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS
-        : kind === 'furnace' ? SMELT_TICKS : kind === 'assembler' ? ASSEMBLE_TICKS : kind === 'food-plot' ? FARM_TICKS
-          : kind === 'kitchen' ? MEAL_TICKS : BELT_TICKS;
       const unit = kind === 'miner' ? 'ore' : kind === 'furnace' ? 'plate' : kind === 'assembler' ? 'supply'
         : kind === 'food-plot' || kind === 'kitchen' ? 'food unit' : 'item';
-      pace.textContent = `1 ${unit} / ${ticks * STEP_MS / 1000}s`;
+      pace.textContent = `${machineRecipe?.output.quantity ?? 1} ${unit} / ${cycleTicks * STEP_MS / 1000}s`;
       this.inspector.querySelector<HTMLElement>('#factory-machine-pace-row')!.hidden = kind === 'storage' && !machine.building.outputEnabled;
     }
     const recipe = this.inspector.querySelector<HTMLElement>('#factory-machine-recipe');
-    if (recipe) recipe.textContent = kind === 'assembler' ? '2 iron plates + 1 copper plate → 1 supply' : '1 ore → 1 matching plate';
-    const progress = kind === 'kitchen' ? machine.input['food-unit'] / KITCHEN_CAPACITY
-      : kind === 'storage' ? itemCount(machine.input) / DEPOT_CAPACITY
+    if (recipe && machineRecipe) recipe.textContent = kind === 'assembler'
+      ? `${machineRecipe.inputs.map(ingredient =>
+        `${ingredient.quantity} ${ITEM_NAMES[ingredient.item].toLowerCase().replace(/s$/, ingredient.quantity === 1 ? '' : 's')}`).join(' + ')} → ${machineRecipe.output.quantity} supply`
+      : `${machineRecipe.inputs[0].quantity} ore → ${machineRecipe.output.quantity} matching plate`;
+    const progress = kind === 'kitchen' ? machine.input['food-unit'] / inspection.inputCapacity
+      : kind === 'storage' ? itemCount(machine.input) / inspection.inputCapacity
       : kind === 'outpost' ? (delivery ? accepted / delivery.quantity : 0)
-      : machine.progress / (kind === 'miner' ? machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS
-        : kind === 'furnace' ? SMELT_TICKS : kind === 'assembler' ? ASSEMBLE_TICKS : kind === 'food-plot' ? FARM_TICKS : BELT_TICKS);
+      : machine.progress / cycleTicks;
     const percent = Math.round(progress * 100);
     const progressLabel = this.inspector.querySelector<HTMLElement>('#factory-progress-label');
     if (progressLabel) {
@@ -761,15 +761,18 @@ export class FactoryHud {
       if (!this.recoveredCount) recovery.open = false;
       recovery.querySelector<HTMLOutputElement>('output')!.textContent = String(this.recoveredCount);
       recovery.querySelector<HTMLElement>('.factory-recovered-items')!.textContent = this.recoveredText;
-      const slots = DEPOT_CAPACITY - itemCount(machine.input);
+      const slots = inspection.availableInput;
       const count = Math.min(slots, this.recoveredCount);
-      const reason = !slots ? 'Depot full. Recovered items remain safely stored.'
+      const reserved = inspection.inputCapacity - itemCount(machine.input) - slots;
+      const reason = !slots ? reserved ? 'Remaining space is reserved for deliveries. Recovered items remain safely stored.'
+        : 'Depot full. Recovered items remain safely stored.'
         : this.settlement ? 'Stock is stored here. Choose resident hauling or enable conveyor output.'
           : machine.building.outputEnabled ? 'Stock leaves toward the arrow; deliveries count only at the outpost.'
             : 'Storage only until output is unlocked and enabled.';
       const recover = this.inspector.querySelector<HTMLButtonElement>('[data-action="recover"]')!;
       recover.disabled = !count;
-      recover.textContent = count ? `Store ${count} ${count === 1 ? 'item' : 'items'} here` : 'Depot full';
+      recover.textContent = count ? `Store ${count} ${count === 1 ? 'item' : 'items'} here`
+        : reserved ? 'Space reserved for deliveries' : 'Depot full';
       recover.title = reason;
       this.inspector.querySelector<HTMLElement>('.factory-recover-reason')!.textContent = reason;
     }

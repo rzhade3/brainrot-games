@@ -4,6 +4,10 @@ import {
   BELT_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, EXTRACT_TICKS, FactorySimulation,
   inventory, itemCount, ITEMS,
 } from '../src/games/factory/simulation';
+import {
+  acceptsInventoryItem, ASSEMBLER_RECIPE, hasRecipeInputs, inputCapacity, inputSlots, outputCapacity,
+  producesInventoryItem, SMELTER_RECIPES,
+} from '../src/games/factory/machineRules';
 import { commitRoute, planRoute, undoRoute } from '../src/games/factory/beltRoute';
 
 function building(kind: BuildingKind, c: number, r: number, direction: Direction = 0): Building {
@@ -60,6 +64,62 @@ function readyCargo(simulation: FactorySimulation, ...tiles: Tile[]): FactorySim
   }
   return FactorySimulation.restore(save);
 }
+
+const machineRules: Record<BuildingKind, { input: number; output: number; items: readonly string[] }> = {
+  belt: { input: 0, output: 0, items: [] },
+  splitter: { input: 0, output: 0, items: [] },
+  miner: { input: 0, output: 4, items: [] },
+  furnace: { input: 4, output: 4, items: ['iron-ore', 'copper-ore'] },
+  storage: { input: 64, output: 0, items: ITEMS },
+  assembler: { input: 8, output: 4, items: ['iron-plate', 'copper-plate'] },
+  outpost: { input: 0, output: 0, items: [] },
+  home: { input: 0, output: 0, items: [] },
+  'food-plot': { input: 0, output: 4, items: [] },
+  kitchen: { input: 16, output: 0, items: ['food-unit'] },
+};
+for (const kind of Object.keys(machineRules) as BuildingKind[]) {
+  const expected = machineRules[kind];
+  assert.equal(inputCapacity(kind), expected.input, `${kind} input capacity`);
+  assert.equal(outputCapacity(kind), expected.output, `${kind} output capacity`);
+  for (const item of ITEMS) {
+    assert.equal(acceptsInventoryItem(kind, item), expected.items.includes(item), `${kind} accepts ${item}`);
+    assert.equal(inputCapacity(kind, item), expected.items.includes(item) ? kind === 'assembler' ? 4 : expected.input : 0);
+  }
+}
+for (const item of ITEMS) {
+  assert.equal(producesInventoryItem('miner', item, 'iron'), item === 'iron-ore');
+  assert.equal(producesInventoryItem('miner', item, 'copper'), item === 'copper-ore');
+  assert.equal(producesInventoryItem('furnace', item, null), item === 'iron-plate' || item === 'copper-plate');
+  assert.equal(producesInventoryItem('assembler', item, null), item === 'defense-supply');
+  assert.equal(producesInventoryItem('food-plot', item, null), item === 'food-unit');
+}
+assert.deepEqual(SMELTER_RECIPES['iron-ore'], {
+  inputs: [{ item: 'iron-ore', quantity: 1 }], output: { item: 'iron-plate', quantity: 1 }, ticks: 16,
+});
+assert.deepEqual(SMELTER_RECIPES['copper-ore'], {
+  inputs: [{ item: 'copper-ore', quantity: 1 }], output: { item: 'copper-plate', quantity: 1 }, ticks: 16,
+});
+assert.deepEqual(ASSEMBLER_RECIPE, {
+  inputs: [{ item: 'iron-plate', quantity: 2 }, { item: 'copper-plate', quantity: 1 }],
+  output: { item: 'defense-supply', quantity: 1 }, ticks: 20,
+});
+assert.equal(hasRecipeInputs({ ...inventory(), 'iron-plate': 2 }, ASSEMBLER_RECIPE), false);
+assert.equal(hasRecipeInputs({ ...inventory(), 'iron-plate': 2, 'copper-plate': 1 }, ASSEMBLER_RECIPE), true);
+const ingredientFactory = factory(building('assembler', 12, 12));
+const ingredients = { ...ingredientFactory.getState({ c: 12, r: 12 })!,
+  input: { ...inventory(), 'iron-plate': 4, 'copper-plate': 1 } };
+assert.equal(inputSlots(ingredients), 3);
+assert.equal(inputSlots(ingredients, 'iron-plate'), 0);
+assert.equal(inputSlots(ingredients, 'copper-plate', 2), 1, 'Reservations use the requested ingredient buffer');
+assert.equal(inputSlots(ingredients, 'iron-ore'), 0);
+const assemblyInspection = ingredientFactory.inspectMachine({ c: 12, r: 12 });
+assert.equal(assemblyInspection.inputCapacity, 8);
+assert.equal(assemblyInspection.outputCapacity, 4);
+assert.equal(assemblyInspection.availableInput, 8);
+assert.deepEqual(assemblyInspection.recipe, ASSEMBLER_RECIPE);
+assert.equal(assemblyInspection.cycleTicks, 20);
+assert.equal(assemblyInspection.status, 'Needs 2 iron + 1 copper plate');
+assert.throws(() => ingredientFactory.inspectMachine({ c: 0, r: 0 }), /missing/);
 
 const demo = new FactorySimulation(createDemo());
 run(demo, 300);

@@ -849,8 +849,9 @@ export default class FactoryScene extends Phaser.Scene {
     this.hud.setBuildings(this.buildings);
     this.hud.setSummary(this.simulation.summary());
     if (this.selected) {
-      const state = this.simulation.getState(this.selected);
-      if (state) this.hud.setMachine(state, this.simulation.status(this.selected), this.paused, this.simulation.world);
+      if (this.simulation.getState(this.selected)) {
+        this.hud.setMachine(this.simulation.inspectMachine(this.selected), this.paused, this.simulation.world);
+      }
     }
   }
 

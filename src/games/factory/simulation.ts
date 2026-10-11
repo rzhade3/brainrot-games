@@ -3,21 +3,21 @@ import {
   inBounds, isBuildingKind, isConveyor, outputDirections, placementError, Scenario, terrainAt, Tile, tileKey,
 } from './model';
 import { DEFAULT_WORLD, FactoryWorld, GUIDED_SEED, restoreWorld, WorldIdentity } from './world';
-import { FARM_TICKS, KITCHEN_CAPACITY, MEAL_TICKS, Resident, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
+import { FARM_TICKS, MEAL_TICKS, Resident, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
+import {
+  acceptsInventoryItem, ASSEMBLER_RECIPE, hasRecipeInputs, inputCapacity, inputSlots, isOre,
+  MachineRecipe, Ore, outputCapacity, producesInventoryItem, SMELTER_RECIPES,
+} from './machineRules';
+export { ASSEMBLE_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, SMELT_TICKS } from './machineRules';
 
 export const STEP_MS = 100;
 export const EXTRACT_TICKS = 10;
 export const UPGRADED_EXTRACT_TICKS = 8;
-export const SMELT_TICKS = 16;
 export const BELT_TICKS = 8;
-export const BUFFER_CAPACITY = 4;
-export const DEPOT_CAPACITY = 64;
-export const ASSEMBLE_TICKS = 20;
 export const RATE_WINDOW_TICKS = 300;
 
 export const ITEMS = ['iron-ore', 'copper-ore', 'iron-plate', 'copper-plate', 'defense-supply', 'food-unit'] as const;
 export type Item = typeof ITEMS[number];
-type Ore = 'iron-ore' | 'copper-ore';
 export type Inventory = Record<Item, number>;
 export const ITEM_NAMES: Record<Item, string> = {
   'iron-ore': 'Iron ore', 'copper-ore': 'Copper ore',
@@ -82,6 +82,16 @@ export interface MachineState {
   nextOutput: 0 | 1;
   nextItem: number;
   running: boolean;
+}
+
+export interface MachineInspection {
+  machine: Readonly<MachineState>;
+  status: string;
+  inputCapacity: number;
+  outputCapacity: number;
+  availableInput: number;
+  recipe: MachineRecipe | null;
+  cycleTicks: number;
 }
 
 export interface FactorySummary {
@@ -158,7 +168,7 @@ function saveDirection(value: unknown): Building['direction'] {
 }
 
 function saveOre(value: unknown): Ore | null {
-  requireSave(value === null || value === 'iron-ore' || value === 'copper-ore', 'invalid smelter recipe');
+  requireSave(value === null || isOre(value), 'invalid smelter recipe');
   return value;
 }
 
@@ -191,28 +201,24 @@ function saveMachine(value: unknown, world: FactoryWorld, legacy = false): Machi
   const nextOutput = source.nextOutput === undefined && kind !== 'splitter' ? 0 : source.nextOutput;
   requireSave(nextOutput === 0 || kind === 'splitter' && nextOutput === 1, 'invalid splitter routing state');
   machine.nextOutput = nextOutput;
-  const inputItems: readonly Item[] = kind === 'furnace' ? ['iron-ore', 'copper-ore']
-    : kind === 'assembler' ? ['iron-plate', 'copper-plate'] : kind === 'storage' ? ITEMS : kind === 'kitchen' ? ['food-unit'] : [];
-  const outputItems: readonly Item[] = kind === 'miner'
-    ? [terrainAt(machine.building, world) === 'copper' ? 'copper-ore' : 'iron-ore']
-    : kind === 'furnace' ? ['iron-plate', 'copper-plate'] : kind === 'assembler' ? ['defense-supply'] : kind === 'food-plot' ? ['food-unit'] : [];
   for (const item of ITEMS) {
-    requireSave(inputItems.includes(item) || machine.input[item] === 0, 'incompatible machine input');
-    requireSave(outputItems.includes(item) || machine.output[item] === 0, 'incompatible machine output');
+    requireSave(acceptsInventoryItem(kind, item) || machine.input[item] === 0, 'incompatible machine input');
+    requireSave(producesInventoryItem(kind, item, world.at(machine.building).deposit) || machine.output[item] === 0,
+      'incompatible machine output');
   }
-  requireSave(itemCount(machine.output) <= BUFFER_CAPACITY, 'machine output over capacity');
-  requireSave(kind === 'assembler' ? machine.input['iron-plate'] <= 4 && machine.input['copper-plate'] <= 4
-    : itemCount(machine.input) <= (kind === 'storage' ? DEPOT_CAPACITY : kind === 'kitchen' ? KITCHEN_CAPACITY : BUFFER_CAPACITY), 'machine input over capacity');
+  requireSave(itemCount(machine.output) <= outputCapacity(kind), 'machine output over capacity');
+  requireSave(kind === 'assembler' ? ASSEMBLER_RECIPE.inputs.every(ingredient => inputSlots(machine, ingredient.item) >= 0)
+    : inputSlots(machine) >= 0, 'machine input over capacity');
   requireSave(isConveyor(kind) || machine.item === null, 'cargo outside a conveyor');
   requireSave(kind === 'furnace' || machine.processing === null && machine.lastProcessed === null, 'recipe outside a smelter');
-  requireSave(!machine.processing || machine.input[machine.processing] > 0, 'smelter recipe missing its input');
+  requireSave(!machine.processing || hasRecipeInputs(machine.input, SMELTER_RECIPES[machine.processing]), 'smelter recipe missing its input');
   const max = isConveyor(kind) || kind === 'storage' && machine.building.outputEnabled ? BELT_TICKS + 1
     : kind === 'miner' ? machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS
-    : kind === 'furnace' ? SMELT_TICKS : kind === 'assembler' ? ASSEMBLE_TICKS : kind === 'food-plot' ? FARM_TICKS : 1;
+    : kind === 'furnace' ? SMELTER_RECIPES['iron-ore'].ticks : kind === 'assembler' ? ASSEMBLER_RECIPE.ticks : kind === 'food-plot' ? FARM_TICKS : 1;
   requireSave(machine.progress < max, 'invalid machine progress');
   requireSave(!isConveyor(kind) || machine.item !== null || machine.progress === 0, 'empty conveyor in progress');
   requireSave(kind !== 'furnace' || machine.processing !== null || machine.progress === 0, 'smelter missing its recipe');
-  requireSave(kind !== 'assembler' || machine.progress === 0 || machine.input['iron-plate'] >= 2 && machine.input['copper-plate'] >= 1,
+  requireSave(kind !== 'assembler' || machine.progress === 0 || hasRecipeInputs(machine.input, ASSEMBLER_RECIPE),
     'assembler missing its recipe inputs');
   return machine;
 }
@@ -235,14 +241,6 @@ function compareTiles(a: Tile, b: Tile): number {
 
 function firstItem(items: Inventory): Item | null {
   return ITEMS.find(item => items[item] > 0) ?? null;
-}
-
-function isOre(item: Item): item is Ore {
-  return item === 'iron-ore' || item === 'copper-ore';
-}
-
-function plateFor(ore: Ore): Item {
-  return ore === 'iron-ore' ? 'iron-plate' : 'copper-plate';
 }
 
 export class FactorySimulation {
@@ -431,13 +429,15 @@ export class FactorySimulation {
       sim.settlement.state.starterFood + sim.settlement.state.producedFood : held['food-unit'] === 0, 'food accounting mismatch');
     for (const metal of ['iron', 'copper'] as const) {
       const ore = `${metal}-ore` as const;
-      const plate = `${metal}-plate` as const;
-      requireSave(held[ore] + sim.smelted[plate] === sim.mined[ore] &&
+      const recipe = SMELTER_RECIPES[ore];
+      const plate = recipe.output.item;
+      requireSave(held[ore] + sim.smelted[plate] / recipe.output.quantity * recipe.inputs[0].quantity === sim.mined[ore] &&
         held[plate] + sim.delivered[plate] + sim.projectConsumed(plate) + sim.recipeConsumed[plate] === sim.smelted[plate], 'material accounting mismatch');
     }
-    requireSave(held['defense-supply'] + sim.delivered['defense-supply'] + sim.projectConsumed('defense-supply') === sim.assembled['defense-supply'] &&
-      sim.recipeConsumed['iron-plate'] === sim.assembled['defense-supply'] * 2 &&
-      sim.recipeConsumed['copper-plate'] === sim.assembled['defense-supply'], 'assembly accounting mismatch');
+    const supply = ASSEMBLER_RECIPE.output;
+    requireSave(held[supply.item] + sim.delivered[supply.item] + sim.projectConsumed(supply.item) === sim.assembled[supply.item] &&
+      ASSEMBLER_RECIPE.inputs.every(ingredient => sim.recipeConsumed[ingredient.item] ===
+        sim.assembled[supply.item] / supply.quantity * ingredient.quantity), 'assembly accounting mismatch');
     return sim;
   }
 
@@ -529,6 +529,23 @@ export class FactorySimulation {
     return this.machines.get(tileKey(tile)) ?? null;
   }
 
+  inspectMachine(tile: Tile): MachineInspection {
+    const machine = this.machines.get(tileKey(tile));
+    if (!machine) throw new Error('Cannot inspect a missing building');
+    const { kind } = machine.building;
+    const recipe = kind === 'furnace' ? SMELTER_RECIPES[machine.processing ?? machine.lastProcessed ?? 'iron-ore']
+      : kind === 'assembler' ? ASSEMBLER_RECIPE : null;
+    return {
+      machine, status: this.status(tile), inputCapacity: isConveyor(kind) ? 1 : inputCapacity(kind),
+      outputCapacity: outputCapacity(kind),
+      availableInput: kind === 'assembler' ? ASSEMBLER_RECIPE.inputs.reduce((sum, ingredient) =>
+        sum + this.freeSlots(machine, ingredient.item), 0) : this.freeSlots(machine),
+      recipe,
+      cycleTicks: recipe?.ticks ?? (kind === 'miner' ? machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS
+        : kind === 'food-plot' ? FARM_TICKS : kind === 'kitchen' ? MEAL_TICKS : BELT_TICKS),
+    };
+  }
+
   place(building: Building): string | null {
     const error = this.placementError(building, building.kind);
     if (error) return error;
@@ -590,7 +607,7 @@ export class FactorySimulation {
     const machine = this.machines.get(tileKey(tile));
     if (!machine || machine.building.kind !== 'storage') throw new Error('Recovered items need a selected depot');
     const moved = inventory();
-    let slots = DEPOT_CAPACITY - itemCount(machine.input) - (this.settlement?.reservedDestination(tile, null) ?? 0);
+    let slots = this.freeSlots(machine);
     for (const item of ITEMS) {
       const count = Math.min(slots, this.recovered[item]);
       moved[item] = count;
@@ -741,7 +758,7 @@ export class FactorySimulation {
     const { kind } = machine.building;
     machine.running = false;
     if (kind === 'miner') {
-      if (itemCount(machine.output) >= BUFFER_CAPACITY) return;
+      if (itemCount(machine.output) >= outputCapacity(kind)) return;
       machine.running = true;
       if (++machine.progress >= (machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS)) {
         const ore: Ore = terrainAt(machine.building, this.world) === 'copper' ? 'copper-ore' : 'iron-ore';
@@ -750,33 +767,32 @@ export class FactorySimulation {
         machine.progress = 0;
       }
     } else if (kind === 'furnace') {
-      if (itemCount(machine.output) >= BUFFER_CAPACITY) return;
+      if (itemCount(machine.output) >= outputCapacity(kind)) return;
       const preferred: Ore = machine.lastProcessed === 'iron-ore' ? 'copper-ore' : 'iron-ore';
       const fallback: Ore = preferred === 'iron-ore' ? 'copper-ore' : 'iron-ore';
-      machine.processing ??= machine.input[preferred] > 0 ? preferred
-        : machine.input[fallback] > 0 ? fallback : null;
+      machine.processing ??= hasRecipeInputs(machine.input, SMELTER_RECIPES[preferred]) ? preferred
+        : hasRecipeInputs(machine.input, SMELTER_RECIPES[fallback]) ? fallback : null;
       if (!machine.processing) return;
+      const recipe = SMELTER_RECIPES[machine.processing];
       machine.running = true;
-      if (++machine.progress >= SMELT_TICKS) {
-        const plate = plateFor(machine.processing);
-        machine.input[machine.processing]--;
-        machine.output[plate]++;
-        this.smelted[plate]++;
+      if (++machine.progress >= recipe.ticks) {
+        for (const ingredient of recipe.inputs) machine.input[ingredient.item] -= ingredient.quantity;
+        machine.output[recipe.output.item] += recipe.output.quantity;
+        this.smelted[recipe.output.item] += recipe.output.quantity;
         machine.lastProcessed = machine.processing;
         machine.processing = null;
         machine.progress = 0;
       }
     } else if (kind === 'assembler') {
-      if (itemCount(machine.output) >= BUFFER_CAPACITY ||
-          machine.input['iron-plate'] < 2 || machine.input['copper-plate'] < 1) return;
+      if (itemCount(machine.output) >= outputCapacity(kind) || !hasRecipeInputs(machine.input, ASSEMBLER_RECIPE)) return;
       machine.running = true;
-      if (++machine.progress >= ASSEMBLE_TICKS) {
-        machine.input['iron-plate'] -= 2;
-        machine.input['copper-plate']--;
-        this.recipeConsumed['iron-plate'] += 2;
-        this.recipeConsumed['copper-plate']++;
-        machine.output['defense-supply']++;
-        this.assembled['defense-supply']++;
+      if (++machine.progress >= ASSEMBLER_RECIPE.ticks) {
+        for (const ingredient of ASSEMBLER_RECIPE.inputs) {
+          machine.input[ingredient.item] -= ingredient.quantity;
+          this.recipeConsumed[ingredient.item] += ingredient.quantity;
+        }
+        machine.output[ASSEMBLER_RECIPE.output.item] += ASSEMBLER_RECIPE.output.quantity;
+        this.assembled[ASSEMBLER_RECIPE.output.item] += ASSEMBLER_RECIPE.output.quantity;
         machine.progress = 0;
       }
     } else if (kind === 'storage' && machine.building.outputEnabled) {
@@ -809,28 +825,18 @@ export class FactorySimulation {
     switch (machine.building.kind) {
       case 'belt':
       case 'splitter': return machine.item ? 0 : 1;
-      case 'furnace': return BUFFER_CAPACITY - itemCount(machine.input) - reserved;
-      case 'storage': return DEPOT_CAPACITY - itemCount(machine.input) - reserved;
-      case 'kitchen': return KITCHEN_CAPACITY - itemCount(machine.input) - reserved;
-      case 'home':
-      case 'food-plot':
-      case 'miner': return 0;
-      case 'assembler': return item === 'iron-plate' || item === 'copper-plate' ? BUFFER_CAPACITY - machine.input[item] - reserved : 0;
       case 'outpost': {
         const order = this.activeDelivery();
         return order && item === order.item ? order.quantity - order.accepted : 0;
       }
+      default: return inputSlots(machine, item, reserved);
     }
   }
 
   private accepts(machine: MachineState, source: Building, item: Item): boolean {
-    if (machine.building.kind === 'miner' || machine.building.kind === 'home' || machine.building.kind === 'food-plot') return false;
-    if (machine.building.kind === 'kitchen') return item === 'food-unit';
-    if (machine.building.kind === 'furnace') return isOre(item);
-    if (machine.building.kind === 'assembler') return item === 'iron-plate' || item === 'copper-plate';
     if (machine.building.kind === 'outpost') return item === this.activeDelivery()?.item;
     if (isConveyor(machine.building.kind)) return acceptsConveyorInput(machine.building, source);
-    return true;
+    return acceptsInventoryItem(machine.building.kind, item);
   }
 
   private blockage(machine: MachineState, item: Item | null, direction = machine.building.direction): string | null {
@@ -855,7 +861,7 @@ export class FactorySimulation {
         const worker = this.settlement?.state.residents.find(resident => resident.job?.kind === 'farm' &&
           tileKey(resident.job.source) === tileKey(tile));
         return !worker ? 'No farmer available or access blocked'
-          : itemCount(machine.output) >= BUFFER_CAPACITY ? 'Plot full; transport needed'
+          : itemCount(machine.output) >= outputCapacity(machine.building.kind) ? 'Plot full; transport needed'
             : worker.job?.path.length ? 'Farmer approaching' : 'Growing food';
       }
       case 'kitchen': return machine.input['food-unit'] > 0 ? 'Provisioning four residents' : 'Food shortage; residents keep working';
@@ -878,17 +884,19 @@ export class FactorySimulation {
           : !fallback ? `Ready to route ${DIRECTION_NAMES[alternate]}` : `Both outputs blocked: ${blocked}; ${fallback}`;
       }
       case 'miner':
-        return itemCount(machine.output) >= BUFFER_CAPACITY
+        return itemCount(machine.output) >= outputCapacity(machine.building.kind)
           ? this.blockage(machine, firstItem(machine.output)) ?? 'Output full' : 'Extracting';
       case 'furnace':
-        if (itemCount(machine.output) >= BUFFER_CAPACITY) return this.blockage(machine, firstItem(machine.output)) ?? 'Output full';
+        if (itemCount(machine.output) >= outputCapacity(machine.building.kind)) return this.blockage(machine, firstItem(machine.output)) ?? 'Output full';
         return machine.processing || itemCount(machine.input) > 0 ? 'Smelting' : 'Waiting for ore';
-      case 'assembler':
-        if (itemCount(machine.output) >= BUFFER_CAPACITY) return this.blockage(machine, 'defense-supply') ?? 'Output full';
-        if (machine.input['iron-plate'] < 2 && !machine.input['copper-plate']) return 'Needs 2 iron + 1 copper plate';
-        if (machine.input['iron-plate'] < 2) return 'Needs 2 iron plates';
-        if (!machine.input['copper-plate']) return 'Needs 1 copper plate';
+      case 'assembler': {
+        if (itemCount(machine.output) >= outputCapacity(machine.building.kind)) return this.blockage(machine, ASSEMBLER_RECIPE.output.item) ?? 'Output full';
+        const missing = ASSEMBLER_RECIPE.inputs.filter(ingredient => machine.input[ingredient.item] < ingredient.quantity);
+        if (missing.length === ASSEMBLER_RECIPE.inputs.length) return `Needs ${missing.map(ingredient =>
+          `${ingredient.quantity} ${ingredient.item === 'iron-plate' ? 'iron' : 'copper'}`).join(' + ')} plate`;
+        if (missing.length) return `Needs ${missing[0].quantity} ${ITEM_NAMES[missing[0].item].toLowerCase().replace(/s$/, missing[0].quantity === 1 ? '' : 's')}`;
         return 'Assembling';
+      }
       case 'outpost':
         return this.activeDelivery() ? `Receiving ${ITEM_NAMES[this.activeDelivery()!.item].toLowerCase()}`
           : this.scenario === 'guided' ? 'Factory preparation complete; optional projects available' : 'No active project';

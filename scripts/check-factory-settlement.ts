@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { DIRECTIONS, tileKey } from '../src/games/factory/model';
 import { createSave, restoreSave } from '../src/games/factory/persistence';
-import { FactorySimulation, ITEMS } from '../src/games/factory/simulation';
+import { DEPOT_CAPACITY, FactorySimulation, itemCount, ITEMS } from '../src/games/factory/simulation';
 import { FARM_TICKS, KITCHEN_CAPACITY, MEAL_TICKS, STARTER_FOOD, WALK_TICKS } from '../src/games/factory/settlement';
 
 const fresh = () => FactorySimulation.forScenario('settlement');
@@ -103,6 +103,38 @@ assert.ok(disabled.summary().recovered['food-unit'] > 0);
 ticks(disabled, 100);
 accounted(disabled);
 roundtrip(disabled);
+
+const reservedDepot = fresh();
+const depotTile = { c: 15, r: 10 };
+assert.equal(reservedDepot.place({ kind: 'storage', ...depotTile, direction: 0 }), null);
+assert.equal(reservedDepot.setHaulTarget({ c: 10, r: 9 }, depotTile), null);
+for (let tick = 0; tick < 100 && !state(reservedDepot).residents.some(resident =>
+  resident.job?.destination && tileKey(resident.job.destination) === tileKey(depotTile)); tick++) reservedDepot.step();
+const reservations = state(reservedDepot).residents.filter(resident =>
+  resident.job?.destination && tileKey(resident.job.destination) === tileKey(depotTile)).length;
+assert.ok(reservations > 0);
+const reservedSave = reservedDepot.serialize();
+const depot = reservedSave.machines.find(machine => tileKey(machine.building) === tileKey(depotTile))!;
+const added = DEPOT_CAPACITY - itemCount(depot.input) - reservations - 2;
+depot.input['iron-ore'] += added;
+reservedSave.recovered['iron-ore'] = 5;
+reservedSave.mined['iron-ore'] += added + 5;
+const recovery = FactorySimulation.restore(reservedSave);
+const inspection = recovery.inspectMachine(depotTile);
+assert.equal(inspection.inputCapacity, DEPOT_CAPACITY);
+assert.equal(inspection.availableInput, 2, 'Inspector excludes space reserved for resident deliveries');
+const recovered = recovery.transferRecovered(depotTile);
+assert.equal(itemCount(recovered.moved), inspection.availableInput, 'Recovery moves exactly the count promised by the inspector');
+assert.equal(recovered.remaining['iron-ore'], 3);
+assert.equal(recovery.inspectMachine(depotTile).availableInput, 0);
+assert.ok(itemCount(recovery.getState(depotTile)!.input) < DEPOT_CAPACITY, 'Remaining physical space belongs to incoming cargo');
+assert.equal(itemCount(recovery.transferRecovered(depotTile).moved), 0);
+roundtrip(recovery);
+ticks(recovery, 100);
+assert.equal(itemCount(recovery.getState(depotTile)!.input), DEPOT_CAPACITY);
+assert.equal(recovery.inspectMachine(depotTile).availableInput, 0);
+accounted(recovery);
+roundtrip(recovery);
 
 // Surround a destination: source remains honest stock and unavailable work is explained.
 const blocked = fresh();

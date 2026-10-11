@@ -154,6 +154,49 @@ Use original artwork.
 Keep the logical world on a square tile grid. Project that grid isometrically
 for rendering; account for depth sorting, tile picking, and building occlusion.
 
+### Proposed asset boundary: art without application changes
+
+Design only; implementation is paused. Preserve the current procedural artwork,
+muted isometric style, gameplay, saves, and mouse/touch behavior. The goal is that
+an art agent can redesign an existing building, including its clickable silhouette,
+by editing only the assets folder, without changing gameplay or scene code.
+
+Start with four pieces, not a general asset framework:
+
+1. **Assets folder:** `src/games/factory/assets/` owns drawing definitions,
+   palette, anchors, bounds, and visual selection shapes. Existing drawing code
+   is a suitable starting point; conversion to SVG files is optional.
+2. **One rendering interface:** accept simple visual state such as facing,
+   activity, progress, variant, and cargo. Do not pass live simulation objects
+   or the world to asset definitions. The application maps game state to this
+   interface; artwork-specific drawing and moving-part details stay with assets.
+3. **One render-scale setting:** live drawing and necessary caches derive their
+   resolution from the same policy. Avoid independent quality constants in
+   terrain, props, and individual assets. Keep caches bounded and do not rebuild
+   them on every small zoom movement.
+4. **A small preview page:** review assets and their orientations, activities,
+   anchors, and selection shapes without a running settlement or a particular
+   save. Reuse the game's drawing interface rather than duplicating artwork.
+
+Visual picking belongs with the asset shape, not hard-coded building silhouettes
+in `model.ts`. Tile occupancy, buildability, transport ports, recipes, job
+assignment, and saves remain gameplay concerns. Changing a roof or selection
+outline must not change the physical footprint. Adding new mechanics or an
+unsupported semantic state still requires engineering work.
+
+Defer a general SVG interpreter, declarative animation language, interchangeable
+rendering backends, and elaborate quality-tier machinery. The first refactor
+should remain close to the existing drawing code. SVG source files alone do not
+remove raster-cache costs or establish a rendering abstraction.
+
+Acceptance: demonstrate a building redesign and selection-outline change confined
+to the assets folder, visible in both preview and game. Preserve depth ordering,
+footprint/roof selection, cargo alignment, and reduced motion on desktop and
+touch layouts. Confirm that simulation snapshots and save formats are unchanged.
+Measure clarity, frame time, panning, and cache growth before claiming a rendering
+performance improvement. Add a short asset-authoring note alongside the assets
+when the boundary is implemented.
+
 ## Proposed first-release scope
 
 This table describes the revised near-term target, not shipped behavior.

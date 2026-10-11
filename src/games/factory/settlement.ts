@@ -1,11 +1,12 @@
 import { Building, DIRECTIONS, Tile, tileKey } from './model';
 import { FactoryWorld } from './world';
 import { Item, ITEMS, MachineState, requireSave, saveCount, saveObject, saveTile } from './simulation';
+import { acceptsInventoryItem, inputSlots, outputCapacity } from './machineRules';
+export { KITCHEN_CAPACITY } from './machineRules';
 
 export const WALK_TICKS = 3;
 export const FARM_TICKS = 20;
 export const MEAL_TICKS = 25;
-export const KITCHEN_CAPACITY = 16;
 export const STARTER_FOOD = 8;
 export const RESIDENT_NAMES = ['Ada', 'Emil', 'Mira', 'Owen'] as const;
 
@@ -115,8 +116,10 @@ export class Settlement {
         tileKey(resident.job.destination) === tileKey(machine.building));
       for (const resident of inbound) requireSave(settlement.compatible(machine, resident.job!.item!), 'incompatible resident destination');
       requireSave(inbound.length <= settlement.capacity(machine), 'overreserved resident destination');
-      for (const item of ITEMS) requireSave(settlement.reservedDestination(machine.building, item) <=
-        settlement.capacity(machine, item), 'overreserved resident ingredient');
+      for (const item of ITEMS) if (settlement.compatible(machine, item)) {
+        requireSave(settlement.reservedDestination(machine.building, item) <=
+          settlement.capacity(machine, item), 'overreserved resident ingredient');
+      }
       requireSave(state.residents.filter(resident => resident.job?.kind === 'farm' &&
         tileKey(resident.job.source) === tileKey(machine.building)).length <= 1, 'duplicate farmer assignment');
     }
@@ -217,16 +220,11 @@ export class Settlement {
   }
 
   private compatible(machine: MachineState, item: Item): boolean {
-    return machine.building.kind === 'kitchen' ? item === 'food-unit'
-      : machine.building.kind === 'storage' ? true
-        : machine.building.kind === 'furnace' ? item === 'iron-ore' || item === 'copper-ore'
-          : machine.building.kind === 'assembler' && (item === 'iron-plate' || item === 'copper-plate');
+    return acceptsInventoryItem(machine.building.kind, item);
   }
 
   private capacity(machine: MachineState, item?: Item): number {
-    if (machine.building.kind === 'assembler') return item ? 4 - machine.input[item] : 8 - machine.input['iron-plate'] - machine.input['copper-plate'];
-    const limit = machine.building.kind === 'kitchen' ? KITCHEN_CAPACITY : machine.building.kind === 'storage' ? 64 : 4;
-    return limit - ITEMS.reduce((sum, key) => sum + machine.input[key], 0);
+    return inputSlots(machine, item);
   }
 
   private assign(resident: Resident): void {
@@ -283,8 +281,8 @@ export class Settlement {
       }
       const source = this.host.machines.get(tileKey(job.source))!;
       if (job.kind === 'farm') {
-        resident.note = source.output['food-unit'] >= 4 ? 'Plot full; waiting for transport' : 'Farming';
-        if (source.output['food-unit'] >= 4) continue;
+        resident.note = source.output['food-unit'] >= outputCapacity(source.building.kind) ? 'Plot full; waiting for transport' : 'Farming';
+        if (source.output['food-unit'] >= outputCapacity(source.building.kind)) continue;
         source.running = true;
         if (++source.progress >= FARM_TICKS) {
           source.progress = 0;
