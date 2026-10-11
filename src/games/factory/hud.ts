@@ -1,5 +1,5 @@
 import { Building, BuildingKind, BuildableKind, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isConveyor, isTool, NAMES, outputDirections, Point, Scenario, Tile, tileKey, Tool } from './model';
-import { FARM_TICKS, KITCHEN_CAPACITY, RESIDENT_NAMES, Resident, SettlementSave } from './settlement';
+import { FARM_TICKS, KITCHEN_CAPACITY, MEAL_TICKS, RESIDENT_NAMES, Resident, SettlementSave } from './settlement';
 import { DEFAULT_WORLD, FactoryWorld } from './world';
 import {
   ASSEMBLE_TICKS, BELT_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, EXTRACT_TICKS, FactorySummary,
@@ -38,14 +38,14 @@ const CATEGORIES = [
 ] as const;
 type Category = typeof CATEGORIES[number]['id'];
 const CATALOG: { kind: BuildableKind; category: Exclude<Category, 'all'>; note: string; shortcut: string }[] = [
-  { kind: 'food-plot', category: 'production', note: 'Resident-grown food · 2s / unit', shortcut: '9' },
-  { kind: 'kitchen', category: 'storage', note: 'Food for four residents · holds 16 units', shortcut: '0' },
-  { kind: 'miner', category: 'production', note: `${EXTRACT_TICKS * STEP_MS / 1000}s / ore · place on deposits`, shortcut: '3' },
-  { kind: 'furnace', category: 'production', note: `Ore to plates · ${SMELT_TICKS * STEP_MS / 1000}s / plate`, shortcut: '4' },
-  { kind: 'belt', category: 'logistics', note: `Directional transport · ${BELT_TICKS * STEP_MS / 1000}s / tile`, shortcut: '2' },
-  { kind: 'splitter', category: 'logistics', note: 'Rear input · alternating straight / right outputs', shortcut: '8' },
-  { kind: 'storage', category: 'storage', note: `Receives and holds ${DEPOT_CAPACITY} items`, shortcut: '5' },
-  { kind: 'assembler', category: 'production', note: '2 iron + 1 copper → defense supply · 2s', shortcut: '7' },
+  { kind: 'food-plot', category: 'production', note: 'Grows food for residents', shortcut: '9' },
+  { kind: 'kitchen', category: 'storage', note: 'Keeps residents fed', shortcut: '0' },
+  { kind: 'miner', category: 'production', note: 'Draws ore from deposits', shortcut: '3' },
+  { kind: 'furnace', category: 'production', note: 'Turns ore into plates', shortcut: '4' },
+  { kind: 'belt', category: 'logistics', note: 'Carries items onward', shortcut: '2' },
+  { kind: 'splitter', category: 'logistics', note: 'Divides a delivery route', shortcut: '8' },
+  { kind: 'storage', category: 'storage', note: 'Holds items for later', shortcut: '5' },
+  { kind: 'assembler', category: 'production', note: 'Assembles defense supplies', shortcut: '7' },
 ];
 
 export class FactoryHud {
@@ -524,7 +524,8 @@ export class FactoryHud {
       this.root.querySelector<HTMLElement>('#factory-placement-machine')!.innerHTML =
         `${icon(tool)}<div><span class="factory-overline">PLACING ${NAMES[tool].toUpperCase()}</span><strong>${tool === 'splitter'
           ? `Outputs ${outputDirections({ c: 0, r: 0, kind: tool, direction }).map(output => DIRECTION_NAMES[output]).join(' / ')}`
-          : `Output faces ${DIRECTION_NAMES[direction]}`}</strong></div>`;
+          : tool === 'miner' ? `Ore deposit · ${DIRECTION_NAMES[direction]} output`
+            : tool === 'kitchen' ? 'Keep adjacent land clear' : `Output faces ${DIRECTION_NAMES[direction]}`}</strong></div>`;
     }
   }
 
@@ -597,16 +598,22 @@ export class FactoryHud {
       <span class="factory-overline">${building.c}, ${building.r}</span>
       <div class="factory-inspector-title">${icon(building.kind)}<h2>${NAMES[building.kind]}</h2></div>
       <dl>
-        ${building.kind === 'home' ? '<div><dt>Position</dt><dd>Founding home</dd></div>' : building.kind === 'kitchen'
-          ? '<div><dt>Access</dt><dd>Adjacent clear land</dd></div>' : building.kind === 'outpost' ? '<div><dt>Position</dt><dd>Fixed receiver</dd></div>' : `<div><dt>${building.kind === 'splitter' ? 'Outputs' : building.kind === 'storage' ? 'Orientation' : 'Output faces'}</dt><dd>${outputDirections(building).length > 1
+        ${building.kind === 'home' || building.kind === 'kitchen' || building.kind === 'outpost' ? '' : `<div><dt>${building.kind === 'splitter' ? 'Outputs' : building.kind === 'storage' ? 'Orientation' : 'Output faces'}</dt><dd>${outputDirections(building).length > 1
           ? outputDirections(building).map(direction => DIRECTION_NAMES[direction]).join(' / ') : DIRECTION_NAMES[building.direction]}</dd></div>`}
         ${building.kind === 'splitter' ? '<div><dt>Next preferred</dt><dd id="factory-next-output"></dd></div>' : ''}
-        <div><dt>State</dt><dd id="factory-machine-state"></dd></div>
-        <div><dt>${building.kind === 'storage' ? 'Stored' : isConveyor(building.kind) ? 'Cargo' : 'Input'}</dt><dd id="factory-machine-input"></dd></div>
-        ${building.kind === 'miner' || building.kind === 'furnace' || building.kind === 'assembler' || building.kind === 'food-plot' ? '<div><dt>Output</dt><dd id="factory-machine-output"></dd></div>' : ''}
+        ${building.kind === 'home' ? '' : '<div><dt>Activity</dt><dd id="factory-machine-state"></dd></div>'}
+        <div><dt>${building.kind === 'storage' ? 'Stored' : isConveyor(building.kind) ? 'Cargo'
+          : building.kind === 'miner' ? 'Source' : building.kind === 'food-plot' ? 'Farmer'
+            : building.kind === 'home' ? 'Residents' : building.kind === 'kitchen' ? 'Food'
+              : building.kind === 'outpost' ? 'Delivered' : 'Input'}</dt><dd id="factory-machine-input"></dd></div>
+        ${building.kind === 'miner' || building.kind === 'furnace' || building.kind === 'assembler' || building.kind === 'food-plot'
+          ? `<div><dt>${building.kind === 'food-plot' ? 'Ready' : 'Output'}</dt><dd id="factory-machine-output"></dd></div>` : ''}
+        ${building.kind === 'furnace' || building.kind === 'assembler' ? '<div><dt>Recipe</dt><dd id="factory-machine-recipe"></dd></div>' : ''}
+        ${building.kind === 'home' || building.kind === 'outpost' ? ''
+          : `<div id="factory-machine-pace-row"><dt>${building.kind === 'kitchen' ? 'Serving' : 'Pace'}</dt><dd id="factory-machine-pace"></dd></div>`}
       </dl>
-      <div class="factory-progress-label"><span id="factory-progress-label"></span><span id="factory-progress-value"></span></div>
-      <div class="factory-progress" role="progressbar" aria-label="Machine progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+      ${building.kind === 'home' ? '' : `<div class="factory-progress-label"><span id="factory-progress-label"></span><span id="factory-progress-value"></span></div>
+      <div class="factory-progress" role="progressbar" aria-label="Machine progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>`}
       ${building.kind === 'storage' ? `<details class="factory-depot-recovery" hidden ${recoveryOpen ? 'open' : ''}>
         <summary>Recovered items <output aria-label="Items available to recover"></output></summary>
         <p class="factory-recovered-items"></p>
@@ -616,18 +623,19 @@ export class FactoryHud {
       </details>` : ''}
       ${building.kind === 'storage' || building.kind === 'miner' && !this.settlement ? '<p class="factory-machine-option-note"></p><button class="factory-machine-option" data-action="machine-option"></button>' : ''}
       ${this.settlement && ['food-plot', 'storage', 'miner', 'furnace', 'assembler'].includes(building.kind) ? `
-        <label class="factory-haul-label" for="factory-haul-target">Resident hauling destination</label>
+        <label class="factory-haul-label" for="factory-haul-target">Deliver to</label>
         <select id="factory-haul-target"><option value="">No hauling</option>${[...this.buildingChoices.values()]
           .filter(target => tileKey(target) !== tileKey(building) && ['kitchen', 'storage', 'furnace', 'assembler'].includes(target.kind))
-          .map(target => `<option value="${tileKey(target)}" ${building.haulTo && tileKey(building.haulTo) === tileKey(target) ? 'selected' : ''}>${NAMES[target.kind]} · ${target.c}, ${target.r}</option>`).join('')}</select>
-        <p class="factory-haul-note">Residents carry one item along clear land. A connected conveyor takes over this source. Keep access beside both buildings clear.</p>` : ''}
+          .map(target => `<option value="${tileKey(target)}" ${building.haulTo && tileKey(building.haulTo) === tileKey(target) ? 'selected' : ''}>${NAMES[target.kind]} · ${target.c}, ${target.r}</option>`).join('')}</select>` : ''}
       ${building.kind === 'home' ? '<div class="factory-resident-list"></div>' : ''}
       ${building.kind === 'outpost' || building.kind === 'home' ? '' : `<div class="factory-inspector-actions">
         <button class="factory-inspector-rotate" data-action="rotate" aria-label="Rotate selected building clockwise" title="Rotate selected building (R)">${ROTATE_ICON}<span>Rotate</span><kbd>R</kbd></button>
         <button class="factory-inspector-remove" data-action="remove" aria-label="Remove selected building" title="Remove this building. Its items go to the recovery tray.">${icon('remove')}<span>Remove</span></button>
       </div>`}
-      <details class="factory-machine-help"><summary>About this machine</summary><p>${building.kind === 'storage' && this.settlement
-        ? 'Stores up to 64 items. Choose a hauling destination or enable arrow-facing output to reuse stock. Removing it preserves contents in recovery.' : DESCRIPTIONS[building.kind]}</p></details>`;
+      <details class="factory-machine-help"><summary>Field notes</summary><p>${building.kind === 'storage' && this.settlement
+        ? 'Output is optional; stock types take turns, and a blocked type waits. Removed contents go to recovery.' : DESCRIPTIONS[building.kind]}</p>
+        ${this.settlement && ['storage', 'miner', 'furnace', 'assembler'].includes(building.kind)
+          ? '<p>Residents carry one item at a time; leave access beside both buildings. A connected conveyor frees carriers.</p>' : ''}</details>`;
     if (focused) {
       this.inspector.querySelector<HTMLButtonElement>(`[data-action="${focused}"]`)?.focus({ preventScroll: true });
     }
@@ -644,31 +652,52 @@ export class FactoryHud {
       <div><dt>Position</dt><dd id="factory-resident-position"></dd></div>
       <div><dt>Destination</dt><dd id="factory-resident-destination"></dd></div>
       <div><dt>Carrying</dt><dd id="factory-resident-cargo"></dd></div></dl>
-      <p>Works automatically. Food shortages never stop farming or hauling. Inspect a source building to choose its delivery destination.</p>`;
+      <details class="factory-machine-help"><summary>Field notes</summary><p>Choose deliveries at the source building. Residents work automatically, even during food shortages.</p></details>`;
     this.updateResident(resident);
   }
 
   private updateResident(resident: Resident): void {
-    this.inspector.querySelector<HTMLElement>('#factory-resident-activity')!.textContent = resident.note;
+    this.inspector.querySelector<HTMLElement>('#factory-resident-activity')!.textContent = this.residentActivity(resident);
     this.inspector.querySelector<HTMLElement>('#factory-resident-position')!.textContent = `${resident.tile.c}, ${resident.tile.r}`;
     const target = resident.job?.kind === 'deliver' ? resident.job.destination : resident.job?.source;
-    this.inspector.querySelector<HTMLElement>('#factory-resident-destination')!.textContent = target ? `${target.c}, ${target.r}` : 'Available for another job';
+    const building = target && this.buildingChoices.get(tileKey(target));
+    this.inspector.querySelector<HTMLElement>('#factory-resident-destination')!.textContent = target
+      ? `${building ? `${NAMES[building.kind]} · ` : ''}${target.c}, ${target.r}` : 'None';
     this.inspector.querySelector<HTMLElement>('#factory-resident-cargo')!.textContent = resident.cargo ? `1 ${ITEM_NAMES[resident.cargo]}` : 'Empty';
+  }
+
+  private residentActivity(resident: Resident): string {
+    if (!resident.job) return resident.note;
+    if (resident.job.kind === 'farm') return resident.note === 'Farming' ? 'Growing food'
+      : resident.job.path.length ? 'On the way to the plot' : resident.note;
+    const item = resident.job.item === 'food-unit' ? 'food'
+      : resident.job.item ? ITEM_NAMES[resident.job.item].toLowerCase() : 'items';
+    if (resident.job.kind === 'collect') return `Collecting ${item}`;
+    const destination = resident.job.destination && this.buildingChoices.get(tileKey(resident.job.destination));
+    return destination ? `Taking ${item} to the ${destination.kind === 'kitchen' ? 'kitchen' : NAMES[destination.kind].toLowerCase()}`
+      : `Carrying ${item}`;
   }
 
   setMachine(machine: Readonly<MachineState>, status: string, paused: boolean, world: FactoryWorld = DEFAULT_WORLD): void {
     const kind = machine.building.kind;
-    const state = this.inspector.querySelector<HTMLElement>('#factory-machine-state')!;
-    state.textContent = paused ? 'Paused' : status;
-    state.classList.toggle('factory-machine-blocked', /blocked|full|disconnected|incompatible/i.test(status));
+    const state = this.inspector.querySelector<HTMLElement>('#factory-machine-state');
+    if (state) {
+      state.textContent = paused ? 'Paused' : kind === 'kitchen' ? machine.input['food-unit'] ? 'Kitchen stocked' : 'Food shortage' : status;
+      state.classList.toggle('factory-machine-blocked', /blocked|full|disconnected|incompatible/i.test(status) ||
+        kind === 'kitchen' && !machine.input['food-unit']);
+    }
     const input = this.inspector.querySelector<HTMLElement>('#factory-machine-input')!;
     input.textContent = isConveyor(kind) ? machine.item ? `1/1 · ${ITEM_NAMES[machine.item]}` : '0/1 · Empty'
       : `${itemCount(machine.input)}/${kind === 'storage' ? DEPOT_CAPACITY : kind === 'kitchen' ? KITCHEN_CAPACITY : BUFFER_CAPACITY} · ${inventoryText(machine.input)}`;
     const output = this.inspector.querySelector<HTMLElement>('#factory-machine-output');
     if (output) output.textContent = `${itemCount(machine.output)}/${BUFFER_CAPACITY} · ${inventoryText(machine.output)}`;
     if (kind === 'miner') input.textContent = `${world.at(machine.building).deposit === 'copper' ? 'Copper' : 'Iron'} deposit`;
-    if (kind === 'food-plot') input.textContent = 'One resident · 1 food unit / 2s';
-    if (kind === 'home') input.textContent = 'Four residents · 1 food unit = 1 nutrition';
+    if (kind === 'food-plot') {
+      const farmer = this.settlement?.residents.find(resident => resident.job?.kind === 'farm' &&
+        tileKey(resident.job.source) === tileKey(machine.building));
+      input.textContent = farmer ? RESIDENT_NAMES[farmer.id] : 'Unassigned';
+    }
+    if (kind === 'home') input.textContent = String(this.settlement?.residents.length ?? 0);
     if (kind === 'assembler') input.textContent = `Iron ${machine.input['iron-plate']}/4 · Copper ${machine.input['copper-plate']}/4`;
     if (kind === 'splitter') this.inspector.querySelector<HTMLElement>('#factory-next-output')!.textContent =
       DIRECTION_NAMES[outputDirections(machine.building)[machine.nextOutput]];
@@ -678,19 +707,33 @@ export class FactoryHud {
       : this.projects.active ? this.projects.accepted[this.projects.active] : 0;
     if (kind === 'outpost') input.textContent = delivery
       ? `${accepted}/${delivery.quantity} ${ITEM_NAMES[delivery.item].toLowerCase()} delivered` : 'No active delivery';
-    const progress = kind === 'home' ? 1 : kind === 'kitchen' ? machine.input['food-unit'] / KITCHEN_CAPACITY
+    const pace = this.inspector.querySelector<HTMLElement>('#factory-machine-pace');
+    if (pace) {
+      const ticks = kind === 'miner' ? machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS
+        : kind === 'furnace' ? SMELT_TICKS : kind === 'assembler' ? ASSEMBLE_TICKS : kind === 'food-plot' ? FARM_TICKS
+          : kind === 'kitchen' ? MEAL_TICKS : BELT_TICKS;
+      const unit = kind === 'miner' ? 'ore' : kind === 'furnace' ? 'plate' : kind === 'assembler' ? 'supply'
+        : kind === 'food-plot' || kind === 'kitchen' ? 'food unit' : 'item';
+      pace.textContent = `1 ${unit} / ${ticks * STEP_MS / 1000}s`;
+      this.inspector.querySelector<HTMLElement>('#factory-machine-pace-row')!.hidden = kind === 'storage' && !machine.building.outputEnabled;
+    }
+    const recipe = this.inspector.querySelector<HTMLElement>('#factory-machine-recipe');
+    if (recipe) recipe.textContent = kind === 'assembler' ? '2 iron plates + 1 copper plate → 1 supply' : '1 ore → 1 matching plate';
+    const progress = kind === 'kitchen' ? machine.input['food-unit'] / KITCHEN_CAPACITY
       : kind === 'storage' ? itemCount(machine.input) / DEPOT_CAPACITY
       : kind === 'outpost' ? (delivery ? accepted / delivery.quantity : 0)
       : machine.progress / (kind === 'miner' ? machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS
         : kind === 'furnace' ? SMELT_TICKS : kind === 'assembler' ? ASSEMBLE_TICKS : kind === 'food-plot' ? FARM_TICKS : BELT_TICKS);
     const percent = Math.round(progress * 100);
-    this.inspector.querySelector<HTMLElement>('#factory-progress-label')!.textContent =
-      kind === 'home' ? 'Population (fixed for this prototype)' : kind === 'storage' || kind === 'kitchen' ? 'Capacity used'
-      : kind === 'food-plot' ? 'Growing cycle' : kind === 'outpost' ? 'Order delivered' : kind === 'assembler' ? 'Assembly cycle'
-      : isConveyor(kind) ? 'Belt travel' : kind === 'miner' ? 'Extraction cycle' : 'Smelting cycle';
-    this.inspector.querySelector<HTMLElement>('#factory-progress-value')!.textContent = `${percent}%`;
-    this.inspector.querySelector<HTMLElement>('.factory-progress')!.setAttribute('aria-valuenow', String(percent));
-    this.inspector.querySelector<HTMLElement>('.factory-progress > span')!.style.width = `${percent}%`;
+    const progressLabel = this.inspector.querySelector<HTMLElement>('#factory-progress-label');
+    if (progressLabel) {
+      progressLabel.textContent = kind === 'storage' || kind === 'kitchen' ? 'Capacity used'
+        : kind === 'food-plot' ? 'Harvest' : kind === 'outpost' ? 'Order delivered' : kind === 'assembler' ? 'Assembly'
+          : isConveyor(kind) ? 'Transport' : kind === 'miner' ? 'Extraction' : 'Smelting';
+      this.inspector.querySelector<HTMLElement>('#factory-progress-value')!.textContent = `${percent}%`;
+      this.inspector.querySelector<HTMLElement>('.factory-progress')!.setAttribute('aria-valuenow', String(percent));
+      this.inspector.querySelector<HTMLElement>('.factory-progress > span')!.style.width = `${percent}%`;
+    }
     if (kind === 'storage' || kind === 'miner' && !this.settlement) {
       const project = PROJECTS[kind === 'miner' ? 0 : 1];
       const unlocked = !!this.settlement || this.projects.accepted[project.id] === project.quantity;
@@ -698,14 +741,16 @@ export class FactoryHud {
       const option = this.inspector.querySelector<HTMLButtonElement>('[data-action="machine-option"]')!;
       option.disabled = !unlocked;
       option.setAttribute('aria-pressed', String(!!enabled));
-      option.textContent = kind === 'miner' ? enabled ? 'Use standard extractor' : 'Upgrade extractor to 0.8s'
+      option.textContent = kind === 'miner' ? enabled ? 'Use standard extractor'
+        : `Upgrade to ${UPGRADED_EXTRACT_TICKS * STEP_MS / 1000}s / ore`
         : enabled ? 'Disable depot output' : 'Enable depot output';
       const next = depotNextItem(machine);
       this.inspector.querySelector<HTMLElement>('.factory-machine-option-note')!.textContent = !unlocked
         ? `Unlock with the ${project.title.toLowerCase()}.`
-        : kind === 'miner' ? `Extraction: ${enabled ? '0.8' : '1.0'}s / ore. Try feeding two smelters.`
-          : enabled ? `Output: ${DIRECTION_NAMES[machine.building.direction]} every 0.8s. Next: ${next ? ITEM_NAMES[next] : 'Empty'}.`
-            : 'Storage only. Enable output to reuse stock.';
+        : kind === 'miner' ? ''
+          : enabled ? `Next: ${next ? ITEM_NAMES[next] : 'Empty'}` : '';
+      this.inspector.querySelector<HTMLElement>('.factory-machine-option-note')!.hidden =
+        unlocked && (kind === 'miner' || !enabled);
     }
     if (kind === 'storage') {
       const recovery = this.inspector.querySelector<HTMLDetailsElement>('.factory-depot-recovery')!;
@@ -738,13 +783,10 @@ export class FactoryHud {
     if (this.residentId !== null && this.settlement) this.updateResident(this.settlement.residents[this.residentId]);
     const residents = this.inspector.querySelector<HTMLElement>('.factory-resident-list');
     if (residents && this.settlement) {
-      if (!residents.childElementCount) residents.innerHTML = `<p>Food plot → carry food → communal kitchen. Add a plot or improve transport; raw food already feeds everyone. No starvation or growth in this prototype.</p>
-        <p class="factory-settlement-food"></p>${this.settlement.residents.map(resident =>
-          `<button data-resident="${resident.id}"><strong>${RESIDENT_NAMES[resident.id]}</strong><span></span></button>`).join('')}`;
-      residents.querySelector<HTMLElement>('.factory-settlement-food')!.textContent =
-        `${this.settlement.producedFood} food grown · ${this.settlement.consumedFood} nutrition consumed · ${this.settlement.missedMeals} missed servings. Workers keep working.`;
+      if (!residents.childElementCount) residents.innerHTML = this.settlement.residents.map(resident =>
+        `<button data-resident="${resident.id}"><strong>${RESIDENT_NAMES[resident.id]}</strong><span></span></button>`).join('');
       for (const resident of this.settlement.residents) residents.querySelector<HTMLElement>(`[data-resident="${resident.id}"] span`)!.textContent =
-        `${resident.note}${resident.cargo ? ` · 1 ${ITEM_NAMES[resident.cargo]}` : ''}`;
+        this.residentActivity(resident);
     }
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('.factory-building-card[data-action="food-plot"], .factory-building-card[data-action="kitchen"]')) button.hidden = !this.settlement;
     this.projects = summary.projects;
@@ -760,7 +802,7 @@ export class FactoryHud {
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('.factory-building-card[data-action="assembler"]')) {
       button.disabled = !!summary.objective && !summary.objective.assemblerUnlocked;
       button.querySelector<HTMLElement>('small')!.textContent = button.disabled
-        ? 'Locked · finish the copper mission' : '2 iron + 1 copper → supply · 2s';
+        ? 'Locked · finish the copper mission' : CATALOG.find(entry => entry.kind === 'assembler')!.note;
     }
   }
 

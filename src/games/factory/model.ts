@@ -31,16 +31,16 @@ export const NAMES: Record<BuildingKind, string> = {
   home: 'Homestead', 'food-plot': 'Food plot', kitchen: 'Communal kitchen',
 };
 export const DESCRIPTIONS: Record<BuildingKind, string> = {
-  belt: 'Carries one item at a time. Accepts items from behind or either side; connected branches merge fairly into the arrow-facing output.',
-  splitter: 'Accepts one item from the rear and sends it straight or right. Alternates successful deliveries; uses the other branch if one is blocked. Both blocked: retains its item. Same speed as a conveyor.',
-  miner: 'Extracts one ore per second from a deposit. Its arrow feeds an adjacent conveyor or machine. Deposits are unlimited on this test site.',
-  furnace: 'Turns one ore into one matching plate in 1.6 seconds. Accepts ore from any adjacent output; plates leave toward its arrow.',
-  storage: 'Receives up to 64 items from adjacent outputs. Storage-only by default. The buffering project unlocks optional arrow-facing output, one item every 0.8s, cycling through stocked item types. A blocked next item stays put. Removing it keeps its contents in the recovery tray.',
-  assembler: 'Combines 2 iron plates and 1 copper plate into 1 defense supply in 2 seconds. Accepts plates from adjacent outputs; supplies leave toward its arrow.',
-  outpost: 'Deliveries arrive from adjacent outputs. Only the active mission or optional project is accepted. Delivered items are consumed, not stored. Pausing or changing projects preserves accepted deliveries. This fixed receiver cannot be moved.',
-  home: 'Home to four residents. They farm and haul automatically. Food shortages never stop them working. This founding home stays in place.',
-  'food-plot': 'One resident grows one food unit every 2 seconds while working beside this plot. Holds four units. Choose a hauling destination, or connect the arrow to a conveyor to free carriers.',
-  kitchen: 'Holds sixteen food units. Four residents together consume one unit every 2.5 seconds. Delivery stocks the kitchen; food is consumed only at mealtime. Shortages do not harm residents.',
+  belt: 'Items enter from behind or either side and leave toward the arrow. Merging branches take turns.',
+  splitter: 'Rear input alternates between straight and right outputs. A blocked branch is skipped; both blocked means the item waits.',
+  miner: 'Place on an ore deposit; deposits do not run out on this site. The arrow feeds a neighboring conveyor or machine.',
+  furnace: 'Ore keeps its metal type when smelted. Items arrive from neighboring outputs; plates leave toward the arrow.',
+  storage: 'The buffering project unlocks optional output; stock types take turns, and a blocked type waits. Removed contents go to recovery.',
+  assembler: 'Plates arrive from neighboring outputs; supplies leave toward the arrow.',
+  outpost: 'This fixed receiver consumes only the active order. Accepted deliveries stay counted when projects change or pause.',
+  home: 'Residents farm and carry goods automatically, even during food shortages. The founding home stays in place; population is fixed for now.',
+  'food-plot': 'Keep a clear tile beside the plot; farming pauses when it is full. A connected conveyor frees its carriers.',
+  kitchen: 'Food feeds the whole household at each serving, not when delivered. Shortages do not harm residents or stop their work.',
 };
 
 export function tileKey(tile: Tile): string {

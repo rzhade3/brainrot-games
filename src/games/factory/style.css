@@ -49,7 +49,6 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .factory-people-button { margin-left: 0; }
 .factory-haul-label { display: block; margin: 14px 0 6px; font-size: 11px; color: var(--muted); }
 #factory-haul-target { width: 100%; min-height: 44px; padding: 8px; border: 1px solid #b7cab0; border-radius: 8px; background: #e9eedf; color: var(--ink); pointer-events: auto; font-size: 12px; }
-.factory-haul-note { font-size: 11px; color: var(--muted); line-height: 1.6; }
 .factory-resident-list button { display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left; min-height: 44px; padding: 10px; margin: 6px 0; border: 1px solid #b7cab0; border-radius: 10px; background: #e9eedf; font-size: 11px; }
 .factory-resident-list span { color: var(--muted); }
 .factory-project-active { border-color: var(--teal); color: var(--teal); }
