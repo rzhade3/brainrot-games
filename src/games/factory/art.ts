@@ -90,18 +90,31 @@ export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<s
     drawSplitter(g, x, y, b.direction);
     return;
   }
-  g.fillStyle(0x243c36, 0.18).fillEllipse(x + 10, y + 10, 68, 23);
-  prism(g, x, y, 32, 16, 5, 0xc5c9b9, 0x929f93, 0x7c9087);
+  if (b.kind !== 'food-plot') {
+    g.fillStyle(0x243c36, 0.18).fillEllipse(x + 10, y + 10, 68, 23);
+    prism(g, x, y, 32, 16, 5, 0xc5c9b9, 0x929f93, 0x7c9087);
+  }
   if (b.kind === 'food-plot') {
-    diamond(g, x, y - 6, 29, 14, 0x84745a);
-    for (let i = -2; i <= 2; i++) {
-      const a = project(i * 0.15 - 0.3, i * 0.15 + 0.3);
-      const z = project(i * 0.15 + 0.3, i * 0.15 - 0.3);
-      line(g, { x: x + a.x, y: y - 7 + a.y }, { x: x + z.x, y: y - 7 + z.y }, 0xa69872, 3);
-      for (let j = -1; j <= 1; j++) {
-        const p = project(i * 0.15 + j * 0.16, i * 0.15 - j * 0.16);
-        g.fillStyle(0x658658).fillEllipse(x + p.x, y - 10 + p.y, 7, 5);
-        g.fillStyle(0x9db579).fillEllipse(x + p.x - 1, y - 12 + p.y, 4, 4);
+    prism(g, x, y, 32, 16, 1, 0x8b795c, 0x75634d, 0x685a46);
+    diamond(g, x, y - 1, 29, 14.5, 0x79684f);
+    for (let row = 0; row < 4; row++) {
+      const r = (row - 1.5) * 0.19;
+      const a = project(-0.36, r);
+      const z = project(0.36, r);
+      line(g, { x: x + a.x, y: y - 1 + a.y }, { x: x + z.x, y: y - 1 + z.y }, 0x5f533e, 3);
+      line(g, { x: x + a.x, y: y - 3 + a.y }, { x: x + z.x, y: y - 3 + z.y }, 0xa28b66, 1);
+    }
+    for (let row = 0; row < 4; row++) {
+      for (let plant = 0; plant < 4; plant++) {
+        const p = project((plant - 1.5) * 0.2, (row - 1.5) * 0.19);
+        const px = x + p.x;
+        const py = y + p.y - 2;
+        const height = 4 + variation(b.c + plant, b.r + row) * 2;
+        g.fillStyle(0x435e43, 0.3).fillEllipse(px + 1, py + 1, 9, 4);
+        line(g, { x: px, y: py }, { x: px, y: py - height }, 0x587249, 1.5);
+        g.fillStyle(row % 2 ? 0x6f8957 : 0x78945e).fillEllipse(px - 2, py - height + 1, 5, 3);
+        g.fillStyle(0x58764e).fillEllipse(px + 2, py - height, 5, 4);
+        g.fillStyle(0xa3b67c).fillEllipse(px - 1, py - height - 2, 4, 3);
       }
     }
   } else if (b.kind === 'home' || b.kind === 'kitchen') {
