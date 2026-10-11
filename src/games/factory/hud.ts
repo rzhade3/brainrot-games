@@ -1,4 +1,4 @@
-import { Building, BuildingKind, BuildableKind, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isConveyor, isTool, NAMES, outputDirections, Scenario, Tool } from './model';
+import { Building, BuildingKind, BuildableKind, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isConveyor, isTool, NAMES, outputDirections, Point, Scenario, Tool } from './model';
 import { DEFAULT_WORLD, FactoryWorld } from './world';
 import {
   ASSEMBLE_TICKS, BELT_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, EXTRACT_TICKS, FactorySummary,
@@ -498,6 +498,14 @@ export class FactoryHud {
 
   setZoom(value: number): void {
     this.zoom.textContent = `${Math.round(value * 100)}%`;
+  }
+
+  mapCenter(): Point {
+    const header = this.root.querySelector<HTMLElement>('.factory-header')!.getBoundingClientRect();
+    const footer = this.root.querySelector<HTMLElement>('.factory-footer')!.getBoundingClientRect();
+    const top = header.bottom + 12;
+    const bottom = Math.max(top, footer.top - 12);
+    return { x: window.innerWidth / 2, y: (top + bottom) / 2 };
   }
 
   inspect(building: Building | null): void {

@@ -46,6 +46,7 @@ export default class FactoryScene extends Phaser.Scene {
   private abort = new AbortController();
   private dpr = 1;
   private zoom = 1;
+  private cameraSize: Point = { x: 0, y: 0 };
   private paused = false;
   private choosingScenario = false;
   private motionPaused = prefersReducedMotion;
@@ -182,8 +183,8 @@ export default class FactoryScene extends Phaser.Scene {
     this.hud.setPaused(this.paused);
     this.replaceTerrain();
     this.redrawMachines();
-    this.home();
     this.refreshTools();
+    this.home();
     this.refreshSimulationHud();
     this.hud.setStatus('Factory resumed');
     this.hud.setSaveStatus('Saved factory resumed on this device');
@@ -228,8 +229,8 @@ export default class FactoryScene extends Phaser.Scene {
     this.hud.setPaused(false);
     this.replaceTerrain();
     this.redrawMachines();
-    this.home();
     this.refreshTools();
+    this.home();
     this.refreshSimulationHud();
     this.hud.setStatus('');
   }
@@ -290,10 +291,20 @@ export default class FactoryScene extends Phaser.Scene {
   }
 
   private home(): void {
-    this.zoom = Math.max(this.minimumZoom(), Math.min(1.25, Math.max(0.5, window.innerWidth / 700)));
+    const compact = window.innerWidth <= 700 || window.innerHeight <= 560;
+    this.zoom = Math.max(this.minimumZoom(), compact ? 1 : Math.min(1.25, window.innerWidth / 700));
     this.cameras.main.setZoom(this.zoom * this.dpr);
     const center = project(this.simulation.world.start.c, this.simulation.world.start.r);
     this.cameras.main.centerOn(center.x, center.y - 15);
+    const screen = this.hud.mapCenter();
+    const rect = this.game.canvas.getBoundingClientRect();
+    const framed = this.worldPoint({
+      x: (screen.x - rect.left) * this.scale.width / rect.width,
+      y: (screen.y - rect.top) * this.scale.height / rect.height,
+    });
+    this.cameras.main.scrollX += center.x - framed.x;
+    this.cameras.main.scrollY += center.y - 15 - framed.y;
+    this.cameraSize = { x: this.cameras.main.width, y: this.cameras.main.height };
     this.hud.setZoom(this.zoom);
     this.renderPreview();
     this.terrain.update(this.view());
@@ -303,7 +314,13 @@ export default class FactoryScene extends Phaser.Scene {
   private onResize(): void {
     this.contacts.clear();
     this.multiGesture = false;
-    this.home();
+    const camera = this.cameras.main;
+    const center = { x: camera.scrollX + this.cameraSize.x / 2, y: camera.scrollY + this.cameraSize.y / 2 };
+    camera.centerOn(center.x, center.y);
+    this.cameraSize = { x: camera.width, y: camera.height };
+    this.renderPreview();
+    this.terrain.update(this.view());
+    this.syncVisibleMachines(this.view());
   }
 
   private screenPoint(event: PointerEvent | WheelEvent): Point {
@@ -806,10 +823,15 @@ export default class FactoryScene extends Phaser.Scene {
         g.lineBetween(x - 5 - Math.cos(angle) * 7, y - 46 - Math.sin(angle) * 3,
           x - 5 + Math.cos(angle) * 7, y - 46 + Math.sin(angle) * 3);
       } else if (b.kind === 'furnace' && state.running && !this.paused && !this.motionPaused) {
-        for (let i = 0; i < 3; i++) {
-          const t = ((this.simulation.ticks + interpolation) / 26 + i / 3) % 1;
-          g.fillStyle(0xeef0dc, (1 - t) * 0.3);
-          g.fillEllipse(x + 5 + t * 8, y - 65 - t * 25, 7 + t * 13, 4 + t * 8);
+        for (let i = 0; i < 5; i++) {
+          const t = ((this.simulation.ticks + interpolation) / 34 + i / 5 + (b.c * 7 + b.r * 11) / 31) % 1;
+          const alpha = Math.min(1, t * 8) * (1 - t) * 0.55;
+          const smokeX = x + 5 + t * 14 + Math.sin(t * Math.PI * 2) * 4;
+          const smokeY = y - 65 - t * 44;
+          const width = 14 + t * 24;
+          const height = 8 + t * 18;
+          g.fillStyle(0xbdc8bd, alpha).fillEllipse(smokeX, smokeY, width, height);
+          g.fillStyle(0xeef0dc, alpha * 0.5).fillEllipse(smokeX - 3, smokeY - 3, width * 0.65, height * 0.5);
         }
       } else if (b.kind === 'assembler' && state.running) {
         const t = this.motionPaused || this.paused ? 0.5 : (state.progress + interpolation) / 20;

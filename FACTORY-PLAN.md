@@ -228,7 +228,10 @@ Catalog height is bounded by the actual header and control area, including
 wrapped status text and safe-area spacing. Inspectors and guidance remain
 scrollable on short screens. Guidance collapses when entering a compact layout
 or using its camera shortcuts, keeping the target area usable. Resizing does
-not reset the factory or its selected machine.
+not reset the factory, selected machine, camera position, or player-chosen zoom.
+Phone and short-screen Home views start at 100% zoom (76 x 38 CSS-pixel tiles)
+and frame the starter area between the header and bottom controls. Pinch zoom
+remains available for an overview; wide desktop views retain their larger scale.
 
 The default HUD prioritizes the map, current mission, and construction controls.
 Mission guidance, machine descriptions, and detailed save/offline information
