@@ -1,27 +1,40 @@
 # Pocket Factory implementation plan
 
-Status: milestones 1-6 implemented on `feat/pocket-factory`. The visual direction
+Status: milestones 1-6 and the replacement settlement milestone 7 are implemented
+on `feat/pocket-factory`.
+The earlier milestone 7 project experiment is implemented locally but superseded
+by the inhabited-settlement direction specified below. The visual direction
 is approved. The seeded 256x256 world, chunked rendering, and seed-aware saves
 are functional, with distinct biome artwork and cohesive ground transitions.
 An approved pre-weather logistics extension adds splitters, clearer conveyor
 merge junctions, and anchored conveyor connections.
-First-time-player pacing and physical-device review, including the agreed-phone
-performance benchmark, remain outstanding. Milestone 7 and later work require
-separate implementation authorization. Next comes a purposeful-expansion
-prototype and gameplay playtest, not weather. Earned construction, harvestable
-wood, and energy are separate, conditional experiments; none are implemented.
-Production-fed defense and atmospheric polish remain later gates.
+The replacement milestone 7 combines people, useful hauling, and a complete
+raw-food supply chain. It is available through the Settlement scenario with
+matching isometric artwork and an explicit settlement ruleset. Legacy Guided
+Run and Free Play retain their original factories and project behavior.
+Milestone 8 adds food processing and optional settlement growth; milestone 9
+adds production-based discoveries. Those later features are not implemented.
+First-time-player pacing and physical-device performance remain unverified.
+Construction costs and deeper logistics follow separate gates. Power, defense,
+and underground excavation are conditional extensions, not numbered milestones.
 This is an exploratory prototype: future milestones may replace terrain,
 generator, and save formats without backward compatibility or migration work.
 Breaking revisions may require a fresh factory; communicate that explicitly.
 
 ## Goal
 
-Add a standalone, mobile-first factory automation game to Brainrot Games.
-Players extract resources, connect machines, resolve bottlenecks, and use their
-output to supply a small outpost. Build an inviting, finite 256x256 procedural
-world with distinct landscape regions and gentle weather before introducing
-combat. Keep the starter factory and resources close together so exploration
+Player-facing writing follows the
+[field-notebook guide](.github/instructions/factory.instructions.md).
+It defines the voice and implemented content hierarchy for the catalog,
+inspectors, help, and feedback. The notebook is a presentation language, not a
+separate information channel.
+
+Develop a standalone, mobile-first inhabited logistics/base-building game in
+Brainrot Games. Players provision a small community, arrange physical supply
+chains, and use automation to free residents for useful work. Begin with food;
+industry later improves farming, transport, and construction instead of making
+plates for a disconnected quota. Retain the inviting, finite 256x256 procedural
+world and distinct landscape regions. Keep starter resources close so exploration
 is optional, not a prerequisite for production. Preserve the calm,
 clean-isometric visual direction and offline play after resources finish caching.
 
@@ -34,14 +47,24 @@ outpost. Free Play starts with an empty site and all machines unlocked.
 Milestone 4 preserves investment through local autosave and resume. Milestone 5
 expands the site into a seeded, explorable world while keeping starter production
 local. Milestone 6 adds fuller meadows, wooded riverbanks, and rugged upland art.
-The next milestones test whether production gives players a reason to expand.
-Only after that baseline is engaging should scarcity or power add another
-constraint. Environmental polish cannot substitute for a useful gameplay loop.
+The optional-project experiment did not provide the desired connection to the
+core loop: delivery quotas and rewards still left the factory without everyday
+consumers. The revised direction gives production a visible purpose through
+people who produce, carry, and consume goods. This is a design hypothesis, not
+proof of engagement or differentiation from other settlement games.
+Environmental polish cannot substitute for a useful gameplay loop.
 
 Near-term arc:
 
-Build a working line -> choose a useful expansion project -> adjust production
-or buffering -> earn a capability -> choose the next project.
+Food plot -> haul food units -> provision residents -> improve logistics ->
+process food more efficiently -> support more people -> gain useful labor.
+
+Industrial progression:
+
+Operate a working supply chain -> encounter a bottleneck -> discover a useful
+machine -> invest in tools/transport/processing -> improve the settlement.
+Residents are participants, not animated scenery or arbitrary resource drains.
+Routine farming, hauling, processing, and eating run automatically once assigned.
 
 Conditional earned-construction experiment:
 
@@ -75,22 +98,23 @@ Steps 1-2 are implemented. Steps 3-5 are deferred proposals, not the next milest
 5. Survive three raids for a visible completion moment, then choose free play
    or another challenge. Do not silently turn completion into endless attacks.
 
-The narrative premise is protecting an isolated outpost and its supply operation.
-The exact attacker identity and story remain open; the first prototype needs a
-clear protected target and consequence, not extensive lore.
+The current premise is building a small, peaceful community. Protecting an
+outpost remains a possible later scenario, not the opening narrative or a
+requirement of the settlement loop.
 
 ### Design guardrails
 
-- Begin with a short, bounded production objective. Target a 5-10-minute
-  production introduction and, later, a 20-30-minute complete defense run.
-  These are playtest hypotheses, not durations inferred from recipe counts.
-- Give each objective a material sink, visible progress, and a useful reward.
-  Prevent completed orders from accepting and silently discarding extra items.
-- Show delivered throughput, missing ingredients, and defense readiness alongside
-  local machine state. A backed-up extractor can reflect a slower downstream
+- Begin with a short, complete food supply chain and residents doing useful work.
+  Target pacing through internal walkthroughs, not recipe-count extrapolation.
+- Food units are physical cargo. Nutrition measures their consumption value,
+  not electricity, a global spendable currency, or another manual inventory.
+- Raw food must feed residents before processing exists. Shortages halt growth
+  without killing residents or disabling workers needed to restore supply.
+- Show local inventories, delivered throughput, missing inputs, and job/blockage
+  reasons. A backed-up extractor can reflect a slower downstream
   machine, not necessarily a player error.
-- Shipped milestones 1-6 keep construction free. Milestone 7 retains that
-  baseline; milestone 8 may test paid construction only behind its own gate.
+- The existing factory and replacement milestones 7-9 keep construction free.
+  Milestone 10 may test paid construction only behind its own gate.
   Do not silently charge existing factories or combine costs, wood, and energy
   into one unmeasurable change.
 - Add simple recovery-to-depot relocation in milestone 3. Make stored/recovered
@@ -102,10 +126,10 @@ clear protected target and consequence, not extensive lore.
   coherent pre-raid retry rather than tedious rebuilding.
 - Raids and countdowns follow simulation time: pause, suspension, and backgrounding
   stop them. No attacks or production occur while the app is closed.
-- Keep peaceful building available. New expansion projects are optional and
-  finite, not compulsory recurring orders, deadlines, or an endless resource tax.
-  Validate whether goals or danger motivate factory improvements instead of
-  distracting players from them.
+- Keep peaceful building available. Retire expansion-project gating from the
+  new settlement ruleset; discoveries recognize production or successful use
+  without consuming an extra quota. Residents consume food because they live
+  there, not as a disguised research fee. No harvest clicks or mandatory refills.
 - Keep initial weather atmospheric: no machine shutdowns, production penalties,
   flooded construction, resource depletion, or weather-management UI.
 - Procedural variation must preserve reachable resources and usable building
@@ -133,23 +157,24 @@ for rendering; account for depth sorting, tile picking, and building occlusion.
 ## Proposed first-release scope
 
 This table describes the revised near-term target, not shipped behavior.
-Milestones 1-6 are implemented, including the seeded 256x256 world and distinct
-biome art. Each subsequent implementation milestone requires approval.
-Purposeful demand precedes conditional construction/wood and power experiments;
-weather and combat are not the next implementation work.
+Milestones 1-6 and replacement milestone 7 are implemented, including the seeded
+world, biome art, and raw-food settlement. The old project direction is superseded
+but retained for legacy factories. Later milestones require separate approval.
+Food and people precede processing, discoveries, costs, and richer logistics.
 
 | Area | Scope |
 | --- | --- |
 | World | Finite, seeded 256x256 tiles (65,536 total), organized into 32x32-tile chunks |
 | Terrain | Meadow, wooded riverbank, rocky upland; accessible iron/copper and connected building space |
 | Environment | Gentle clear/cloudy/rain transitions, restrained water/vegetation motion; atmospheric only |
-| Buildings | Miner, directional belt, splitter, furnace, assembler, storage, outpost receiver |
-| Production | Ore to plates; one mixed-metal defense-supply recipe; later components only when they add a new decision |
-| Demand | Existing guided orders; proposed opt-in expansion projects after completion and in Free Play |
+| Buildings | Existing factory infrastructure plus proposed home/base, food plot, communal kitchen, and food processor |
+| People | Small resident population; automatic farming/hauling, physical cargo, useful labor rather than individual micromanagement |
+| Production | Food units first; processed food increases nutrition yield; later industry supplies tools, transport, and construction |
+| Demand | Resident provisioning and optional population growth; existing factory missions remain legacy behavior |
 | Combat | Deferred; peaceful building remains the near-term focus |
-| Progression | Existing assembly unlock; proposed projects create further production choices without forcing a mode switch |
-| Failure | No environmental or combat failure in the living-world milestones |
-| Construction | Currently free; gated plate-funded expansion experiment with an explicit material source/refund contract |
+| Progression | Permanent discoveries from actual production or successful use; no research receiver or stockpile requirement |
+| Failure | Food shortages pause growth without starvation deaths or labor softlocks; no environmental/combat failure |
+| Construction | Initially free; milestone 10 tests material-funded construction with physical delivery and explicit refunds |
 | Wood | Deferred, separately tested harvesting with a concrete use; not decorative inventory |
 | Power | Deferred until a validated peaceful expansion loop needs a generation/demand constraint |
 | Input | Mouse and touch placement, rotation, removal, pan, and zoom |
@@ -163,8 +188,8 @@ underground belts, separate inserters, and production while the app is closed.
 Build the large-world rendering foundation before adding biome detail or weather.
 Map size does not expand the initial biome, recipe, or enemy feature list. The
 existing defense proposal remains documented below, but is not a first-release
-commitment. Power/fuel, wood, paid construction, and underground resource discovery
-are conditional roadmap ideas, not approved implementation or shipped behavior.
+commitment. People, food, discoveries, power/fuel, wood, paid construction, and
+underground resource discovery are not approved implementation or shipped behavior.
 
 ## Milestone 1: Visual and interaction prototype
 
@@ -263,6 +288,28 @@ The small "AN AUTOMATION STUDY" brand label and Free Play's desktop-only
 character without adding instructions. Compact layouts omit the headline to
 leave room for the map. The duplicate live badge, repeated footer hints, and
 long always-visible guidance remain removed.
+
+### Field-notebook copy and contextual information
+
+Build cards show the existing building name, icon, shortcut, and one short
+purpose line, or an unlock condition when unavailable. Recipes, pace, and
+capacity are not catalog descriptions: they belong in the selected building's
+inspector, alongside activity, contents, direction, and relevant controls.
+Extractor placement calls out the deposit requirement. Source inspectors use
+**Deliver to** for resident hauling; static access and conveyor rules live under
+collapsed **Field notes**, not in an always-visible paragraph.
+
+The homestead shows its resident count and each person's current activity.
+Resident details use factual, contextual language such as "Taking food to the
+kitchen", with destination and carried items available on selection. The fake
+full population meter and lifetime food counters are removed from the UI.
+Food shortages appear in the selected kitchen's activity; shortages do not stop
+work. Non-obvious rules remain available in collapsed help, including
+legacy project unlocks, splitter fallback, and depot recovery behavior.
+
+Personality comes from existing contextual language, residents, illustration,
+and animation, not a new margins sidebar, notebook feed, event log, or unsolicited
+harvest commentary. Keep necessary warnings explicit. The map remains the focus.
 
 ## Milestone 2: Deterministic simulation and a complete production chain
 
@@ -865,7 +912,13 @@ cached offline launch. A new offline route can be built and undone without
 changing the resumed factory; subsequent production and autosave continue.
 Reload restores neither session-only undo history nor unfinished previews.
 
-## Critical gameplay review: revise before adding scarcity
+## Historical gameplay review: revise before adding scarcity
+
+Planning constraint: no external player cohort is available. Make design
+decisions ourselves, using internal hands-on walkthroughs, explicit tradeoffs,
+and reproducible scenario checks. External playtesting is optional feedback,
+not a prerequisite to implementation. Automated checks establish correctness
+and pacing bounds, not whether real players find the game engaging.
 
 The requested critical-agent review recommended **revise**, not implement the
 whole resource-economy proposal. The central hypothesis is that the static
@@ -892,16 +945,318 @@ investment. They are not an ongoing material sink, however, and cannot replace
 projects or other useful demand. The exact paid-instance ledger prevents refunds
 from creating resources.
 
-No runtime changes are authorized by this document. The following milestones
-define experiments and implementation gates, not a promise to ship every system.
+The project experiment was separately authorized and implemented, then rejected
+as the progression direction. Its implementation notes are retained below for
+reference; passing correctness checks did not establish that its gameplay worked.
+The following replacement roadmap is the active spec. Replacement milestone 7
+was explicitly authorized and implemented; later milestones still require
+separate implementation authorization.
 
-## Milestone 7: Purposeful expansion and reusable stock
+## Revised milestone overview: Inhabited logistics settlement
+
+| Milestone | Focus | Status |
+| --- | --- | --- |
+| 1-6 | Existing factory, persistence, seeded world, visuals, and controls | Implemented foundation |
+| 7 | People and a complete raw-food supply chain | Implemented |
+| 8 | Food processing and optional population growth | Next; planned |
+| 9 | Production discoveries | Planned |
+| 10 | Earned construction | Planned, separately gated |
+| 11 | Deeper logistics | Planned, conditional on observed bottlenecks |
+| 12 | Atmosphere and livability | Planned |
+| 13 | Release performance, accessibility, and reliability | Final gate |
+| Unnumbered | Power, defense, and underground excavation | Conditional extensions |
+
+### Shared food and nutrition contract
+
+Use the generic item name **food unit**, not vegetable, wheat, or a required
+crop taxonomy. A food plot produces physical food units; artwork may suggest
+cultivation without introducing different crop items. Food processing increases
+the nutrition obtained from harvested units, not extraction speed or item count.
+
+Initial balance hypothesis:
+
+| Item or recipe | Physical quantity | Nutrition when consumed |
+| --- | --- | --- |
+| Raw food unit | One harvested cargo item | 1 |
+| Processed food unit | One cargo item made from two raw food units | 3 |
+
+These are illustrative calibration values, not finalized production or resident
+consumption rates. This recipe offers 50% more nutrition from the same raw supply,
+in exchange for processing time, infrastructure, labor where applicable, and an
+extra transport leg. Compare that gain against adding a plot or shortening a
+hauling route before adopting the numbers. No processor is required to bootstrap.
+
+Keep physical inventories and nutrition accounting distinct. Plots, residents,
+depots, processors, and kitchens hold actual items. Delivery puts cargo into a
+bounded local kitchen inventory; it does not immediately consume food or count
+as research. Consumption removes an item and credits its defined nutrition to
+resident provisioning. Persist any fractional consumption remainder locally so
+frame rate, reload, and repeated delivery cannot duplicate nutritional value.
+Do not expose a global nutrition wallet or require manual nutrition transfers.
+
+Nutrition is not electrical energy, worker stamina, happiness, or a build
+currency. Workers do not lose the ability to farm or haul during a food shortage.
+Consumption follows simulation time and stops while paused, suspended, hidden,
+or closed, consistently with the existing no-offline-production contract.
+
+### Milestone 7: People and a complete raw-food supply chain
+
+Status: implemented in the Settlement scenario. Scope and acceptance below are
+followed by the concrete contract and internal validation results.
+
+Deliver a playable food-first settlement, not people walking decoratively around
+the existing iron factory. Implement hauling underneath first if useful, but the
+milestone stops only when production, transport, and consumption work together.
+
+Scope:
+
+- A small starting group, initially four residents, a home/base, a food plot, and
+  a communal kitchen. Give a clearly accounted starter food supply sufficient
+  to establish the first chain; tune its size against actual setup timings.
+- Residents automatically perform farming and hauling jobs. Farming work
+  produces food units into a bounded plot output buffer; there is no harvest
+  click or need to reassign a worker after each cycle.
+- Haulers collect physical cargo from output buffers or depots and deliver it
+  to designated compatible inputs or the kitchen. Use simple job priorities
+  and building assignments, not per-person commands, schedules, or personalities.
+- Define worker speed, carry capacity, job ordering, plot cycle/output capacity,
+  kitchen capacity, and resident consumption cadence before implementation.
+  Choose these together through internal timing tests, not isolated giant quotas.
+- Route walking over reachable land to defined access points. Water and occupied
+  building footprints are not traversable shortcuts. Show unavailable jobs and
+  inaccessible destinations; never teleport residents or delivered cargo.
+- Reserve source cargo and destination capacity for each job. A reservation is
+  not a second copy of an item: cargo remains at the source until pickup and
+  thereafter belongs to the carrying resident until delivery. Cancel/replan
+  safely when buildings or paths change; carried cargo stays with its owner or
+  enters explicit recovery, never disappears.
+- Existing industrial machines remain automatic. A resident's delivery route
+  may be replaced by a compatible conveyor; the released labor can service
+  another job. Do not have hauling and conveyors collect the same output twice.
+- Make depots reusable basic infrastructure in the settlement ruleset, with
+  deliberate output settings and bounded transfer behavior, not project rewards.
+  Remove the Projects UI and project-gated progression from this ruleset.
+- Keep construction free during this proof. Food consumption provides a real
+  sink; paid construction, research, processing, growth, carts, starvation,
+  power, and combat are not bundled into this milestone.
+
+Compatibility and acceptance:
+
+- Specify an explicit settlement ruleset/save identity. Old Guided Run and Free
+  Play factories retain their existing semantics until a separately approved
+  migration; do not silently add people or consume old inventories. Starting a
+  replacement settlement must disclose any reset and protect the previous save.
+- Save residents, jobs/reservations, positions, carried cargo, all food buffers,
+  starter grants, produced/consumed ledgers, and consumption progress together.
+  Pause/resume and offline reload cannot duplicate food, lose cargo, or advance
+  eating while the factory is closed.
+- A resident farms, another transports food, and the kitchen provisions the
+  population through actual accepted cargo. A shortage is explained but causes
+  no deaths, labor slowdown, or bootstrap deadlock.
+- A route/layout or conveyor improvement reduces a measured backlog or releases
+  a resident for another useful job. Compare against the same starting residents
+  and supply, not a fixture with extra free resources.
+- Native desktop/touch walkthroughs can find a resident's activity, destination,
+  carried item, kitchen stock, and the reason a job is blocked without a permanent
+  per-person dashboard. Verify worker/cargo conservation, competing reservations,
+  construction interruption, pause, save, and cached offline continuation.
+
+#### Implemented settlement contract
+
+- New Settlement worlds start with four residents (Ada, Emil, Mira, Owen), a
+  fixed homestead at 11,12, a food plot at 10,9, and a communal kitchen at 14,12.
+  Eight explicitly accounted starter food units are held in the kitchen.
+- A plot needs one resident working at an adjacent access tile. It grows one
+  food unit every 20 simulation ticks (2s) and holds four units. Full output
+  pauses farming without losing partial growth progress.
+- Residents walk one land tile every three ticks (0.3s) and carry one item.
+  Navigation avoids water, trees, and all occupied building footprints. Workers
+  may share walking tiles; there is no collision/traffic simulation in this gate.
+- Jobs assign reachable plots first, then prioritize hauling to kitchens over
+  industrial deliveries. Ties follow stable tile order and resident identity.
+  Each source's inspector selects its hauling destination or disables hauling.
+  New plots default to the first available kitchen; industrial sources/depot
+  stock are hauled only when a destination is explicitly assigned.
+- A compatible arrow-connected conveyor or machine takes over source transport.
+  No new carriers claim that source; already reserved deliveries finish safely.
+  Source and destination reservations are shared with conveyor transfer capacity,
+  and destinations cannot be overfilled by simultaneous carriers and belts.
+- Layout changes replan remaining routes. Removing a source/destination or
+  making a job unreachable recovers carried cargo explicitly. Changing or
+  disabling a hauling assignment cancels affected hauling jobs and likewise
+  preserves carried stock in recovery. Occupied/current-next resident tiles
+  reject new building placement rather than trapping a person in a footprint.
+- The kitchen stores sixteen units. The fixed four-person group consumes one
+  raw unit every 25 ticks (2.5s), contributing one nutrition per unit. The meal
+  clock and missed-serving count are deterministic; empty kitchens report a
+  shortage but never kill residents or stop work. No population growth ships yet.
+- Settlement depots can enable output directly in their inspector, without
+  projects or research. Storage-only remains the default. Projects are absent
+  from Settlement; old factories retain their existing project/unlock semantics.
+- A People button opens the homestead's contextual activity list. Residents can
+  also be selected directly or from that list to inspect activity, position,
+  destination, and cargo. Food plots/kitchens use the existing construction
+  catalog and inspectors, with keyboard shortcuts 9 and 0.
+- Artwork uses the same original isometric vector style, muted greens, warm
+  neutral materials, small shadows, compact UI, and bounded/reduced-motion-aware
+  animation as the existing factory. Residents visibly carry the food parcel;
+  no external character assets or different visual theme were introduced.
+- Saves explicitly distinguish `settlement-v1` from `factory-v1`. Older five-item
+  factory inventories normalize to a zero food field without adding residents
+  or changing original behavior. Starting another scenario requires replacement
+  confirmation; failures/cancellation leave the active factory intact.
+- Residents, routes, jobs, carried cargo, reservations inferred from jobs, food
+  buffers, starter grants, produced/consumed ledgers, and the meal clock restore
+  together. Consumption totals and clock must match simulation ticks, and held
+  plus consumed food must equal produced food plus the starter grant.
+
+Internal validation:
+
+- A cold starter settlement first harvests at 3s and delivers at 6.1s. The eight
+  initial servings provide 20s of provisioning. A real three-minute simulation
+  with repeated exact save/restores sustains all four residents with no missed
+  servings, without manual harvesting or loading.
+- In a controlled sixty-second comparison with the same four people, food plot,
+  iron extractor, and receiving depot, conveyor-fed food allows 22 iron ore to
+  reach the second route's depot versus 14 with resident-carried food. Neither
+  settlement misses servings. This demonstrates labor reallocation, not proven
+  engagement or long-term balance.
+- `scripts/check-factory-settlement.ts` covers production/consumption/cargo
+  accounting, travel and farming, competing jobs, save determinism, construction
+  interruption, removal/recovery, disabled assignments, unreachable access,
+  shortages/recovery, seeded starts, legacy rulesets, and invalid-save rejection.
+- Native mouse/touch walkthroughs at 1440x900, 390x844, 320x568, and 844x390 cover
+  actual food production, people/source inspection, hauling destinations, depot
+  output, construction, exact resume, and cancellation of scenario replacement.
+  A fresh production service-worker cache also supports offline selection,
+  continued production/consumption, autosave, and exact resident/cargo/clock
+  reload. Screenshots were reviewed against the existing visual direction.
+  These checks are browser emulations, not a physical-phone benchmark.
+
+### Milestone 8: Food processing and optional settlement growth
+
+Add a food processor producing processed food units according to the shared
+nutrition contract. For this isolated proof, it is directly available; milestone
+9 later connects its availability to a production discovery. Do not implement a
+research system merely to test this recipe.
+
+- Raw food remains directly usable and is never silently converted into processed
+  food. The player chooses which flows feed the kitchen or processor.
+- Define a finite processing cycle and bounded input/output buffers. Consume two
+  raw units only when one processed unit is successfully produced; blockage
+  retains inputs and partial work. Processing creates no unexplained extra cargo.
+- The kitchen accepts both item types. Define a deterministic consumption policy
+  and show it locally; count actual nutrition once per consumed item, not once
+  per transfer. Haulers can move both types without manual loading chores.
+- Housing and sustained provisioning enable explicit population growth. More
+  residents add useful labor and additional consumption. No automatic arrivals,
+  compulsory growth, arbitrary meal donations, or death/worker-disable penalties.
+- Settle housing capacity, arrival criteria, the provisioning observation window,
+  and new-resident initialization before implementation. A player can keep a
+  smaller stable base instead of chasing a population quota.
+
+Acceptance: compare adding a plot, improving hauling, and adding processing
+under identical resident demand. Each solves a different observed limitation.
+Show processing's raw-food savings and any added delivery/processing bottleneck.
+Growth must supply useful additional labor while leaving the food chain viable.
+Conserve raw/processed cargo and account explicitly for recipe conversion,
+nutrition consumption, population changes, and starter grants across saves.
+
+### Milestone 9: Production discoveries
+
+Introduce lightweight automatic unlocks that recognize working supply chains,
+not labs, science packs, receiver orders, or stockpile thresholds.
+
+- Cumulative production counts actual newly produced items once; moving,
+  recovering, storing, or re-delivering them adds no production progress.
+- Successful-use checkpoints count the relevant actual consumption or accepted
+  delivery once. Prefer meals consumed for provisioning achievements so repeated
+  storage/delivery cannot manufacture progress. Starter grants do not count as
+  production. Failed or reserved transfers do not count as successful use.
+- Progress never requires retaining a stockpile or consuming an extra research
+  payment. Goods still serve their ordinary food/construction/production role.
+- Unlock the food processor after operating a basic raw-food chain. Unlock later
+  logistics or industrial options only when prerequisites exist and the new
+  capability addresses a plausible observed limitation. Essential food/hauling
+  infrastructure is available immediately; no circular bootstrap requirements.
+- Set numerical thresholds after measuring setup time and useful work in
+  milestones 7-8. The proposed food values and earlier example counts are not
+  approved discovery thresholds.
+- Unlocks are permanent, idempotent, and saved. Show the next relevant discovery,
+  progress, and benefit in secondary guidance; no automatic new project orders
+  or large always-visible technology dashboard.
+
+Acceptance: each discovery offers a useful production/layout decision rather
+than simply increasing a number. Test counting exclusions, exact thresholds,
+simultaneous completions, permanent unlocks, reload uniqueness, and food
+provisioning continuing while progress advances.
+
+### Milestone 10: Earned construction
+
+Only after food, people, and discoveries form a useful loop, test selected
+material-funded buildings and transport equipment. Industry should produce
+tools, components, and infrastructure used by the settlement, not disconnected
+plate quotas. Food provisions residents; nutrition never pays construction costs.
+
+Use explicit recipes, a viable starter kit, visible material requirements, and
+actual-paid investment/refund records. Discovery unlocks permission to build,
+not a free copy of a machine. Specify how residents deliver construction cargo
+to a site and complete a job; movement must not be replaced by remote magical
+inventory spending. The historical construction-reserve proposal below is not
+the selected funding mechanism for this direction.
+
+Atomic placement/route funding, site capacity/reservations, cancellation,
+unfinished-site recovery, refunds, free/legacy buildings, and save interruption
+must preserve material accounting. No refund can create materials that were
+never actually invested. Keep paths/basic rerouting inexpensive enough to
+experiment. Existing factories are not retroactively charged.
+
+Add harvestable wood only when a concrete construction/transport recipe needs
+it, with accessible startup supply and automatic harvesting where repeated
+consumption is intended. Do not add a wood milestone or a manual refill loop.
+Acceptance: infrastructure investment improves provisioning or labor allocation
+without passive waiting, circular prerequisites, or a softlocked settlement.
+
+### Milestone 11: Deeper logistics
+
+Introduce carts on paths, configurable depot roles, or clearer job priorities
+only where milestones 7-10 expose useful limits. Walking is flexible low-volume
+transport, carts are bulk transport, and conveyors are fixed continuous routes.
+Do not add all transport tiers or forced roads just to increase complexity.
+
+Acceptance: explain why a player would select each introduced option. Verify
+capacity, loading/unloading, fair job selection, inaccessible routes, competing
+workers/transfers, and save-safe rerouting. Compare throughput and labor released
+against the walking/conveyor baseline. No recurring manual loading.
+
+### Milestone 12: Atmosphere and livability
+
+Refine visible resident work and settlement pacing, then add bounded ambient
+motion or gentle weather where it improves the place. No hunger-survival
+schedules, production penalties, seasons, or personality simulation are required.
+Retain readable cargo, ports, jobs, touch interaction, and reduced-motion cues.
+
+Use internal fresh/developed settlement walkthroughs and timing checks; external
+testers are optional feedback. Physical-device performance remains a separate
+measured gate. See the retained atmospheric/livability references below for
+rendering and weather-state contracts, not the superseded numbering.
+
+Milestone 13 remains the release gate below. Power, defense, and excavation
+require separate approval and a concrete role in the functioning settlement;
+nutrition does not imply a power system or survival/combat requirement.
+
+## Historical experiment: Project-based expansion (superseded)
+
+Status: implemented locally under the earlier milestone 7, but rejected as the
+future gameplay direction. This section records that experiment, not the active
+next milestone or a claim of user-approved gameplay. Runtime code remains for
+legacy factories; the replacement Settlement scenario does not use project gating.
 
 Test the missing-purpose hypothesis before introducing new resources. Retain
 free construction, unlimited visible ore, existing recipes, and the current
 Guided Run/Free Play distinction.
 
-### 7A: A bounded next decision
+### Historical 7A: A bounded next decision
 
 Offer a small set of opt-in expansion projects in Free Play and after guided
 commissioning. Preserve the original two missions and their consumed-delivery
@@ -930,7 +1285,7 @@ are a separate sink from commissioning; deposited items, recovered cargo, and
 future construction spending cannot also count as deliveries. Projects and
 rewards save exactly and cannot be repeatedly claimed through reload or retry.
 
-### 7B: Stored resources can return to production
+### Historical 7B: Stored resources can return to production
 
 After evaluating the extraction project in 7A, test the buffering project's
 output-enabled depot as a reusable buffer and a second allocation choice.
@@ -952,26 +1307,104 @@ Acceptance and decision gate:
   abandoning their factory.
 - Test projects before depot-output changes, then test buffering separately;
   compare against the current free-building baseline rather than bundling effects.
-- Observe first-time desktop and physical-phone sessions. Record active
-  building/routing decisions, longest forced wait, time waiting, help requests,
-  and voluntary construction after the original mission endpoint.
-- Initial screening hypothesis: in a small five-player sample, at least three
-  voluntarily reconfigure or expand after the old endpoint; unavoidable waiting
-  is under a quarter of session time and no worse than the baseline. These are
-  prototype decision thresholds, not statistically proven retention targets.
-- Reject or revise if testers merely wait through larger batches, cannot explain
-  the reward, or say the next project is the same task again. Do not respond by
-  adding costs or energy before fixing that result.
+- Walk through a fresh factory, the old guided completion point, and a developed
+  Free Play factory ourselves on desktop and touch layouts. Document the next
+  available decisions, longest forced wait, and which layout changes improve
+  the outcome. Do not depend on recruiting players or a sample-size threshold.
+- Compare an unchanged starter line against a deliberate expansion. The project
+  must make expansion useful and provide a clear reward; merely waiting for a
+  larger batch is not a sufficient design. Use simulated production timings to
+  tune quantities, not to claim measured engagement or retention.
+- Revise if our walkthrough exposes only waiting, an unusable reward, or the
+  same task with a larger quota. We own this judgment; outside feedback can
+  inform it later but does not block the next implementation gate.
 - Automated tests cover project sinks/reward uniqueness, output-enabled depot
   conservation, reservation fairness, disabled defaults, and save/offline resume.
 
-## Milestone 8: Earned expansion experiment, then harvestable wood
+### Implemented contract and internal decision gate
 
-Proceed only after milestone 7 gives production a useful purpose and the user
-authorizes this experiment. Run 8A and 8B as separate changes with separate
-playtests. No energy, excavation, new ore types, or combat in this milestone.
+- **Extraction commission:** eight defense supplies unlock an optional
+  per-extractor upgrade from one ore every ten ticks to one every eight ticks
+  (1.0s to 0.8s). Existing and newly placed extractors stay standard until
+  explicitly upgraded in their inspector; switching back is supported.
+- **Buffering commission:** sixteen iron plates unlock optional per-depot output,
+  one item every eight ticks (0.8s) toward the arrow-facing adjacent receiver.
+  Existing and newly placed depots stay storage-only until explicitly enabled.
+  Disabling resets the output clock but retains all stock and routing position.
+- The Projects button opens secondary, dismissible guidance with exactly two
+  choices, accepted counts, input requirements, and usable rewards. The dialog
+  pauses simulation and cancels an uncommitted conveyor route. Guided Run offers
+  projects only after its original two missions; Free Play can opt in immediately.
+  Neither mode automatically starts an order after completion.
+- A Free Play receiver appears only on first opt-in, on the nearest clear
+  accessible tile around the starter outpost site. It never replaces an existing
+  building, persists in place, and can be found through the project guidance.
+  Guided Run reuses its existing fixed outpost.
+- Only physical receiver acceptance consumes project items. Each project's
+  accepted ledger is separate from commissioning, retained when switching or
+  pausing, and capped at its finite quota. Completion clears the active project;
+  unlocks derive from exact accepted quantities and cannot be claimed again.
+  Wrong items and excess cargo remain upstream.
+- Mixed depot stock cycles through iron ore, copper ore, iron plates, copper
+  plates, and defense supplies, starting after the last successful item type and
+  skipping empty types. The inspector shows the next item and actual port.
+  An incompatible or blocked next item remains selected and held; it is not
+  silently bypassed. Transfers share the conveyor snapshot and fair destination
+  reservations: no multi-hop cargo or reuse of a slot freed in the same batch.
+- Recovery relocation remains bounded by depot capacity and grants no project
+  progress. After output is enabled, recovered stock can feed recipes and
+  projects through ordinary physical transport. Removing or rebuilding a
+  blocked conveyor safely moves its cargo to recovery; this is needed when
+  switching delivery types on an already loaded line.
+- Legacy saves gain empty project ledgers and default depot routing without
+  changing factories or original mission completion. New saves strictly validate
+  projects, unlocks, machine options, clocks, routing, and total material accounting.
 
-### 8A: Construction paid for by existing production
+Internal comparison, not an engagement or phone-performance measurement:
+
+| Scenario | Measured simulation time | Next useful decision |
+| --- | --- | --- |
+| Cold starter supply line rerouted to the outpost | First supply 12.6s; eight supplies 35s | Iron plates limit the assembler; add a second iron smelter |
+| Same line with a splitter and second iron smelter | First supply 12s; eight supplies 26s | Upgrade extraction to support the parallel smelting branch |
+| Finished supply factory rerouted to iron delivery | Sixteen plates in 26s | Choose production input buffers or reuse recovered cargo |
+| Output-enabled stocked depots | First item after 0.8s; one successful item per 0.8s thereafter | Set the port and keep compatible stock ahead of blocked item types |
+
+The longest unavoidable first-delivery delay in the compared cold layouts is
+12.6s, with no deadline or construction lock while production runs. The unchanged
+line can finish, but deliberate parallel smelting shortens the finite project by
+nine seconds rather than adding a larger repetition of the old order. Buffering
+requires a different allocation and then returns stored stock to production.
+This is sufficient for this prototype gate, not proof that players find it engaging.
+
+Native mouse/touch walkthroughs covered fresh Free Play, developed factories,
+and Guided Run's original completion point. They covered project selection,
+switching, pausing, both rewards, recovery, blocked cargo, and exact reloads at
+1440x900, 390x844, 320x568, and 844x390. A fresh production service-worker cache
+also resumed both modern rewards and a legacy completed Guided Run offline,
+accepted native controls, ran production, autosaved, and reloaded exactly.
+These are browser emulations and scripted internal scenarios, not physical-phone
+benchmarks or external first-time-player feedback. The walkthrough exposed
+incompatible leftover cargo during project switching; guidance now explicitly
+explains safe removal/rebuilding instead of silently discarding it.
+
+`scripts/check-factory-expansion.ts` covers real-production timing, project
+quotas and sinks, reward uniqueness, retained pause/switch progress, seeded
+accessible receivers, legacy/strict saves, physical recovery deliveries,
+extractor cadence, depot-fed recipes, mixed-stock selection, rotated ports,
+merges, splitters, simultaneous input/output, snapshot capacity, and conservation.
+No construction costs, wood, power, weather, excavation, or combat were bundled
+into this historical implementation. The old milestone 8A sequence is superseded
+by the settlement roadmap, not automatically authorized by these test results.
+
+## Historical proposal: Construction reserve and harvestable wood
+
+Reference only: the former milestone 8 proposal is not the active roadmap.
+Reuse its conservation/refund safeguards where applicable, but revised milestone
+10 selects physical resident construction delivery rather than this abstract
+reserve. Its quantities, resource recipes, and separate wood sequence are not
+approved balance or implementation requirements.
+
+### Historical 8A: Construction paid for by existing production
 
 Test a small recipe set funded by existing iron/copper plates. Recipes are
 explicit, fixed per ruleset, and visible in the build catalog and placement
@@ -1047,7 +1480,7 @@ Acceptance:
 - Deterministic multi-depot spending, insufficient-funds atomicity, concurrent
   transfers, cross-tab save protection, and exact paused/offline resume are tested.
 
-### 8B: Harvestable wood with one useful role
+### Historical 8B: Harvestable wood with one useful role
 
 Only after evaluating 8A, test harvesting trees with one optional depot recipe:
 four wood instead of four iron plates. One tree initially yields four wood,
@@ -1092,7 +1525,7 @@ identity. Preserve old-version semantics through an explicit loader, or clearly
 block unsupported saves and require a confirmed new factory; never silently
 reset, reinterpret inventories, or overwrite an unreadable save.
 
-## Milestone 9: Conditional power proof
+## Conditional extension: Power proof
 
 Proceed only after an engaging expansion loop is demonstrated and power has a
 specific planning role. Test one generator type and a small production-machine
@@ -1106,8 +1539,9 @@ inspecting the network or an affected machine, not a permanent energy dashboard.
 Shortages must explain the resulting production slowdown or stopped machine.
 Belt construction and basic navigation must not require available electricity.
 
-If the generator burns wood, first provide the sustainable automated supply
-required by 8B. No mandatory recurring manual refills. Otherwise test a simple
+If the generator burns wood, first provide a sustainable automated supply;
+the retained historical wood proposal is not an approved prerequisite. No mandatory
+recurring manual refills. Otherwise test a simple
 non-fuel generator first and do not introduce coal merely to justify power.
 Maintain the calm game: no surprise shutdowns from weather, off-screen decay,
 or simulated resource use while the app is closed.
@@ -1132,7 +1566,7 @@ No full 3D world, caves, rerolled ore, or rapidly depleting starter deposits.
 Give the discovery an actionable production benefit and test it against surface
 expansion before expanding layers or introducing more material types.
 
-## Milestone 10: Atmospheric weather and environmental motion
+## Reference for milestone 12: Atmospheric weather and environmental motion
 
 Bring the landscape to life without adding penalties or chores. Begin with clear,
 cloudy, and light-rain states, gradual lighting changes, drifting cloud shadows,
@@ -1170,11 +1604,12 @@ Acceptance:
 - Touch picking, cargo visibility, camera movement, and compact HUD remain usable
   in every weather state. Weather introduces no alerts or management chores.
 
-## Milestone 11: Livability playtest and environmental polish
+## Reference for milestone 12: Livability and environmental polish
 
 Evaluate the 256x256 living world before choosing more systems or more terrain.
-Playtest both a fresh Guided Run and open-ended Free Play with varied seeds,
-weather, and a developed factory. Focus on whether the place feels inviting,
+Walk through fresh and developed settlements with varied seeds and any
+implemented weather, alongside legacy factory compatibility checks.
+Focus on whether the place feels inviting,
 regions are recognizable, and environmental detail enhances rather than hides
 the automation.
 
@@ -1185,8 +1620,9 @@ the compact HUD with on-demand guidance.
 
 Acceptance:
 
-- First-time players can find resources, build, inspect bottlenecks, and understand
-  both orders without decoration or weather causing confusion.
+- Internal walkthroughs can find food/resources, build, inspect worker and
+  production bottlenecks, and understand provisioning without decoration or
+  weather causing confusion. External first-time-player feedback is optional.
 - Players perceive coherent landscape regions and a changing environment, and
   have a reason to keep building or return to their saved site.
 - Physical-phone checks cover touch, orientation, suspension, reduced motion,
@@ -1197,7 +1633,7 @@ Acceptance:
   purposeful uses for the existing exploration space, or bounded environmental refinement.
   Completing this milestone does not automatically authorize those features.
 
-## Milestone 12: Deferred production-fed defense proof
+## Conditional extension: Production-fed defense proof
 
 Revisit only after the living-world playtest and explicit approval. Combat is
 optional roadmap direction, not required to validate a peaceful factory world.
@@ -1275,9 +1711,11 @@ contrast, and clear selected/invalid/disabled states beyond color alone.
 
 Acceptance:
 
-- Automated coverage for generation, production, objectives, placement, and
-  persistence, plus projects, construction funding/refunds, harvest changes,
-  power, weather, and combat/checkpoint retry only when those gates are implemented.
+- Automated coverage for generation, production, placement, persistence, residents,
+  jobs/reservations, carried cargo, raw/processed food, nutrition consumption,
+  population growth, discovery uniqueness, and legacy ruleset protection.
+  Construction delivery/refunds, carts, harvest changes, power, weather, and
+  combat/checkpoint retry are covered only when their gates are implemented.
 - Real-device checks for touch gestures, orientation, suspension, and offline
   relaunch.
 - No known item duplication/loss or destructive save failures.
@@ -1287,13 +1725,20 @@ Acceptance:
 
 The previous 4-6 developer-week estimate does not describe this revised scope.
 World generation/chunked rendering and biome art are already implemented.
-Estimate purposeful expansion, paid construction, harvestable wood, power, and
-weather separately after their individual gates are authorized. Re-estimate from
+Estimate resident simulation/pathfinding, food provisioning, processing/growth,
+discoveries, construction delivery, and deeper logistics separately after their
+individual gates are authorized. Re-estimate from
 each gameplay comparison; do not commit to the whole economy, combat, or expansion
 beyond 256x256 in advance.
 
 Largest uncertainties:
 
+- Whether visible residents and provisioning create useful decisions rather than
+  walking decoration or an ongoing consumption tax.
+- Deterministic job reservations, navigation, capacity, and cargo recovery when
+  people and existing conveyors compete for the same resources.
+- Food/nutrition balance that rewards processing and expansion without starvation
+  spirals, compulsory population growth, or idle waiting.
 - Achieving the desired visual quality with original assets.
 - Accurate, readable isometric placement on small touchscreens.
 - Belt transfer correctness and congestion behavior.
@@ -1318,8 +1763,10 @@ Largest uncertainties:
 ## Current state
 
 - Plan persisted.
-- Milestones 1-6 implemented at `/games/factory/`, accessible from the arcade
-  hub. The milestone 1 visual direction is approved.
+- Milestones 1-6 plus the superseded project experiment are implemented at
+  `/games/factory/`, accessible from the arcade hub. The milestone 1 visual
+  direction is approved. The replacement settlement milestone 7 is implemented
+  as a separate Settlement scenario.
 - Original vector-drawn isometric artwork and a seeded 256x256 world with real
   ore/plate transport, extraction, smelting, and storage. Free Play starts empty
   with all machines unlocked. Guided Run starts with the iron demonstration
@@ -1327,6 +1774,7 @@ Largest uncertainties:
 - Guided copper commissioning delivers 16 plates and unlocks the assembler;
   2 iron plates + 1 copper plate become 1 defense supply in 2 seconds. Delivering
   12 supplies completes preparation; continued building starts no new orders or raids.
+  Optional projects then offer extractor upgrades and reusable depot stock.
 - Mouse and touch selection, placement previews, placement, rotation, removal,
   camera pan/zoom/reset, and a contextual inspector.
 - Construction navigation uses a compact Select / Build / Pause dock and categorized,
@@ -1339,7 +1787,8 @@ Largest uncertainties:
   global stock/recovery panel.
 - Recovery-tray contents remain accounted for when machines or conveyors are
   removed and can be relocated into a selected depot without exceeding capacity.
-  Depots still have no output. A manual pause/resume control freezes the whole factory.
+  Depots remain storage-only unless output is unlocked and explicitly enabled.
+  A manual pause/resume control freezes the whole factory.
 - Reduced-motion preferences suppress continuous animations while the
   simulation continues.
 - `npm run check:factory` covers tile projection, placement rules, the demo
@@ -1371,14 +1820,26 @@ Largest uncertainties:
 - Mobile and short-screen Home views now start at 100% zoom, frame the starter
   around the HUD, and preserve camera position/zoom through resize. Active
   smelters have fuller overlapping smoke; pause/reduced-motion gating remains.
-- No construction costs, harvestable wood, underground excavation, new expansion
-  projects, depot output, dynamic weather, power, defenses, or combat have been
-  implemented. Real-device performance review and first-time-player pacing
+- The superseded project experiment adds two finite physical-delivery expansion projects, retained
+  project progress, unique optional extractor/depot rewards, and legacy-safe saves.
+  Internal timings and desktop/touch/offline walkthroughs passed; see its gate above.
+- Four residents now farm and haul physical food units into communal kitchens
+  in Settlement. Consumption supplies nutrition, shortages preserve labor, and
+  automation frees workers for other assigned deliveries. Existing factories
+  are not converted; depot output is basic infrastructure in the new ruleset.
+- No food processing, settlement growth, or production discoveries have been
+  implemented. No construction costs,
+  harvestable wood, underground excavation, dynamic weather, power, defenses,
+  or combat have been implemented.
+  Real-device performance review and first-time-player pacing
   remain outstanding.
-- Roadmap revised after critical gameplay review: milestone 7 purposeful expansion
-  and reusable stock; milestone 8 separately gated construction costs and wood;
-  milestone 9 conditional power; milestone 10 weather; milestone 11 livability;
-  milestone 12 optional defense; milestone 13 release polish.
-- Next gate: authorize and playtest milestone 7's purposeful-expansion prototype.
+- Roadmap revised after rejecting disconnected project progression: milestone 7
+  people plus raw-food provisioning; milestone 8 food processing and growth;
+  milestone 9 production discoveries; milestone 10 earned construction;
+  milestone 11 deeper logistics; milestone 12 atmosphere/livability;
+  milestone 13 release polish. Power, defense, and excavation are unnumbered
+  conditional extensions; wood enters only with a concrete useful role.
+- Next gate: separately authorize milestone 8's food processing and optional
+  population growth, not the old project or construction-reserve sequence.
   First-time pacing and physical-device performance remain unverified;
   implementation of every subsequent experiment requires separate approval.
