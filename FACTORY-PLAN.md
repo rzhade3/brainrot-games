@@ -7,9 +7,10 @@ An approved pre-weather logistics extension adds splitters, clearer conveyor
 merge junctions, and anchored conveyor connections.
 First-time-player pacing and physical-device review, including the agreed-phone
 performance benchmark, remain outstanding. Milestone 7 and later work require
-separate implementation authorization. Next comes atmospheric weather and
-environmental polish. Production-fed
-defense is deferred until that peaceful experience is evaluated.
+separate implementation authorization. Next comes a purposeful-expansion
+prototype and gameplay playtest, not weather. Earned construction, harvestable
+wood, and energy are separate, conditional experiments; none are implemented.
+Production-fed defense and atmospheric polish remain later gates.
 This is an exploratory prototype: future milestones may replace terrain,
 generator, and save formats without backward compatibility or migration work.
 Breaking revisions may require a fresh factory; communicate that explicitly.
@@ -33,13 +34,20 @@ outpost. Free Play starts with an empty site and all machines unlocked.
 Milestone 4 preserves investment through local autosave and resume. Milestone 5
 expands the site into a seeded, explorable world while keeping starter production
 local. Milestone 6 adds fuller meadows, wooded riverbanks, and rugged upland art.
-The next milestones enrich the place players build in, without changing production
-rules or adding environmental chores.
+The next milestones test whether production gives players a reason to expand.
+Only after that baseline is engaging should scarcity or power add another
+constraint. Environmental polish cannot substitute for a useful gameplay loop.
 
 Near-term arc:
 
-Choose a landscape -> explore a playable site -> build and fulfill demand ->
-enjoy a changing environment -> save and return to the same world.
+Build a working line -> choose a useful expansion project -> adjust production
+or buffering -> earn a capability -> choose the next project.
+
+Conditional earned-construction experiment:
+
+Receive a viable starter kit -> produce plates -> invest in another machine ->
+expand capacity. Harvestable wood and later power must each add a distinct
+decision, rather than another counter or a reason to wait.
 
 Possible later arc, subject to a separate defense gate:
 
@@ -81,9 +89,10 @@ clear protected target and consequence, not extensive lore.
 - Show delivered throughput, missing ingredients, and defense readiness alongside
   local machine state. A backed-up extractor can reflect a slower downstream
   machine, not necessarily a player error.
-- Keep production buildings free in the first prototype. Routing, recipe ratios,
-  footprint, and throughput provide constraints; defense deployment and ongoing
-  supplies give materials value without adding a whole construction economy.
+- Shipped milestones 1-6 keep construction free. Milestone 7 retains that
+  baseline; milestone 8 may test paid construction only behind its own gate.
+  Do not silently charge existing factories or combine costs, wood, and energy
+  into one unmeasurable change.
 - Add simple recovery-to-depot relocation in milestone 3. Make stored/recovered
   supplies available to production before combat spending becomes important;
   relocation into a storage-only depot is not automated replenishment.
@@ -93,8 +102,10 @@ clear protected target and consequence, not extensive lore.
   coherent pre-raid retry rather than tedious rebuilding.
 - Raids and countdowns follow simulation time: pause, suspension, and backgrounding
   stop them. No attacks or production occur while the app is closed.
-- Keep peaceful free play available. Validate whether danger motivates factory
-  improvements instead of distracting players from them.
+- Keep peaceful building available. New expansion projects are optional and
+  finite, not compulsory recurring orders, deadlines, or an endless resource tax.
+  Validate whether goals or danger motivate factory improvements instead of
+  distracting players from them.
 - Keep initial weather atmospheric: no machine shutdowns, production penalties,
   flooded construction, resource depletion, or weather-management UI.
 - Procedural variation must preserve reachable resources and usable building
@@ -123,8 +134,9 @@ for rendering; account for depth sorting, tile picking, and building occlusion.
 
 This table describes the revised near-term target, not shipped behavior.
 Milestones 1-6 are implemented, including the seeded 256x256 world and distinct
-biome art; weather is planned. Each subsequent
-implementation milestone requires approval. Combat and power remain deferred.
+biome art. Each subsequent implementation milestone requires approval.
+Purposeful demand precedes conditional construction/wood and power experiments;
+weather and combat are not the next implementation work.
 
 | Area | Scope |
 | --- | --- |
@@ -133,23 +145,26 @@ implementation milestone requires approval. Combat and power remain deferred.
 | Environment | Gentle clear/cloudy/rain transitions, restrained water/vegetation motion; atmospheric only |
 | Buildings | Miner, directional belt, splitter, furnace, assembler, storage, outpost receiver |
 | Production | Ore to plates; one mixed-metal defense-supply recipe; later components only when they add a new decision |
-| Demand | Existing bounded delivery orders; no new weather-driven material sinks |
+| Demand | Existing guided orders; proposed opt-in expansion projects after completion and in Free Play |
 | Combat | Deferred; peaceful building remains the near-term focus |
-| Progression | Existing objectives unlock assembly; completion followed by peaceful continuation |
+| Progression | Existing assembly unlock; proposed projects create further production choices without forcing a mode switch |
 | Failure | No environmental or combat failure in the living-world milestones |
-| Power | Deferred until the production-defense loop proves it needs another constraint |
+| Construction | Currently free; gated plate-funded expansion experiment with an explicit material source/refund contract |
+| Wood | Deferred, separately tested harvesting with a concrete use; not decorative inventory |
+| Power | Deferred until a validated peaceful expansion loop needs a generation/demand constraint |
 | Input | Mouse and touch placement, rotation, removal, pan, and zoom |
 | Saves | Versioned local autosave, resume, and new world with optional seed |
 | Offline | Cached launch, gameplay, and save/resume without a network |
 
 Defer free-roaming attacks, general enemy pathfinding, damage to individual
 production buildings, manual combat, multiple weapon/enemy trees, pollution-based
-aggression, power/fuel, trains, fluids, multiplayer, infinite worlds, filtered/priority splitters,
+aggression, trains, fluids, multiplayer, infinite worlds, filtered/priority splitters,
 underground belts, separate inserters, and production while the app is closed.
 Build the large-world rendering foundation before adding biome detail or weather.
 Map size does not expand the initial biome, recipe, or enemy feature list. The
 existing defense proposal remains documented below, but is not a first-release
-commitment.
+commitment. Power/fuel, wood, paid construction, and underground resource discovery
+are conditional roadmap ideas, not approved implementation or shipped behavior.
 
 ## Milestone 1: Visual and interaction prototype
 
@@ -545,7 +560,7 @@ mobile-emulated checks are not a substitute for an agreed reference device.
 Replace the 22x22 study site with a finite 256x256 world, organized into 32x32-tile
 chunks: 8x8 chunks, 64 total. Keep production recipes and objective rules unchanged.
 This milestone owns generation, world data, rendering scalability, and navigation;
-polished biome art follows in milestone 6, weather in milestone 7.
+polished biome art follows in milestone 6; weather is now deferred to milestone 10.
 
 Use authored starter composition with seeded procedural variation:
 a connected meadow building area, a winding river/wooded bank, and rocky upland.
@@ -850,7 +865,274 @@ cached offline launch. A new offline route can be built and undone without
 changing the resumed factory; subsequent production and autosave continue.
 Reload restores neither session-only undo history nor unfinished previews.
 
-## Milestone 7: Atmospheric weather and environmental motion
+## Critical gameplay review: revise before adding scarcity
+
+The requested critical-agent review recommended **revise**, not implement the
+whole resource-economy proposal. The central hypothesis is that the static
+feeling comes from absent ongoing purpose: Free Play has no demand, and Guided
+Run stops adding goals after its two missions. Construction costs could delay
+the same endpoint rather than make play more interesting. This is a hypothesis,
+not a playtest result; demand and costs must be compared independently.
+
+The review raised five load-bearing risks:
+
+| Risk | Planning response |
+| --- | --- |
+| Costs replace building decisions with waiting | Test useful expansion goals with free construction first; compare paid construction against that baseline |
+| Remote depot spending masquerades as physical transport | If costs are tested, explicitly abstract construction funding only; never treat that spending as delivered ore, machine input, or objective progress |
+| Free/prebuilt machines generate refunds | Record the exact materials actually paid per building; free and legacy buildings have zero refundable investment |
+| Wood becomes repeated mandatory scavenging | Introduce it separately, guarantee a local bootstrap, and require a sustainable path before using it as ongoing fuel |
+| Energy stacks another unproven constraint | Gate it on evidence that an engaging expansion loop exists and power adds a new planning decision |
+
+Two recommendations need qualification. Larger repeated orders alone can also
+create passive waiting, so milestone 7 needs a meaningful choice or changed
+production arrangement, not just higher quotas. Full construction refunds are
+not inherently a bug: they preserve experimentation while limiting simultaneous
+investment. They are not an ongoing material sink, however, and cannot replace
+projects or other useful demand. The exact paid-instance ledger prevents refunds
+from creating resources.
+
+No runtime changes are authorized by this document. The following milestones
+define experiments and implementation gates, not a promise to ship every system.
+
+## Milestone 7: Purposeful expansion and reusable stock
+
+Test the missing-purpose hypothesis before introducing new resources. Retain
+free construction, unlimited visible ore, existing recipes, and the current
+Guided Run/Free Play distinction.
+
+### 7A: A bounded next decision
+
+Offer a small set of opt-in expansion projects in Free Play and after guided
+commissioning. Preserve the original two missions and their consumed-delivery
+ledger. Do not replace peaceful continuation with mandatory repeating orders.
+Present at most two project choices at once, in secondary guidance rather than
+another permanent HUD panel.
+
+Use the existing iron plates, copper plates, and mixed-metal supplies. Initial
+project hypotheses are an extraction commission paid in mixed-metal supplies,
+unlocking one extractor upgrade from one ore per ten ticks to one per eight,
+and, once 7B is functional, a buffering commission paid in iron plates that
+unlocks output-enabled depots. Never offer a project whose reward is not usable.
+The latter should make parallel smelting useful rather than accelerate every
+machine. Both rewards are optional and finite; neither removes an existing
+capability. Select one active project, preview its inputs and reward, and define
+a finite completion. Final project quantities are calibrated from baseline
+throughput before implementation, not copied from the earlier mission quotas.
+
+Calibrate batch sizes or a sustained-delivery objective against measured starter
+throughput. A longer wait with the unchanged starter line must not be the only
+new interaction. Do not add deadlines, penalties, extra resources, random order
+spam, or a large research tree to this proof.
+
+Project delivery is physical transport to the receiver. Consumed project items
+are a separate sink from commissioning; deposited items, recovered cargo, and
+future construction spending cannot also count as deliveries. Projects and
+rewards save exactly and cannot be repeatedly claimed through reload or retry.
+
+### 7B: Stored resources can return to production
+
+After evaluating the extraction project in 7A, test the buffering project's
+output-enabled depot as a reusable buffer and a second allocation choice.
+Existing depots default to storage-only; enabling output is a deliberate,
+persisted per-depot setting. Use the building's arrow-facing adjacent output,
+bounded transfer rate, and the same snapshot/reservation rules as conveyors.
+No manual repeated item-loading action or teleportation into distant machines.
+
+Define mixed-stock output selection deterministically and show what leaves next.
+When disabled or blocked, stock remains in the depot. Recovery can be transferred
+into a depot and then transported normally; it does not grant mission progress
+until the receiver accepts it. Account for capacity, rotated ports, merges,
+splitters, simultaneous input/output, and shared destination reservations.
+
+Acceptance and decision gate:
+
+- A player reaching the old completion point can identify a concrete next
+  production decision, and a Free Play player can opt into a goal without
+  abandoning their factory.
+- Test projects before depot-output changes, then test buffering separately;
+  compare against the current free-building baseline rather than bundling effects.
+- Observe first-time desktop and physical-phone sessions. Record active
+  building/routing decisions, longest forced wait, time waiting, help requests,
+  and voluntary construction after the original mission endpoint.
+- Initial screening hypothesis: in a small five-player sample, at least three
+  voluntarily reconfigure or expand after the old endpoint; unavoidable waiting
+  is under a quarter of session time and no worse than the baseline. These are
+  prototype decision thresholds, not statistically proven retention targets.
+- Reject or revise if testers merely wait through larger batches, cannot explain
+  the reward, or say the next project is the same task again. Do not respond by
+  adding costs or energy before fixing that result.
+- Automated tests cover project sinks/reward uniqueness, output-enabled depot
+  conservation, reservation fairness, disabled defaults, and save/offline resume.
+
+## Milestone 8: Earned expansion experiment, then harvestable wood
+
+Proceed only after milestone 7 gives production a useful purpose and the user
+authorizes this experiment. Run 8A and 8B as separate changes with separate
+playtests. No energy, excavation, new ore types, or combat in this milestone.
+
+### 8A: Construction paid for by existing production
+
+Test a small recipe set funded by existing iron/copper plates. Recipes are
+explicit, fixed per ruleset, and visible in the build catalog and placement
+preview. Initial recipe hypotheses, subject to the wait-time gate:
+
+| Build | Iron plates | Copper plates |
+| --- | ---: | ---: |
+| Conveyor | 1 | 0 |
+| Extractor | 6 | 0 |
+| Smelter | 8 | 0 |
+| Depot | 4 | 0 |
+| Splitter | 4 | 2 |
+| Assembler | 12 | 8 |
+
+Start with 40 iron plates and 12 copper plates in the one-time construction
+reserve. This can fund an extractor, smelter, depot, and sixteen connecting belts,
+with six iron plates left; the initial chain does not depend on already
+producing copper. These numbers are a test fixture, not a validated balance.
+Project quantities and the extractor-upgrade price need explicit calibration
+before either enters the implementation scope.
+
+Price belts cheaply enough that rerouting remains practical; costs are
+a limit on simultaneous factory investment, not a punishment for experimentation.
+
+An economy-enabled new factory receives a one-time starter construction reserve
+large enough for an extractor, smelter, depot, connecting belts, and a recoverable
+first expansion. Validate a complete productive bootstrap for every supported
+seed and scenario; do not require funding infrastructure that cannot yet exist.
+
+Construction funding is an intentional convenience abstraction: spend the
+starter/refund reserve first, then eligible stock physically stored in depots,
+using a stable item order and depot-coordinate order. Recovered cargo is not a
+third spendable wallet: collect it into a depot first. Items inside conveyors or
+machine buffers, and already-consumed deliveries, are never eligible.
+This abstraction pays only for placing buildings; it does not deliver materials,
+feed recipes, or transport ammunition. Physical production still uses belts.
+
+Do not show an aggregate stock dashboard. The selected construction card shows
+recipe costs and available funding, including a clear shortfall; the depot
+inspector remains the source of physical-stock detail. Describe remote depot
+funding honestly. If players cannot distinguish funding from transport, revise
+the mechanism rather than introducing manual material hauling by default.
+
+Affordability and geometry are one transaction. For a conveyor route, preview
+the total price of all new belts, excluding preserved endpoints. Revalidate
+route and funding before any debit or placement; insufficient funds place and
+charge nothing. Do not silently shorten a route or silently substitute a different
+preview. Refunds and construction spending are immediate state changes, not
+render-animation events.
+
+Record the exact paid materials on each building. Removing or undoing an owned
+building refunds that recorded investment once into the construction reserve;
+the building's cargo remains separate and follows existing recovery rules.
+Free/prebuilt/legacy buildings have zero paid investment. Rotations cost nothing.
+Refunds cannot reissue starter grants, convert recipes into different resources,
+remove later replacements, or duplicate both reserve and physical depot stock.
+Start with full paid-material refunds; test their effect before adding a refund
+penalty. A cost balance change never changes an existing building's paid ledger.
+
+Acceptance:
+
+- Compare the same expansion tasks with free versus paid construction. Continue
+  only if players make clearer investment decisions without more forced waiting,
+  repeated insufficient-funds attempts, or reduced willingness to experiment.
+- Players understand a cost and its shortfall from the construction controls
+  without a new inventory modal or external explanation.
+- Demonstrate recoverable bootstrap after a deliberately poor first placement.
+  Reject a ruleset that can strand a new player with no productive route.
+- Conservation includes produced/starter-granted materials, held cargo, building
+  investment, spent deliveries, refunds, and other explicit sinks. Build/remove/
+  rebuild, route undo, replacements, scenario grants, and free-demo removal never
+  produce net-positive materials.
+- Deterministic multi-depot spending, insufficient-funds atomicity, concurrent
+  transfers, cross-tab save protection, and exact paused/offline resume are tested.
+
+### 8B: Harvestable wood with one useful role
+
+Only after evaluating 8A, test harvesting trees with one optional depot recipe:
+four wood instead of four iron plates. One tree initially yields four wood,
+letting players choose local harvesting versus spending factory output.
+Do not make every existing machine depend on wood, or add wood merely to increase
+the number of counters. Keep the first complete plate-production route viable
+from the starter reserve without harvesting. Do not silently convert a paid iron
+depot into a wood refund; the paid-instance record retains the selected recipe.
+
+One confirmed action harvests a tree, awards a fixed amount of wood into the
+construction reserve, and leaves a buildable tile. Persist the harvested tile
+and award atomically; any chopping animation is cosmetic and cannot award again
+on reload. Nearby starter trees must be guaranteed in new economy worlds without
+blocking required routes. Existing decorative trees cannot become an unannounced
+cost requirement for old factories.
+
+Single-use trees provide a bounded local exploration choice, not infinite
+renewable fuel. Before making wood a recurring expense, prove an accessible
+automated forestry or regeneration mechanism in a separate gate. Do not require
+repeated manual harvesting to keep the factory operating.
+
+Acceptance:
+
+- Harvesting visibly changes the landscape and enables a useful build decision.
+  Test it against 8A alone; reject if it mostly adds scavenging or click chores.
+- Tree-clearance picking remains reliable at phone scale and does not accidentally
+  place/remove machinery. The action and yield are visible before confirmation.
+- Harvest records, wood grants/spending/refunds, world changes, and terrain chunk
+  invalidation reproduce exactly across save/reload and offline play.
+
+### Ruleset and compatibility contract
+
+Existing factories remain on their current free-construction rules. New economy
+factories opt into an explicitly versioned experimental ruleset; do not infer
+economy state from scenario name, assembler unlocks, or the presence of a depot.
+No Guided Run/Free Play menu redesign is required by this experiment.
+
+Version the save schema for construction reserve, one-time grants, per-instance
+paid investment, project state, depot output mode, and harvest changes when those
+features ship. A generator revision that guarantees starter trees needs its own
+identity. Preserve old-version semantics through an explicit loader, or clearly
+block unsupported saves and require a confirmed new factory; never silently
+reset, reinterpret inventories, or overwrite an unreadable save.
+
+## Milestone 9: Conditional power proof
+
+Proceed only after an engaging expansion loop is demonstrated and power has a
+specific planning role. Test one generator type and a small production-machine
+demand model. Electricity is continuous generation versus demand, not a stored
+item or a new spendable currency. Start with one clearly defined connected
+network; defer large wire/pole trees, fluids, batteries, and multiple fuels.
+
+Specify network membership, generator capacity, active versus idle demand, and
+the deterministic shortage rule before implementation. Show supply/demand when
+inspecting the network or an affected machine, not a permanent energy dashboard.
+Shortages must explain the resulting production slowdown or stopped machine.
+Belt construction and basic navigation must not require available electricity.
+
+If the generator burns wood, first provide the sustainable automated supply
+required by 8B. No mandatory recurring manual refills. Otherwise test a simple
+non-fuel generator first and do not introduce coal merely to justify power.
+Maintain the calm game: no surprise shutdowns from weather, off-screen decay,
+or simulated resource use while the app is closed.
+
+Acceptance:
+
+- Power changes a capacity/placement decision in a functioning factory rather
+  than making the same recipes take longer or creating another refill chore.
+- Compare with the power-free expansion build; reject if waiting, confusing
+  network boundaries, or manual servicing increases without useful decisions.
+- Pause/resume, fuel consumption if present, shortages, and material/energy
+  accounting are deterministic, conserved as applicable, and persisted.
+- Evaluate dense factories on physical phones before expanding network complexity.
+
+### Deferred excavation and resource discovery
+
+The user's harvesting/underground-resource idea remains a separate exploration
+experiment, not replaced by power or construction pricing. If later authorized,
+start with shallow, seeded buried deposits and a selected-tile cutaway:
+harvest/use materials -> expose a deposit -> automate extraction.
+No full 3D world, caves, rerolled ore, or rapidly depleting starter deposits.
+Give the discovery an actionable production benefit and test it against surface
+expansion before expanding layers or introducing more material types.
+
+## Milestone 10: Atmospheric weather and environmental motion
 
 Bring the landscape to life without adding penalties or chores. Begin with clear,
 cloudy, and light-rain states, gradual lighting changes, drifting cloud shadows,
@@ -888,7 +1170,7 @@ Acceptance:
 - Touch picking, cargo visibility, camera movement, and compact HUD remain usable
   in every weather state. Weather introduces no alerts or management chores.
 
-## Milestone 8: Livability playtest and environmental polish
+## Milestone 11: Livability playtest and environmental polish
 
 Evaluate the 256x256 living world before choosing more systems or more terrain.
 Playtest both a fresh Guided Run and open-ended Free Play with varied seeds,
@@ -915,7 +1197,7 @@ Acceptance:
   purposeful uses for the existing exploration space, or bounded environmental refinement.
   Completing this milestone does not automatically authorize those features.
 
-## Milestone 9: Deferred production-fed defense proof
+## Milestone 12: Deferred production-fed defense proof
 
 Revisit only after the living-world playtest and explicit approval. Combat is
 optional roadmap direction, not required to validate a peaceful factory world.
@@ -976,11 +1258,11 @@ Acceptance:
 ### Later gameplay ideas, gated by the defense proof
 
 Consider production-linked threat, additional approaches, richer component
-recipes, a small defense upgrade choice, or a simple global power constraint only
+recipes, or a small defense upgrade choice only
 when each creates a distinct automation decision. Do not implement them together.
 Factory destruction and free-roaming attackers remain outside first-release scope.
 
-## Milestone 10: Release performance, accessibility, and polish
+## Milestone 13: Release performance, accessibility, and polish
 
 Agree on a reference phone and a specific factory-size benchmark before making
 performance claims. Test both sparse terrain and a dense operating factory.
@@ -993,8 +1275,9 @@ contrast, and clear selected/invalid/disabled states beyond color alone.
 
 Acceptance:
 
-- Automated coverage for generation, weather, production, objectives, placement,
-  persistence, and combat/checkpoint retry only if that optional scope is implemented.
+- Automated coverage for generation, production, objectives, placement, and
+  persistence, plus projects, construction funding/refunds, harvest changes,
+  power, weather, and combat/checkpoint retry only when those gates are implemented.
 - Real-device checks for touch gestures, orientation, suspension, and offline
   relaunch.
 - No known item duplication/loss or destructive save failures.
@@ -1003,10 +1286,11 @@ Acceptance:
 ## Planning estimate and risks
 
 The previous 4-6 developer-week estimate does not describe this revised scope.
-Estimate world generation/chunked rendering, biome art, and atmospheric weather
-separately after their implementation gates are authorized. Re-estimate subsequent
-work from the livability playtest; do not commit to combat or expansion beyond
-256x256 in advance.
+World generation/chunked rendering and biome art are already implemented.
+Estimate purposeful expansion, paid construction, harvestable wood, power, and
+weather separately after their individual gates are authorized. Re-estimate from
+each gameplay comparison; do not commit to the whole economy, combat, or expansion
+beyond 256x256 in advance.
 
 Largest uncertainties:
 
@@ -1017,6 +1301,13 @@ Largest uncertainties:
 - Chunk rendering, memory residency, depth ordering, and navigation at 256x256.
 - Weather/decoration readability, reduced motion, and effect cost on phones.
 - Keeping current-version seeded worlds and saves deterministic as the prototype evolves.
+- Distinguishing absent goals from insufficient scarcity without confusing a
+  preference for new systems with evidence of better play.
+- Preventing paid construction or finite wood from creating waiting, scavenging,
+  softlocks, or fear of experimenting with conveyor layouts.
+- Explaining construction funding separately from physical cargo while preserving
+  atomic route costs, actual-paid refunds, grants, and material conservation.
+- Sustainable fuel and readable power boundaries without repeated manual servicing.
 - Making production-fed defense engaging without creating waiting, overwhelming
   pressure, or reconstruction chores.
 - Balancing resource demand and raid difficulty for new players on touchscreens.
@@ -1044,7 +1335,8 @@ Largest uncertainties:
 - Changes and inventories persist through versioned local autosaves. Item movement
   and machine activity reflect actual simulation state, not demonstration loops.
 - The inspector shows live inventory, production progress, orientation, and
-  blocked/disconnected/full states. Global counters show plates held in depots.
+  blocked/disconnected/full states. Depot inventory is contextual; there is no
+  global stock/recovery panel.
 - Recovery-tray contents remain accounted for when machines or conveyors are
   removed and can be relocated into a selected depot without exceeding capacity.
   Depots still have no output. A manual pause/resume control freezes the whole factory.
@@ -1076,13 +1368,17 @@ Largest uncertainties:
   and stone/lichen/scrub uplands with rounded shrubs. Blended ground and
   foreground-canopy fading preserve construction clarity, bounded rendering,
   and existing seeded-world saves.
-- No dynamic weather, power, defenses, or combat have been
+- Mobile and short-screen Home views now start at 100% zoom, frame the starter
+  around the HUD, and preserve camera position/zoom through resize. Active
+  smelters have fuller overlapping smoke; pause/reduced-motion gating remains.
+- No construction costs, harvestable wood, underground excavation, new expansion
+  projects, depot output, dynamic weather, power, defenses, or combat have been
   implemented. Real-device performance review and first-time-player pacing
   remain outstanding.
-- Roadmap updated: milestone 5 seeded 256x256 world and chunked rendering,
-  milestone 6 biome art, milestone 7 weather, and milestone 8 livability playtesting
-  precede optional defense in milestone 9. The large-world foundation is now
-  implemented rather than a separate deferred expansion.
-- Next gate: authorize milestone 7's atmospheric weather and environmental motion. Guided
-  pacing and physical-device performance still need playtesting; implementation
-  of each subsequent milestone and any combat work require separate approval.
+- Roadmap revised after critical gameplay review: milestone 7 purposeful expansion
+  and reusable stock; milestone 8 separately gated construction costs and wood;
+  milestone 9 conditional power; milestone 10 weather; milestone 11 livability;
+  milestone 12 optional defense; milestone 13 release polish.
+- Next gate: authorize and playtest milestone 7's purposeful-expansion prototype.
+  First-time pacing and physical-device performance remain unverified;
+  implementation of every subsequent experiment requires separate approval.
