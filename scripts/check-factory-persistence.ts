@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { Building, OUTPOST } from '../src/games/factory/model';
-import { createSave, restoreSave } from '../src/games/factory/persistence';
-import { FactorySimulation } from '../src/games/factory/simulation';
+import { Building, OUTPOST } from '../src/games/factory/game/model';
+import { createSave, restoreSave } from '../src/games/factory/session/persistence';
+import { FactorySimulation } from '../src/games/factory/game/simulation';
 
 function roundtrip(sim: FactorySimulation): FactorySimulation {
   const saved = createSave(sim, true, 'roundtrip-world');

@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
-import { Building, BuildingKind, createDemo, Direction, DIRECTIONS, isConveyor, outputDirections, Tile, tileKey } from '../src/games/factory/model';
-import {
-  BELT_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, EXTRACT_TICKS, FactorySimulation,
-  inventory, itemCount, ITEMS,
-} from '../src/games/factory/simulation';
+import { commitRoute, planRoute, undoRoute } from '../src/games/factory/game/beltRoute';
 import {
   acceptsInventoryItem, ASSEMBLER_RECIPE, hasRecipeInputs, inputCapacity, inputSlots, outputCapacity,
   producesInventoryItem, SMELTER_RECIPES,
-} from '../src/games/factory/machineRules';
-import { commitRoute, planRoute, undoRoute } from '../src/games/factory/beltRoute';
+} from '../src/games/factory/game/machines';
+import { Building, BuildingKind, createDemo, Direction, DIRECTIONS, isConveyor, outputDirections, Tile, tileKey } from '../src/games/factory/game/model';
+import {
+  BELT_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, EXTRACT_TICKS, FactorySimulation,
+  inventory, itemCount, ITEMS,
+} from '../src/games/factory/game/simulation';
 
 function building(kind: BuildingKind, c: number, r: number, direction: Direction = 0): Building {
   return { kind, c, r, direction };

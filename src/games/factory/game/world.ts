@@ -1,4 +1,4 @@
-import type { Tile } from './model';
+import type { Tile } from './domain';
 
 export const WORLD_SIZE = 256;
 export const CHUNK_SIZE = 32;

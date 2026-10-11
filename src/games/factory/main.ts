@@ -1,11 +1,11 @@
-import { createGame } from '../../core/createGame';
+import { registerSW } from 'virtual:pwa-register';
 import FactoryScene from './FactoryScene';
 import { FactoryHud } from './hud';
+import { createFactoryGame } from './rendering/platform';
 import './style.css';
-import { registerSW } from 'virtual:pwa-register';
 
 const hud = new FactoryHud();
-export const game = createGame({ scene: new FactoryScene(hud), backgroundColor: '#dce3d7' });
+export const game = createFactoryGame(new FactoryScene(hud));
 
 if (import.meta.env.DEV) {
   hud.setOfflineStatus('Offline cache: production build only');

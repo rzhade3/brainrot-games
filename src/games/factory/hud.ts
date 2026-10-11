@@ -1,34 +1,19 @@
-import { Building, BuildingKind, BuildableKind, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isConveyor, isTool, NAMES, outputDirections, Point, Scenario, Tile, tileKey, Tool } from './model';
-import { RESIDENT_NAMES, Resident, SettlementSave } from './settlement';
-import { DEFAULT_WORLD, FactoryWorld } from './world';
+import { icon } from './assets/icons';
+import { canHaulFrom, canHaulTo, CATALOG } from './game/domain';
+import { Building, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isConveyor, isTool, NAMES, outputDirections, Point, Scenario, Tile, tileKey, Tool } from './game/model';
+import { Resident, residentName, SettlementSave } from './game/settlement';
 import {
-  FactorySummary, depotNextItem, inventoryText, itemCount, ITEM_NAMES, MachineInspection, ObjectiveSummary, PROJECTS, ProjectSummary,
+  FactorySummary, inventoryText,
+  ITEM_NAMES,
+  itemCount,
+  MachineInspection, ObjectiveSummary, PROJECTS, ProjectSummary,
   STEP_MS, UPGRADED_EXTRACT_TICKS,
-} from './simulation';
-import { inputCapacity } from './machineRules';
+} from './game/simulation';
+import { FactoryWorld } from './game/world';
 
 export type Action = Tool | 'remove' | 'recover' | 'rotate' | 'zoom-in' | 'zoom-out' | 'home' | 'pause' | 'close'
   | 'focus-copper' | 'focus-iron' | 'focus-outpost' | 'build-route' | 'swap-bend' | 'cancel-route' | 'undo-trail'
   | 'project-extraction' | 'project-buffering' | 'project-pause' | 'machine-option' | 'focus-home';
-
-const ICONS: Record<BuildingKind | 'inspect' | 'remove', string> = {
-  inspect: '<path d="m5 3 13 10-6 1-3 6z"/>',
-  belt: '<path d="m3 8 9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/><path d="m8 8 4 2 4-2"/>',
-  splitter: '<path d="m3 8 9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/><path d="m7 10 5 3 5-3M12 13V7m-2 2 2-2 2 2"/>',
-  miner: '<path d="m4 9 8-5 8 5-8 5zM4 9v9l8 4 8-4V9M12 14v8M12 4V1"/><path d="m8 17 4 2"/>',
-  furnace: '<path d="m4 10 8-4 8 4v9l-8 4-8-4zM4 10l8 4 8-4M12 14v9M14 7V2h4v7"/><path d="m7 14 2 1v4l-2-1z"/>',
-  storage: '<path d="m3 8 9-5 9 5v10l-9 5-9-5zM3 8l9 5 9-5M12 13v10M7 10l9-5"/>',
-  assembler: '<path d="m3 9 9-5 9 5v10l-9 5-9-5zM3 9l9 5 9-5M12 14v10M6 2v7M18 2v7M6 2h12"/><path d="m9 17 3 2 3-2"/>',
-  outpost: '<path d="m3 9 9-5 9 5v10l-9 5-9-5zM3 9l9 5 9-5M12 14v10M18 6V1l5 3-5 2"/><path d="m8 8 3 2 5-3"/>',
-  remove: '<path d="M5 6h14M9 6V3h6v3M7 6l1 15h8l1-15M10 10v7M14 10v7"/>',
-  home: '<path d="m3 11 9-8 9 8M6 9v12h12V9M10 21v-7h4v7"/>',
-  'food-plot': '<path d="m3 13 9-5 9 5-9 5zM3 17l9 5 9-5M12 13V3M12 7C7 7 6 3 6 3s6-1 6 4m0 3c5 0 6-4 6-4s-6-1-6 4"/>',
-  kitchen: '<path d="m3 11 9-8 9 8M6 9v12h12V9M9 15h6v4H9zM16 6V2h3v7"/>',
-};
-
-export function icon(tool: BuildingKind | 'inspect' | 'remove'): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[tool]}</svg>`;
-}
 
 const ROTATE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M18 7a8 8 0 1 0 2 8M18 2v5h-5"/></svg>';
 const BUILD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="m3 7 9-4 9 4-9 4zM3 12l9 4 9-4M3 17l9 4 9-4"/></svg>';
@@ -37,16 +22,6 @@ const CATEGORIES = [
   { id: 'logistics', name: 'Logistics' }, { id: 'storage', name: 'Storage' },
 ] as const;
 type Category = typeof CATEGORIES[number]['id'];
-const CATALOG: { kind: BuildableKind; category: Exclude<Category, 'all'>; note: string; shortcut: string }[] = [
-  { kind: 'food-plot', category: 'production', note: 'Grows food for residents', shortcut: '9' },
-  { kind: 'kitchen', category: 'storage', note: 'Keeps residents fed', shortcut: '0' },
-  { kind: 'miner', category: 'production', note: 'Draws ore from deposits', shortcut: '3' },
-  { kind: 'furnace', category: 'production', note: 'Turns ore into plates', shortcut: '4' },
-  { kind: 'belt', category: 'logistics', note: 'Carries items onward', shortcut: '2' },
-  { kind: 'splitter', category: 'logistics', note: 'Divides a delivery route', shortcut: '8' },
-  { kind: 'storage', category: 'storage', note: 'Holds items for later', shortcut: '5' },
-  { kind: 'assembler', category: 'production', note: 'Assembles defense supplies', shortcut: '7' },
-];
 
 export class FactoryHud {
   readonly root: HTMLElement;
@@ -622,10 +597,10 @@ export class FactoryHud {
         <p class="factory-recover-reason"></p>
       </details>` : ''}
       ${building.kind === 'storage' || building.kind === 'miner' && !this.settlement ? '<p class="factory-machine-option-note"></p><button class="factory-machine-option" data-action="machine-option"></button>' : ''}
-      ${this.settlement && ['food-plot', 'storage', 'miner', 'furnace', 'assembler'].includes(building.kind) ? `
+      ${this.settlement && canHaulFrom(building.kind) ? `
         <label class="factory-haul-label" for="factory-haul-target">Deliver to</label>
         <select id="factory-haul-target"><option value="">No hauling</option>${[...this.buildingChoices.values()]
-          .filter(target => tileKey(target) !== tileKey(building) && ['kitchen', 'storage', 'furnace', 'assembler'].includes(target.kind))
+          .filter(target => tileKey(target) !== tileKey(building) && canHaulTo(target.kind))
           .map(target => `<option value="${tileKey(target)}" ${building.haulTo && tileKey(building.haulTo) === tileKey(target) ? 'selected' : ''}>${NAMES[target.kind]} · ${target.c}, ${target.r}</option>`).join('')}</select>` : ''}
       ${building.kind === 'home' ? '<div class="factory-resident-list"></div>' : ''}
       ${building.kind === 'outpost' || building.kind === 'home' ? '' : `<div class="factory-inspector-actions">
@@ -647,7 +622,7 @@ export class FactoryHud {
     this.inspector.hidden = false;
     this.root.classList.add('has-selection');
     this.inspector.innerHTML = `<button class="factory-inspector-close" data-action="close" aria-label="Close inspector">&times;</button>
-      <span class="factory-overline">RESIDENT</span><h2>${RESIDENT_NAMES[resident.id]}</h2>
+      <span class="factory-overline">RESIDENT</span><h2>${residentName(resident.id)}</h2>
       <dl><div><dt>Activity</dt><dd id="factory-resident-activity"></dd></div>
       <div><dt>Position</dt><dd id="factory-resident-position"></dd></div>
       <div><dt>Destination</dt><dd id="factory-resident-destination"></dd></div>
@@ -678,7 +653,7 @@ export class FactoryHud {
       : `Carrying ${item}`;
   }
 
-  setMachine(inspection: MachineInspection, paused: boolean, world: FactoryWorld = DEFAULT_WORLD): void {
+  setMachine(inspection: MachineInspection, paused: boolean): void {
     const { machine, status, cycleTicks, recipe: machineRecipe } = inspection;
     const kind = machine.building.kind;
     const state = this.inspector.querySelector<HTMLElement>('#factory-machine-state');
@@ -692,20 +667,15 @@ export class FactoryHud {
       : `${itemCount(machine.input)}/${inspection.inputCapacity} · ${inventoryText(machine.input)}`;
     const output = this.inspector.querySelector<HTMLElement>('#factory-machine-output');
     if (output) output.textContent = `${itemCount(machine.output)}/${inspection.outputCapacity} · ${inventoryText(machine.output)}`;
-    if (kind === 'miner') input.textContent = `${world.at(machine.building).deposit === 'copper' ? 'Copper' : 'Iron'} deposit`;
-    if (kind === 'food-plot') {
-      const farmer = this.settlement?.residents.find(resident => resident.job?.kind === 'farm' &&
-        tileKey(resident.job.source) === tileKey(machine.building));
-      input.textContent = farmer ? RESIDENT_NAMES[farmer.id] : 'Unassigned';
-    }
-    if (kind === 'home') input.textContent = String(this.settlement?.residents.length ?? 0);
-    if (kind === 'assembler') input.textContent = `Iron ${machine.input['iron-plate']}/${inputCapacity(kind, 'iron-plate')} · Copper ${machine.input['copper-plate']}/${inputCapacity(kind, 'copper-plate')}`;
+    if (kind === 'miner') input.textContent = `${inspection.deposit === 'copper' ? 'Copper' : 'Iron'} deposit`;
+    if (kind === 'food-plot') input.textContent = inspection.farmerName ?? 'Unassigned';
+    if (kind === 'home') input.textContent = String(inspection.population);
+    if (kind === 'assembler') input.textContent = inspection.inputLimits.map(limit =>
+      `${ITEM_NAMES[limit.item].split(' ')[0]} ${machine.input[limit.item]}/${limit.capacity}`).join(' · ');
     if (kind === 'splitter') this.inspector.querySelector<HTMLElement>('#factory-next-output')!.textContent =
       DIRECTION_NAMES[outputDirections(machine.building)[machine.nextOutput]];
-    const delivery = this.objectiveState && !this.objectiveState.complete ? this.objectiveState
-      : PROJECTS.find(project => project.id === this.projects.active);
-    const accepted = delivery && 'accepted' in delivery ? delivery.accepted
-      : this.projects.active ? this.projects.accepted[this.projects.active] : 0;
+    const delivery = inspection.delivery;
+    const accepted = delivery?.accepted ?? 0;
     if (kind === 'outpost') input.textContent = delivery
       ? `${accepted}/${delivery.quantity} ${ITEM_NAMES[delivery.item].toLowerCase()} delivered` : 'No active delivery';
     const pace = this.inspector.querySelector<HTMLElement>('#factory-machine-pace');
@@ -720,10 +690,7 @@ export class FactoryHud {
       ? `${machineRecipe.inputs.map(ingredient =>
         `${ingredient.quantity} ${ITEM_NAMES[ingredient.item].toLowerCase().replace(/s$/, ingredient.quantity === 1 ? '' : 's')}`).join(' + ')} → ${machineRecipe.output.quantity} supply`
       : `${machineRecipe.inputs[0].quantity} ore → ${machineRecipe.output.quantity} matching plate`;
-    const progress = kind === 'kitchen' ? machine.input['food-unit'] / inspection.inputCapacity
-      : kind === 'storage' ? itemCount(machine.input) / inspection.inputCapacity
-      : kind === 'outpost' ? (delivery ? accepted / delivery.quantity : 0)
-      : machine.progress / cycleTicks;
+    const progress = inspection.progress;
     const percent = Math.round(progress * 100);
     const progressLabel = this.inspector.querySelector<HTMLElement>('#factory-progress-label');
     if (progressLabel) {
@@ -735,16 +702,14 @@ export class FactoryHud {
       this.inspector.querySelector<HTMLElement>('.factory-progress > span')!.style.width = `${percent}%`;
     }
     if (kind === 'storage' || kind === 'miner' && !this.settlement) {
-      const project = PROJECTS[kind === 'miner' ? 0 : 1];
-      const unlocked = !!this.settlement || this.projects.accepted[project.id] === project.quantity;
-      const enabled = kind === 'miner' ? machine.building.upgraded : machine.building.outputEnabled;
+      const { project, unlocked, enabled } = inspection.option!;
       const option = this.inspector.querySelector<HTMLButtonElement>('[data-action="machine-option"]')!;
       option.disabled = !unlocked;
       option.setAttribute('aria-pressed', String(!!enabled));
       option.textContent = kind === 'miner' ? enabled ? 'Use standard extractor'
         : `Upgrade to ${UPGRADED_EXTRACT_TICKS * STEP_MS / 1000}s / ore`
         : enabled ? 'Disable depot output' : 'Enable depot output';
-      const next = depotNextItem(machine);
+      const next = inspection.nextStoredItem;
       this.inspector.querySelector<HTMLElement>('.factory-machine-option-note')!.textContent = !unlocked
         ? `Unlock with the ${project.title.toLowerCase()}.`
         : kind === 'miner' ? ''
@@ -783,11 +748,15 @@ export class FactoryHud {
     this.root.querySelector<HTMLElement>('.factory-intro h2')!.innerHTML = this.settlement
       ? 'A little community.<br>A lot of possibility.' : 'A little industry.<br>A lot of possibility.';
     this.root.querySelector<HTMLButtonElement>('.factory-people-button')!.hidden = !this.settlement;
-    if (this.residentId !== null && this.settlement) this.updateResident(this.settlement.residents[this.residentId]);
+    if (this.residentId !== null && this.settlement) {
+      const resident = this.settlement.residents.find(value => value.id === this.residentId);
+      if (!resident) throw new Error('Selected resident is missing');
+      this.updateResident(resident);
+    }
     const residents = this.inspector.querySelector<HTMLElement>('.factory-resident-list');
     if (residents && this.settlement) {
       if (!residents.childElementCount) residents.innerHTML = this.settlement.residents.map(resident =>
-        `<button data-resident="${resident.id}"><strong>${RESIDENT_NAMES[resident.id]}</strong><span></span></button>`).join('');
+        `<button data-resident="${resident.id}"><strong>${residentName(resident.id)}</strong><span></span></button>`).join('');
       for (const resident of this.settlement.residents) residents.querySelector<HTMLElement>(`[data-resident="${resident.id}"] span`)!.textContent =
         this.residentActivity(resident);
     }

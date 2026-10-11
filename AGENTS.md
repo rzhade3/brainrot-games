@@ -6,10 +6,10 @@ writing or changing player-facing text or planning UI. It is the canonical
 field-notebook writing guide; it does not apply to the other games.
 The notebook shapes existing contextual UI, not a separate feed or sidebar.
 
-For artwork or renderer architecture, also read the proposed asset boundary
-under **Agreed visual direction** in `FACTORY-PLAN.md`. It separates asset-only
-visual changes from gameplay changes; the new asset package is not implemented
-yet, so do not assume its proposed files or interfaces already exist.
+For architecture, read `src/games/factory/README.md`. For artwork or renderer
+changes, also read `src/games/factory/assets/README.md` and the asset boundary
+under **Agreed visual direction** in `FACTORY-PLAN.md`. The implemented asset
+package separates visual changes from gameplay changes.
 
 When delegating relevant work, explicitly include the applicable guide and design
 references in the handoff. Do not assume another agent inherits this conversation

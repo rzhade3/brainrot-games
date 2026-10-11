@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
-import { Building, conveyorInputs, createDemo, DIRECTIONS, outputDirections, OUTPOST, tileKey } from '../src/games/factory/model';
-import { createSave, restoreSave } from '../src/games/factory/persistence';
+import { planRoute, routeStartError } from '../src/games/factory/game/beltRoute';
+import { Building, conveyorInputs, createDemo, DIRECTIONS, OUTPOST, outputDirections, tileKey } from '../src/games/factory/game/model';
+import { createSave, restoreSave } from '../src/games/factory/session/persistence';
 import {
-  BELT_TICKS, depotNextItem, DEPOT_CAPACITY, FactorySimulation, Item, ITEMS, SimulationSave,
-} from '../src/games/factory/simulation';
-import { planRoute, routeStartError } from '../src/games/factory/beltRoute';
+  BELT_TICKS,
+  DEPOT_CAPACITY,
+  depotNextItem,
+  FactorySimulation, Item, ITEMS, SimulationSave,
+} from '../src/games/factory/game/simulation';
 
 const building = (kind: Building['kind'], c: number, r: number, direction: Building['direction'] = 0): Building =>
   ({ kind, c, r, direction });

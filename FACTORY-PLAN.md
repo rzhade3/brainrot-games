@@ -154,14 +154,14 @@ Use original artwork.
 Keep the logical world on a square tile grid. Project that grid isometrically
 for rendering; account for depth sorting, tile picking, and building occlusion.
 
-### Proposed asset boundary: art without application changes
+### Asset boundary: art without application changes
 
-Design only; implementation is paused. Preserve the current procedural artwork,
+Implemented by the architecture refactor. Preserve the current procedural artwork,
 muted isometric style, gameplay, saves, and mouse/touch behavior. The goal is that
 an art agent can redesign an existing building, including its clickable silhouette,
 by editing only the assets folder, without changing gameplay or scene code.
 
-Start with four pieces, not a general asset framework:
+The implementation has four pieces, not a general asset framework:
 
 1. **Assets folder:** `src/games/factory/assets/` owns drawing definitions,
    palette, anchors, bounds, and visual selection shapes. Existing drawing code
@@ -196,6 +196,16 @@ touch layouts. Confirm that simulation snapshots and save formats are unchanged.
 Measure clarity, frame time, panning, and cache growth before claiming a rendering
 performance improvement. Add a short asset-authoring note alongside the assets
 when the boundary is implemented.
+
+Implementation and authoring paths are documented in
+`src/games/factory/README.md` and `src/games/factory/assets/README.md`.
+The preview and live game use the same asset definitions; browser checks demonstrate
+an asset-only roof/selection-outline edit without changing simulation saves.
+The refactor keeps Phaser and introduces no milestone features or art redesign.
+Keep the asset preview only while artwork is actively changing; remove its page,
+build entry and preview-specific checks once the artwork stabilizes. There is no
+separate Factory build configuration; the game remains independent of sibling
+runtime code for eventual extraction.
 
 ## Proposed first-release scope
 

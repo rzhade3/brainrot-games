@@ -1,10 +1,9 @@
-import { FactorySimulation, requireSave, saveObject, SimulationSave } from './simulation';
-import { GENERATOR_VERSION, WORLD_SIZE, WorldIdentity } from './world';
+import { requireSave, saveObject } from './saveState';
+import { FactorySimulation, SimulationSave } from '../game/simulation';
+import { GENERATOR_VERSION, WORLD_SIZE, WorldIdentity } from '../game/world';
 
 export const SAVE_VERSION = 2;
 export const CONTRACT_VERSION = 1;
-export const SAVE_DATABASE = 'brainrot-pocket-factory';
-export const SAVE_STORE = 'worlds';
 
 export interface FactorySave {
   version: number;
@@ -19,8 +18,7 @@ export interface FactorySave {
 export function createSave(simulation: FactorySimulation, paused: boolean, worldId: string): FactorySave {
   return {
     version: SAVE_VERSION, contractVersion: CONTRACT_VERSION, worldId, savedAt: Date.now(),
-    map: simulation.world.identity(),
-    paused, simulation: simulation.serialize(),
+    map: simulation.world.identity(), paused, simulation: simulation.serialize(),
   };
 }
 
@@ -45,11 +43,13 @@ export function restoreSave(value: unknown): { save: FactorySave; simulation: Fa
     simulation,
     save: {
       version: SAVE_VERSION, contractVersion: CONTRACT_VERSION, worldId: source.worldId, savedAt: source.savedAt,
-      map: identity,
-      paused: source.paused, simulation: simulation.serialize(),
+      map: identity, paused: source.paused, simulation: simulation.serialize(),
     },
   };
 }
+
+export const SAVE_DATABASE = 'brainrot-pocket-factory';
+export const SAVE_STORE = 'worlds';
 
 export class SaveConflictError extends Error {
   constructor() {

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import {
   Building, createGuided, OUTPOST, placementError, tileKey,
-} from '../src/games/factory/model';
+} from '../src/games/factory/game/model';
 import {
   ASSEMBLE_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, FactorySimulation, inventory,
   itemCount, ITEMS, ORDERS, RATE_WINDOW_TICKS,
-} from '../src/games/factory/simulation';
+} from '../src/games/factory/game/simulation';
+import { advanceTicks as ticks } from './factory-check-helpers';
 
 const building = (kind: Building['kind'], c: number, r: number, direction: Building['direction'] = 0): Building =>
   ({ kind, c, r, direction });
@@ -17,10 +18,6 @@ const state = (sim: FactorySimulation, c: number, r: number) => {
 const place = (sim: FactorySimulation, ...buildings: Building[]) => {
   for (const value of buildings) assert.equal(sim.place(value), null, `Cannot place ${value.kind} at ${tileKey(value)}`);
 };
-const ticks = (sim: FactorySimulation, count: number) => {
-  for (let i = 0; i < count; i++) sim.step();
-};
-
 function accounted(sim: FactorySimulation): void {
   const snapshot = sim.snapshot();
   const held = { ...snapshot.recovered };

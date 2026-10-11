@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
-import { DIRECTIONS, tileKey } from '../src/games/factory/model';
-import { createSave, restoreSave } from '../src/games/factory/persistence';
-import { DEPOT_CAPACITY, FactorySimulation, itemCount, ITEMS } from '../src/games/factory/simulation';
-import { FARM_TICKS, KITCHEN_CAPACITY, MEAL_TICKS, STARTER_FOOD, WALK_TICKS } from '../src/games/factory/settlement';
+import { DIRECTIONS, tileKey } from '../src/games/factory/game/model';
+import { createSave, restoreSave } from '../src/games/factory/session/persistence';
+import { FARM_TICKS, KITCHEN_CAPACITY, MEAL_TICKS, STARTER_FOOD, WALK_TICKS } from '../src/games/factory/game/settlement';
+import { DEPOT_CAPACITY, FactorySimulation, itemCount, ITEMS } from '../src/games/factory/game/simulation';
 
 const fresh = () => FactorySimulation.forScenario('settlement');
 const ticks = (sim: FactorySimulation, count: number) => { for (let i = 0; i < count; i++) sim.step(); };

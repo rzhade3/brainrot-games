@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
+import { pickBuilding } from '../src/games/factory/assets/picking';
+import { planRoute, routeStartError } from '../src/games/factory/game/beltRoute';
 import {
   Building, conveyorInputs, createDemo, createGuided, DIRECTIONS, HALF_HEIGHT, HALF_WIDTH, inBounds, isTool, MAP_SIZE, nextDirection, OUTPOST,
-  pickBuilding, placementError, project, terrainAt, tileKey, unproject,
-} from '../src/games/factory/model';
-import { planRoute, routeStartError } from '../src/games/factory/beltRoute';
-import { FactorySimulation } from '../src/games/factory/simulation';
+  placementError, project, terrainAt, tileKey, unproject,
+} from '../src/games/factory/game/model';
+import { FactorySimulation } from '../src/games/factory/game/simulation';
 
 for (let c = 0; c < MAP_SIZE; c++) {
   for (let r = 0; r < MAP_SIZE; r++) {

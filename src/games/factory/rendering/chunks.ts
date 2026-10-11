@@ -1,5 +1,5 @@
-import { HALF_HEIGHT, HALF_WIDTH, Point, project, Tile, unproject } from './model';
-import { CHUNK_SIZE, WORLD_SIZE } from './world';
+import { HALF_HEIGHT, HALF_WIDTH, Point, project, Tile, unproject } from '../game/model';
+import { CHUNK_SIZE, WORLD_SIZE } from '../game/world';
 
 export const MAX_RESIDENT_CHUNKS = 24;
 export const VIEW_PADDING = 112;

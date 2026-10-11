@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
-import { FactoryWorld, BIOMES, CHUNK_SIZE, WORLD_SIZE, GUIDED_SEED } from '../src/games/factory/world';
-import { HALF_WIDTH, HALF_HEIGHT, project, tileKey } from '../src/games/factory/model';
-import { MAX_RESIDENT_CHUNKS, visibleChunks, visibleTileBounds, WorldView } from '../src/games/factory/chunks';
-import { FactorySimulation } from '../src/games/factory/simulation';
-import { createSave, restoreSave } from '../src/games/factory/persistence';
-import { Landscape } from '../src/games/factory/landscape';
+import { MAX_RESIDENT_CHUNKS, visibleChunks, visibleTileBounds, WorldView } from '../src/games/factory/rendering/chunks';
+import { Landscape } from '../src/games/factory/rendering/landscape';
+import { HALF_HEIGHT, HALF_WIDTH, project, tileKey } from '../src/games/factory/game/model';
+import { createSave, restoreSave } from '../src/games/factory/session/persistence';
+import { FactorySimulation } from '../src/games/factory/game/simulation';
+import { BIOMES, CHUNK_SIZE, FactoryWorld, GUIDED_SEED, WORLD_SIZE } from '../src/games/factory/game/world';
 
 assert.equal(WORLD_SIZE, 256);
 assert.equal(CHUNK_SIZE, 32);

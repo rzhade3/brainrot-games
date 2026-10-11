@@ -1,22 +1,16 @@
-import { Building, DIRECTIONS, Tile, tileKey } from './model';
+import { Building, compareTiles, DIRECTIONS, FARM_TICKS, Item, ITEMS, MEAL_TICKS, Tile, tileKey, WALK_TICKS } from './domain';
+import { acceptsInventoryItem, inputSlots, MachineState, outputCapacity } from './machines';
+import { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
 import { FactoryWorld } from './world';
-import { Item, ITEMS, MachineState, requireSave, saveCount, saveObject, saveTile } from './simulation';
-import { acceptsInventoryItem, inputSlots, outputCapacity } from './machineRules';
-export { KITCHEN_CAPACITY } from './machineRules';
+export { FARM_TICKS, MEAL_TICKS, WALK_TICKS } from './domain';
+export { KITCHEN_CAPACITY } from './machines';
 
-export const WALK_TICKS = 3;
-export const FARM_TICKS = 20;
-export const MEAL_TICKS = 25;
 export const STARTER_FOOD = 8;
 export const RESIDENT_NAMES = ['Ada', 'Emil', 'Mira', 'Owen'] as const;
+export type ResidentJob =
+  | { kind: 'farm'; source: Tile; destination: null; item: null; path: Tile[] }
+  | { kind: 'collect' | 'deliver'; source: Tile; destination: Tile; item: Item; path: Tile[] };
 
-export interface ResidentJob {
-  kind: 'farm' | 'collect' | 'deliver';
-  source: Tile;
-  destination: Tile | null;
-  item: Item | null;
-  path: Tile[];
-}
 export interface Resident {
   id: number;
   tile: Tile;
@@ -25,6 +19,7 @@ export interface Resident {
   job: ResidentJob | null;
   note: string;
 }
+
 export interface SettlementSave {
   version: 1;
   residents: Resident[];
@@ -34,6 +29,13 @@ export interface SettlementSave {
   missedMeals: number;
   mealClock: number;
 }
+
+export function residentName(id: number): string {
+  const name = RESIDENT_NAMES[id];
+  if (!name) throw new Error(`Unknown resident: ${id}`);
+  return name;
+}
+
 interface Host {
   machines: Map<string, MachineState>;
   world: FactoryWorld;
@@ -43,8 +45,8 @@ interface Host {
 
 export class Settlement {
   readonly state: SettlementSave;
-  private revision = 0;
-  private unreachable = new Map<string, number>();
+  private unreachable = new Set<string>();
+  private assignmentSources: MachineState[] | null = null;
 
   constructor(private host: Host, state?: SettlementSave) {
     this.state = state ?? {
@@ -85,10 +87,15 @@ export class Settlement {
         requireSave(job.kind === 'farm' || job.kind === 'collect' || job.kind === 'deliver', 'invalid resident job');
         requireSave(job.item === null || ITEMS.includes(job.item as Item), 'invalid reserved cargo');
         requireSave(Array.isArray(job.path) && job.path.length <= host.world.size * host.world.size, 'invalid resident route');
-        resident.job = {
-          kind: job.kind, source: saveTile(job.source), destination: job.destination === null ? null : saveTile(job.destination),
-          item: job.item as Item | null, path: job.path.map(saveTile),
-        };
+        const source = saveTile(job.source);
+        const path = job.path.map(saveTile);
+        if (job.kind === 'farm') {
+          requireSave(job.destination === null && job.item === null, 'invalid farming assignment');
+          resident.job = { kind: job.kind, source, destination: null, item: null, path };
+        } else {
+          requireSave(job.destination !== null && job.item !== null, 'invalid hauling assignment');
+          resident.job = { kind: job.kind, source, destination: saveTile(job.destination), item: job.item as Item, path };
+        }
         const route = [resident.tile, ...resident.job.path];
         requireSave(route.every((tile, n) => n === 0 ||
           Math.abs(tile.c - route[n - 1].c) + Math.abs(tile.r - route[n - 1].r) === 1), 'nonadjacent resident route');
@@ -145,8 +152,8 @@ export class Settlement {
   }
 
   layoutChanged(): void {
-    this.revision++;
     this.unreachable.clear();
+    this.assignmentSources = null;
     for (const resident of this.state.residents) {
       resident.travel = 0;
       const job = resident.job;
@@ -178,6 +185,18 @@ export class Settlement {
     resident.travel = 0;
   }
 
+  private stock(machine: MachineState) {
+    return machine.building.kind === 'storage' ? machine.input : machine.output;
+  }
+
+  private compatible(machine: MachineState, item: Item): boolean {
+    return acceptsInventoryItem(machine.building.kind, item);
+  }
+
+  private capacity(machine: MachineState, item?: Item): number {
+    return inputSlots(machine, item);
+  }
+
   private walkable(tile: Tile): boolean {
     return this.host.world.contains(tile) && !this.host.machines.has(tileKey(tile)) &&
       this.host.world.terrainAt(tile) !== 'water' && this.host.world.terrainAt(tile) !== 'tree';
@@ -185,7 +204,7 @@ export class Settlement {
 
   private route(start: Tile, target: Tile): Tile[] | null {
     const cache = `${tileKey(start)}>${tileKey(target)}`;
-    if (this.unreachable.get(cache) === this.revision) return null;
+    if (this.unreachable.has(cache)) return null;
     const size = this.host.world.size;
     const initial = start.r * size + start.c;
     const previous = new Int32Array(size * size).fill(-2);
@@ -211,26 +230,14 @@ export class Settlement {
         queue[write++] = key;
       }
     }
-    this.unreachable.set(cache, this.revision);
+    this.unreachable.add(cache);
     return null;
-  }
-
-  private stock(machine: MachineState) {
-    return machine.building.kind === 'storage' ? machine.input : machine.output;
-  }
-
-  private compatible(machine: MachineState, item: Item): boolean {
-    return acceptsInventoryItem(machine.building.kind, item);
-  }
-
-  private capacity(machine: MachineState, item?: Item): number {
-    return inputSlots(machine, item);
   }
 
   private assign(resident: Resident): void {
     const priority = (machine: MachineState) => machine.building.haulTo &&
       this.host.machines.get(tileKey(machine.building.haulTo))?.building.kind === 'kitchen' ? 0 : 1;
-    const machines = [...this.host.machines.values()].sort((a, b) => priority(a) - priority(b) ||
+    const machines = this.assignmentSources ??= [...this.host.machines.values()].sort((a, b) => priority(a) - priority(b) ||
       a.building.c - b.building.c || a.building.r - b.building.r);
     for (const machine of machines) {
       if (machine.building.kind !== 'food-plot' || this.state.residents.some(worker =>
@@ -265,9 +272,10 @@ export class Settlement {
 
   step(tick: number): void {
     for (const machine of this.host.machines.values()) if (machine.building.kind === 'food-plot') machine.running = false;
-    for (const resident of this.state.residents) {
+    for (let index = 0; index < this.state.residents.length; index++) {
+      const resident = this.state.residents[index];
       if (!resident.job) {
-        if (tick % 5 === resident.id) this.assign(resident);
+        if (tick % (this.state.residents.length + 1) === index) this.assign(resident);
         continue;
       }
       const job = resident.job;
@@ -290,7 +298,7 @@ export class Settlement {
           this.state.producedFood++;
         }
       } else if (job.kind === 'collect') {
-        const path = this.route(resident.tile, job.destination!);
+        const path = this.route(resident.tile, job.destination);
         if (!path || this.stock(source)[job.item!] <= 0) { this.cancel(resident); resident.note = 'Route blocked; cargo retained'; continue; }
         this.stock(source)[job.item!]--;
         resident.cargo = job.item;
@@ -308,9 +316,11 @@ export class Settlement {
     if (++this.state.mealClock >= MEAL_TICKS) {
       this.state.mealClock = 0;
       const kitchen = [...this.host.machines.values()].filter(machine => machine.building.kind === 'kitchen' &&
-        machine.input['food-unit'] > 0).sort((a, b) => a.building.c - b.building.c || a.building.r - b.building.r)[0];
-      if (kitchen) { kitchen.input['food-unit']--; this.state.consumedFood++; }
-      else this.state.missedMeals++;
+        machine.input['food-unit'] > 0).sort((a, b) => compareTiles(a.building, b.building))[0];
+      if (kitchen) {
+        kitchen.input['food-unit']--;
+        this.state.consumedFood++;
+      } else this.state.missedMeals++;
     }
   }
 

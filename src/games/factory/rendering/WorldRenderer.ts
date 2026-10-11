@@ -1,12 +1,14 @@
 import Phaser from 'phaser';
 import { drawOre, drawTree } from './art';
-import { Building, HALF_HEIGHT, HALF_WIDTH, project, Tile, tileKey } from './model';
-import { BIOMES, CHUNK_SIZE, FactoryWorld, WORLD_SIZE } from './world';
+import { drawGround } from '../assets/landscape';
 import { Chunk, inView, MAX_RESIDENT_CHUNKS, tileDepth, visibleChunks, visibleTileBounds, WorldView } from './chunks';
-import { drawGround, Landscape } from './landscape';
+import { Landscape } from './landscape';
+import { Building, HALF_HEIGHT, HALF_WIDTH, project, Tile, tileKey } from '../game/model';
+import { RENDER_POLICY } from './platform';
+import { BIOMES, CHUNK_SIZE, FactoryWorld, WORLD_SIZE } from '../game/world';
 
-const RESOLUTION = 0.5;
-const PREVIEW_RESOLUTION = 0.0625;
+const RESOLUTION = RENDER_POLICY.groundResolution;
+const PREVIEW_RESOLUTION = RENDER_POLICY.previewResolution;
 const GROUND_PADDING = 4;
 const TEXTURE_WIDTH = (CHUNK_SIZE * HALF_WIDTH * 2 + GROUND_PADDING * 2) * RESOLUTION;
 const TEXTURE_HEIGHT = (CHUNK_SIZE * HALF_HEIGHT * 2 + 12 + GROUND_PADDING * 2) * RESOLUTION;
@@ -44,9 +46,9 @@ export default class WorldRenderer {
         this.atlas.push(key);
         if (scene.textures.exists(key)) continue;
         g.clear();
-        if (kind === 'iron' || kind === 'copper') drawOre(g, 64, 88, kind === 'copper', variant * 7, variant * 3);
-        else drawTree(g, 64, 88, variant * 7, variant * 3, kind);
-        g.generateTexture(key, 128, 112);
+        if (kind === 'iron' || kind === 'copper') drawOre(g, RENDER_POLICY.propAnchorX, RENDER_POLICY.propAnchorY, kind === 'copper', variant * 7, variant * 3);
+        else drawTree(g, RENDER_POLICY.propAnchorX, RENDER_POLICY.propAnchorY, variant * 7, variant * 3, kind);
+        g.generateTexture(key, RENDER_POLICY.propWidth, RENDER_POLICY.propHeight);
       }
     }
     g.destroy();
@@ -85,7 +87,8 @@ export default class WorldRenderer {
     }
     this.stats.chunks = this.chunks.size;
     this.stats.props = this.props.size;
-    this.stats.textureBytes = this.chunks.size * TEXTURE_WIDTH * TEXTURE_HEIGHT * 4 + this.atlas.length * 128 * 112 * 4;
+    this.stats.textureBytes = this.chunks.size * TEXTURE_WIDTH * TEXTURE_HEIGHT * 4 +
+      this.atlas.length * RENDER_POLICY.propWidth * RENDER_POLICY.propHeight * 4;
   }
 
   setBuildings(buildings: ReadonlyMap<string, Building>): void {
@@ -172,7 +175,8 @@ export default class WorldRenderer {
         visible.add(key);
         if (!this.props.has(key)) {
           this.props.set(key, this.scene.add.image(p.x, p.y, `factory-prop-${kind === 'tree' ? cell.biome : kind}-${cell.variant}`)
-            .setOrigin(0.5, 88 / 112).setDepth(kind === 'tree' ? tileDepth(tile) : 0));
+            .setOrigin(RENDER_POLICY.propAnchorX / RENDER_POLICY.propWidth, RENDER_POLICY.propAnchorY / RENDER_POLICY.propHeight)
+            .setDepth(kind === 'tree' ? tileDepth(tile) : 0));
         }
         if (kind === 'tree') this.props.get(key)!.setAlpha(this.treeAlpha(tile));
       }

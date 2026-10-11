@@ -1,20 +1,20 @@
 import Phaser from 'phaser';
-import { getRenderScale, prefersReducedMotion } from '../../core/createGame';
-import {
-  Building, Direction, DIRECTIONS, HALF_HEIGHT, HALF_WIDTH,
-  inBounds, isBuildingKind, isConveyor, MAP_SIZE, NAMES, nextDirection, outputDirections, pickBuilding,
-  Point, project, Scenario, Tile, tileKey, Tool, unproject,
-} from './model';
-import { drawBuilding, drawParcel, drawPreview, drawResident } from './art';
-import { Resident, WALK_TICKS } from './settlement';
+import { drawBuilding, drawMachineActivity, drawPreview, drawResident } from './rendering/art';
+import { pickBuilding } from './assets/picking';
+import { BeltRoute, commitRoute, planRoute, routeStartError, undoRoute } from './game/beltRoute';
+import { inView, tileDepth, WorldView } from './rendering/chunks';
+import { CATALOG } from './game/domain';
 import { Action, FactoryHud } from './hud';
 import {
-  BELT_TICKS, EXTRACT_TICKS, FactorySimulation, inventoryText, itemCount, PROJECTS, UPGRADED_EXTRACT_TICKS,
-} from './simulation';
-import { createSave, FactorySave, FactorySaveStore, restoreSave, SaveConflictError } from './persistence';
-import WorldRenderer from './WorldRenderer';
-import { inView, tileDepth, WorldView } from './chunks';
-import { BeltRoute, commitRoute, planRoute, routeStartError, undoRoute } from './beltRoute';
+  Building, Direction, HALF_HEIGHT, HALF_WIDTH,
+  inBounds, isBuildingKind, MAP_SIZE, NAMES, nextDirection,
+  Point, project, Tile, tileKey, Tool, unproject,
+} from './game/model';
+import { getRenderScale, reducedMotionPreference } from './rendering/platform';
+import { FactorySession } from './session/session';
+import { Resident, WALK_TICKS } from './game/settlement';
+import { FactorySimulation, inventoryText, itemCount, PROJECTS } from './game/simulation';
+import WorldRenderer from './rendering/WorldRenderer';
 
 interface Contact extends Point {
   startX: number;
@@ -24,7 +24,7 @@ interface Contact extends Point {
 }
 
 export default class FactoryScene extends Phaser.Scene {
-  private simulation = FactorySimulation.forScenario('free-play');
+  private session: FactorySession;
   private machineArt = new Map<string, Phaser.GameObjects.Graphics>();
   private motionArt = new Map<string, Phaser.GameObjects.Graphics>();
   private residentArt = new Map<number, Phaser.GameObjects.Graphics>();
@@ -42,7 +42,7 @@ export default class FactoryScene extends Phaser.Scene {
   private multiGesture = false;
   private routeStart: Tile | null = null;
   private routeEnd: Tile | null = null;
-  private route: BeltRoute | null = null;
+  private routePreview: BeltRoute | null = null;
   private horizontalFirst = true;
   private routeMobile = false;
   private routeReady = false;
@@ -51,24 +51,28 @@ export default class FactoryScene extends Phaser.Scene {
   private dpr = 1;
   private zoom = 1;
   private cameraSize: Point = { x: 0, y: 0 };
-  private paused = false;
   private choosingScenario = false;
-  private motionPaused = prefersReducedMotion;
+  private reducedMotion = reducedMotionPreference();
+  private motionPaused = this.reducedMotion.matches;
   private resetElapsed = false;
-  private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  private saveStore = new FactorySaveStore();
-  private savedFactory: FactorySave | null = null;
-  private worldId: string | null = null;
-  private saveQueue: Promise<void> = Promise.resolve();
-  private saveRevision = 0;
-  private savedRevision = -1;
-  private autosaveElapsed = 0;
-  private saveConflict = false;
-  private loadingSave = false;
-  private replacingSave = false;
 
   constructor(private hud: FactoryHud) {
     super('FactoryScene');
+    this.session = new FactorySession(hud, (simulation, paused, resumed) => {
+      this.startScenario(simulation);
+      this.paused = paused;
+      this.hud.setPaused(paused);
+      this.refreshSimulationHud();
+      if (resumed) this.hud.setStatus('Factory resumed');
+    });
+  }
+
+  private get simulation(): FactorySimulation { return this.session.simulation; }
+  private set simulation(value: FactorySimulation) { this.session.simulation = value; }
+  private get paused(): boolean { return this.session.paused; }
+  private set paused(value: boolean) { this.session.paused = value; }
+  private get renderInterpolation(): number {
+    return this.paused || this.motionPaused ? 0 : this.simulation.interpolation;
   }
 
   private get buildings(): ReadonlyMap<string, Building> {
@@ -91,7 +95,7 @@ export default class FactoryScene extends Phaser.Scene {
       if (!error) { this.refreshSimulationHud(); this.saveChange(); }
     };
     this.hud.onResident = id => {
-      const resident = this.simulation.residents[id];
+      const resident = this.simulation.residents.find(resident => resident.id === id);
       if (!resident) return;
       this.selected = null;
       this.selectedResident = id;
@@ -101,10 +105,10 @@ export default class FactoryScene extends Phaser.Scene {
       this.hud.inspectResident(resident);
       this.refreshTools();
     };
-    this.hud.onScenario = (scenario, seed) => this.replaceScenario(scenario, seed);
-    this.hud.onResume = () => this.resumeFactory();
-    this.hud.onRetrySave = () => { void this.autosave(true); };
-    this.hud.onRetryLoad = () => { void this.loadFactory(); };
+    this.hud.onScenario = (scenario, seed) => this.session.replace(scenario, seed);
+    this.hud.onResume = () => this.session.resume();
+    this.hud.onRetrySave = () => { void this.session.save(true); };
+    this.hud.onRetryLoad = () => { void this.session.load(); };
     this.hud.onScenarioDialog = open => {
       this.choosingScenario = open;
       this.cancelRoute();
@@ -120,11 +124,11 @@ export default class FactoryScene extends Phaser.Scene {
     this.refreshTools();
     this.bindInput();
     this.hud.openScenarios();
-    void this.loadFactory();
+    void this.session.load();
     this.scale.on('resize', this.onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.abort.abort();
-      this.saveStore.close();
+      this.session.close();
       this.terrain.destroy();
       this.scale.off('resize', this.onResize, this);
       this.hud.destroy();
@@ -132,110 +136,8 @@ export default class FactoryScene extends Phaser.Scene {
     this.game.canvas.setAttribute('aria-label', 'Isometric factory. Choose Conveyor and click a start and destination to connect. On touch, tap both endpoints, then Build. Drag to pan on touch; two fingers pan or zoom without discarding the route.');
   }
 
-  private async loadFactory(): Promise<void> {
-    if (this.loadingSave || this.worldId) return;
-    this.loadingSave = true;
-    this.hud.setSavedScenario(null, 'Reading local save...', true, false);
-    try {
-      this.savedFactory = await this.saveStore.load();
-      this.hud.setSavedScenario(this.savedFactory?.simulation.scenario ?? null, this.savedFactory
-        ? `Last saved ${new Date(this.savedFactory.savedAt).toLocaleString()}`
-        : '', false, !!this.savedFactory);
-      this.hud.setSaveStatus(this.savedFactory ? 'Local save available to resume' : 'Choose a scenario to begin autosaving');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const invalid = /Corrupt factory save|Unsupported factory/.test(message);
-      this.hud.setSavedScenario(null, `${message} ${invalid ? 'Start a new factory only if you want to replace this unreadable save.' : 'No save was replaced.'}`,
-        !invalid, invalid);
-      this.hud.setSaveStatus(`Load failed: ${message}`);
-    } finally {
-      this.loadingSave = false;
-    }
-  }
-
-  private queueWrite(save: FactorySave): Promise<void> {
-    const operation = this.saveQueue.then(() => this.saveStore.write(save));
-    this.saveQueue = operation.then(() => {}, () => {});
-    return operation;
-  }
-
-  private async replaceScenario(scenario: Scenario, seed: string): Promise<boolean> {
-    this.replacingSave = true;
-    this.hud.setSaveStatus('Saving new factory...');
-    try {
-      const simulation = FactorySimulation.forScenario(scenario, seed.trim() || crypto.randomUUID());
-      const id = crypto.randomUUID();
-      const save = createSave(simulation, false, id);
-      await this.queueWrite(save);
-      this.worldId = id;
-      this.savedFactory = save;
-      this.saveRevision = 0;
-      this.savedRevision = 0;
-      this.autosaveElapsed = 0;
-      this.saveConflict = false;
-      this.startScenario(simulation);
-      this.hud.setSavedScenario(scenario, 'New factory saved on this device.', false, true);
-      this.hud.setSaveStatus('Saved on this device');
-      return true;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.hud.setSavedScenario(this.savedFactory?.simulation.scenario ?? null, `Could not start a new factory: ${message} Your previous save was not changed.`, false, true);
-      this.hud.setSaveStatus(`Save failed: ${message}`, !!this.worldId);
-      return false;
-    } finally {
-      this.replacingSave = false;
-    }
-  }
-
-  private resumeFactory(): void {
-    if (!this.savedFactory) return;
-    const { save, simulation } = restoreSave(this.savedFactory);
-    this.simulation = simulation;
-    this.lastTrail = [];
-    this.cancelRoute();
-    this.worldId = save.worldId;
-    this.paused = save.paused;
-    this.saveRevision = 0;
-    this.savedRevision = 0;
-    this.selected = null;
-    this.selectedResident = null;
-    this.tool = 'inspect';
-    this.direction = 0;
-    this.resetElapsed = true;
-    this.hud.inspect(null);
-    this.hud.setPaused(this.paused);
-    this.replaceTerrain();
-    this.redrawMachines();
-    this.refreshTools();
-    this.home();
-    this.refreshSimulationHud();
-    this.hud.setStatus('Factory resumed');
-    this.hud.setSaveStatus('Saved factory resumed on this device');
-  }
-
-  private async autosave(force = false): Promise<void> {
-    if (!this.worldId || this.replacingSave || this.saveConflict || !force && this.savedRevision === this.saveRevision) return;
-    const worldId = this.worldId;
-    const revision = this.saveRevision;
-    const save = createSave(this.simulation, this.paused, worldId);
-    this.hud.setSaveStatus('Saving locally...');
-    try {
-      await this.queueWrite(save);
-      if (this.worldId !== worldId) return;
-      this.savedFactory = save;
-      this.savedRevision = revision;
-      this.hud.setSaveStatus(this.savedRevision === this.saveRevision ? 'Saved on this device' : 'Autosave active · new changes pending');
-    } catch (error) {
-      if (this.worldId !== worldId) return;
-      if (error instanceof SaveConflictError) this.saveConflict = true;
-      const message = error instanceof Error ? error.message : String(error);
-      this.hud.setSaveStatus(`Not saved: ${message}`, true, !this.saveConflict);
-    }
-  }
-
   private saveChange(): void {
-    this.saveRevision++;
-    void this.autosave();
+    this.session.changed();
   }
 
   private startScenario(simulation: FactorySimulation): void {
@@ -344,8 +246,12 @@ export default class FactoryScene extends Phaser.Scene {
     this.multiGesture = false;
     const camera = this.cameras.main;
     const center = { x: camera.scrollX + this.cameraSize.x / 2, y: camera.scrollY + this.cameraSize.y / 2 };
+    const minimum = this.minimumZoom();
+    this.zoom = Phaser.Math.Clamp(this.zoom, minimum, Math.max(2.1, minimum));
+    camera.setZoom(this.zoom * this.dpr);
     camera.centerOn(center.x, center.y);
     this.cameraSize = { x: camera.width, y: camera.height };
+    this.hud.setZoom(this.zoom);
     this.renderPreview();
     this.terrain.update(this.view());
     this.syncVisibleMachines(this.view());
@@ -504,8 +410,7 @@ export default class FactoryScene extends Phaser.Scene {
       if (this.hud.choosingScenario || event.ctrlKey || event.metaKey || event.altKey ||
           event.target instanceof HTMLElement && event.target.matches('input, textarea, select, [contenteditable]')) return;
       const shortcuts: Record<string, Action> = {
-        '1': 'inspect', '2': 'belt', '3': 'miner', '4': 'furnace', '5': 'storage', '7': 'assembler', '8': 'splitter',
-        '9': 'food-plot', '0': 'kitchen',
+        '1': 'inspect', ...Object.fromEntries(CATALOG.map(entry => [entry.shortcut, entry.kind])),
         r: 'rotate', Escape: 'close', '+': 'zoom-in', '-': 'zoom-out', Home: 'home',
       };
       const action = shortcuts[event.key];
@@ -530,7 +435,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.multiGesture = false;
       this.hover = null;
       this.renderPreview();
-      if (document.hidden) void this.autosave();
+      if (document.hidden) void this.session.save();
     }, options);
     window.addEventListener('pagehide', () => {
       this.cancelRoute();
@@ -540,7 +445,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.renderPreview();
       this.simulation.resetClock();
       this.resetElapsed = true;
-      void this.autosave();
+      void this.session.save();
     }, options);
   }
 
@@ -628,7 +533,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.saveChange();
     } else if (action === 'rotate') {
       if (this.tool === 'inspect' && this.selected) {
-        if (this.selected.kind === 'outpost' || this.selected.kind === 'home') {
+        if (this.selected.kind === 'home' || this.selected.kind === 'outpost') {
           this.hud.setStatus('This founding building stays in place.', true);
           return;
         }
@@ -641,7 +546,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshTools();
     } else if (action === 'remove') {
       if (this.tool !== 'inspect' || !this.selected) return;
-      if (this.selected.kind === 'outpost' || this.selected.kind === 'home') {
+      if (this.selected.kind === 'home' || this.selected.kind === 'outpost') {
         this.hud.setStatus('This founding building stays in place.', true);
         return;
       }
@@ -697,7 +602,7 @@ export default class FactoryScene extends Phaser.Scene {
     const tile = unproject(world.x, world.y);
     if (this.tool === 'inspect') {
       const resident = this.simulation.residents.find(value => {
-        const position = this.residentPosition(value, this.paused ? 0 : this.simulation.interpolation);
+        const position = this.residentPosition(value, this.renderInterpolation);
         return Math.abs(world.x - position.x) < 10 && world.y >= position.y - 28 && world.y <= position.y + 4;
       });
       if (resident) {
@@ -733,9 +638,9 @@ export default class FactoryScene extends Phaser.Scene {
     this.preview.setDepth(this.tool === 'belt' ? 200002 : 200000);
     this.ghost.clear();
     if (this.tool === 'belt') {
-      this.route = this.routeStart && this.routeEnd
+      this.routePreview = this.routeStart && this.routeEnd
         ? planRoute(this.simulation, this.routeStart, this.routeEnd, this.horizontalFirst, this.direction) : null;
-      const buildings = this.route?.buildings ?? [];
+      const buildings = this.routePreview?.buildings ?? [];
       const previewBuildings = new Map(this.buildings);
       for (const building of buildings) previewBuildings.set(tileKey(building), building);
       this.ghost.setDepth(200001);
@@ -743,7 +648,7 @@ export default class FactoryScene extends Phaser.Scene {
         drawPreview(this.preview, building.c, building.r, 0x347875);
         drawBuilding(this.ghost, building, previewBuildings);
       }
-      const blocked = this.route?.blocked;
+      const blocked = this.routePreview?.blocked;
       if (blocked) drawPreview(this.preview, blocked.tile.c, blocked.tile.r, 0xa75b44);
       for (const [tile, color] of [[this.routeStart, 0x347875], [this.routeEnd, blocked ? 0xa75b44 : 0x347875]] as const) {
         if (!tile) continue;
@@ -755,8 +660,8 @@ export default class FactoryScene extends Phaser.Scene {
       }
       this.hud.setRouteControls({
         enabled: true, anchored: !!this.routeStart, ready: this.routeReady, mobile: this.routeMobile,
-        count: buildings.length, canSwap: !!this.route?.canSwap,
-        error: blocked?.error ?? (this.route && !buildings.length ? 'Already connected' : null),
+        count: buildings.length, canSwap: !!this.routePreview?.canSwap,
+        error: blocked?.error ?? (this.routePreview && !buildings.length ? 'Already connected' : null),
       });
       return;
     }
@@ -815,26 +720,25 @@ export default class FactoryScene extends Phaser.Scene {
   }
 
   private cancelRoute(): void {
-    this.routeStart = null;
-    this.routeEnd = null;
-    this.route = null;
+    this.routeStart = this.routeEnd = null;
+    this.routePreview = null;
     this.routeReady = false;
     this.hud.setRouteControls({ enabled: this.tool === 'belt', anchored: false, ready: false,
       mobile: this.routeMobile, count: 0, canSwap: false, error: null });
   }
 
   private finishRoute(): void {
-    if (!this.route || this.route.blocked || !this.route.buildings.length) return;
-    const result = commitRoute(this.simulation, this.route, this.direction);
+    if (!this.routePreview || this.routePreview.blocked || !this.routePreview.buildings.length) return;
+    const result = commitRoute(this.simulation, this.routePreview, this.direction);
     if (result.error) {
       this.renderPreview();
       this.hud.setStatus(result.error, true);
       return;
     }
+    this.lastTrail = result.placed;
     this.cancelRoute();
     this.hover = null;
     if (result.placed.length) {
-      this.lastTrail = result.placed;
       this.direction = result.placed[result.placed.length - 1].direction;
       this.redrawMachines();
       this.refreshSimulationHud();
@@ -850,7 +754,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.hud.setSummary(this.simulation.summary());
     if (this.selected) {
       if (this.simulation.getState(this.selected)) {
-        this.hud.setMachine(this.simulation.inspectMachine(this.selected), this.paused, this.simulation.world);
+        this.hud.setMachine(this.simulation.inspectMachine(this.selected), this.paused);
       }
     }
   }
@@ -865,24 +769,18 @@ export default class FactoryScene extends Phaser.Scene {
         const stage = this.simulation.objective()?.stage;
         const activeProject = this.simulation.summary().projects.active;
         if (this.simulation.advance(delta)) {
-          this.saveRevision++;
+          this.session.changed(false);
           this.refreshSimulationHud();
           if (activeProject && activeProject !== this.simulation.summary().projects.active) {
             const project = PROJECTS.find(project => project.id === activeProject)!;
             this.hud.setStatus(`${project.title} complete. ${project.reward}. Enable it in the machine inspector.`);
           }
-          if (stage !== this.simulation.objective()?.stage || activeProject !== this.simulation.summary().projects.active) void this.autosave();
+          if (stage !== this.simulation.objective()?.stage || activeProject !== this.simulation.summary().projects.active) void this.session.save();
         }
       }
     } else this.simulation.resetClock();
-    if (this.worldId && !document.hidden && !this.choosingScenario) {
-      this.autosaveElapsed += Math.min(delta, 250);
-      if (this.autosaveElapsed >= 5000) {
-        this.autosaveElapsed = 0;
-        void this.autosave();
-      }
-    }
-    const interpolation = this.paused || this.motionPaused ? 0 : this.simulation.interpolation;
+    this.session.update(delta, document.hidden || this.choosingScenario);
+    const interpolation = this.renderInterpolation;
     for (const resident of this.simulation.residents) {
       let art = this.residentArt.get(resident.id);
       if (!art) { art = this.add.graphics(); this.residentArt.set(resident.id, art); }
@@ -907,46 +805,7 @@ export default class FactoryScene extends Phaser.Scene {
       g.clear();
       const b = this.buildings.get(key)!;
       const state = this.simulation.getState(b)!;
-      const { x, y } = project(b.c, b.r);
-      if (isConveyor(b.kind) && state.item) {
-        const t = this.motionPaused ? 0.5 : Math.min(1, (state.progress + interpolation) / BELT_TICKS);
-        const incoming = DIRECTIONS[state.enteredFrom];
-        const outgoing = DIRECTIONS[b.direction];
-        const c = b.c + (b.kind === 'splitter' ? incoming.c * (t - 1) * 0.5
-          : t < 0.5 ? incoming.c * (t - 0.5) : outgoing.c * (t - 0.5));
-        const r = b.r + (b.kind === 'splitter' ? incoming.r * (t - 1) * 0.5
-          : t < 0.5 ? incoming.r * (t - 0.5) : outgoing.r * (t - 0.5));
-        const p = project(c, r);
-        drawParcel(g, p.x, p.y - 6, state.item);
-      } else if (b.kind === 'miner') {
-        const angle = this.motionPaused ? 0 : (state.progress + (state.running ? interpolation : 0)) /
-          (b.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS) * Math.PI * 2;
-        g.lineStyle(2, 0xd4d7bb);
-        g.lineBetween(x - 5 - Math.cos(angle) * 7, y - 46 - Math.sin(angle) * 3,
-          x - 5 + Math.cos(angle) * 7, y - 46 + Math.sin(angle) * 3);
-      } else if (b.kind === 'furnace' && state.running && !this.paused && !this.motionPaused) {
-        for (let i = 0; i < 5; i++) {
-          const t = ((this.simulation.ticks + interpolation) / 34 + i / 5 + (b.c * 7 + b.r * 11) / 31) % 1;
-          const alpha = Math.min(1, t * 8) * (1 - t) * 0.55;
-          const smokeX = x + 5 + t * 14 + Math.sin(t * Math.PI * 2) * 4;
-          const smokeY = y - 65 - t * 44;
-          const width = 14 + t * 24;
-          const height = 8 + t * 18;
-          g.fillStyle(0xbdc8bd, alpha).fillEllipse(smokeX, smokeY, width, height);
-          g.fillStyle(0xeef0dc, alpha * 0.5).fillEllipse(smokeX - 3, smokeY - 3, width * 0.65, height * 0.5);
-        }
-      } else if (b.kind === 'assembler' && state.running) {
-        const t = this.motionPaused || this.paused ? 0.5 : (state.progress + interpolation) / 20;
-        g.fillStyle(0xd8b66f);
-        g.fillCircle(x - 12 + t * 24, y - 39, 3);
-      }
-      if (b.kind === 'splitter') {
-        const direction = outputDirections(b)[state.nextOutput];
-        const vector = DIRECTIONS[direction];
-        const p = project(b.c + vector.c * 0.46, b.r + vector.r * 0.46);
-        g.fillStyle(0xf3db99).fillCircle(p.x, p.y - 6, 2);
-      }
-
+      drawMachineActivity(g, state, this.simulation.ticks, interpolation, this.paused, this.motionPaused);
     }
   }
 

@@ -1,9 +1,29 @@
-import Phaser from 'phaser';
-import {
-  Building, conveyorInputs, Direction, DIRECTIONS, HALF_HEIGHT, HALF_WIDTH, nextDirection, Point, project, variation,
-} from './model';
-import { Item } from './simulation';
-import type { Biome } from './world';
+import type Phaser from 'phaser';
+import { BuildingKind, Direction, DIRECTIONS, HALF_HEIGHT, HALF_WIDTH, Item, nextDirection, Point, project, Tile, variation } from '../game/domain';
+import type { Biome } from '../game/world';
+
+export interface BuildingAppearance {
+  kind: BuildingKind;
+  origin: Point;
+  direction: Direction;
+  inputs: readonly Direction[];
+  variant: Tile;
+  upgraded: boolean;
+  outputEnabled: boolean;
+}
+
+export interface BuildingActivity {
+  kind: BuildingKind;
+  origin: Point;
+  direction: Direction;
+  enteredFrom: Direction;
+  preferredOutput: Direction;
+  cargo: Item | null;
+  progress: number;
+  running: boolean;
+  time: number;
+  motionPaused: boolean;
+}
 
 type Graphics = Phaser.GameObjects.Graphics;
 
@@ -80,10 +100,10 @@ export function drawOre(g: Graphics, x: number, y: number, copper: boolean, c: n
   }
 }
 
-export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<string, Building>): void {
-  const { x, y } = project(b.c, b.r);
+export function drawBuilding(g: Graphics, b: BuildingAppearance): void {
+  const { x, y } = b.origin;
   if (b.kind === 'belt') {
-    drawBelt(g, x, y, b.direction, buildings ? conveyorInputs(b, buildings) : []);
+    drawBelt(g, x, y, b.direction, b.inputs);
     return;
   }
   if (b.kind === 'splitter') {
@@ -109,7 +129,7 @@ export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<s
         const p = project((plant - 1.5) * 0.2, (row - 1.5) * 0.19);
         const px = x + p.x;
         const py = y + p.y - 2;
-        const height = 4 + variation(b.c + plant, b.r + row) * 2;
+        const height = 4 + variation(b.variant.c + plant, b.variant.r + row) * 2;
         g.fillStyle(0x435e43, 0.3).fillEllipse(px + 1, py + 1, 9, 4);
         line(g, { x: px, y: py }, { x: px, y: py - height }, 0x587249, 1.5);
         g.fillStyle(row % 2 ? 0x6f8957 : 0x78945e).fillEllipse(px - 2, py - height + 1, 5, 3);
@@ -143,7 +163,7 @@ export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<s
     if (b.upgraded) line(g, { x: x - 18, y: y - 23 }, { x: x - 6, y: y - 17 }, 0x3f8c76, 4);
   } else if (b.kind === 'furnace') {
     prism(g, x, y - 3, 27, 13.5, 31, 0xdce0d5, 0x8b9c94, 0x667f78);
-    prism(g, x, y - 35, 22, 11, 5, 0xebe7d9, 0xa9b3a7, 0x8a9d91);
+    prism(g, x, y - 35, 22, 11, 5, PALETTE.roof, 0xa9b3a7, 0x8a9d91);
     prism(g, x + 5, y - 37, 7, 3.5, 25, 0x687d76, 0x445d58, 0x344c47);
     diamond(g, x + 5, y - 62, 4, 2, 0x203b34);
     polygon(g, [
@@ -188,7 +208,8 @@ export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<s
   }
   if (b.kind === 'outpost' || b.kind === 'home' || b.kind === 'kitchen') return;
   const vector = DIRECTIONS[b.direction];
-  const end = project(b.c + vector.c * 0.45, b.r + vector.r * 0.45);
+  const offset = project(vector.c * 0.45, vector.r * 0.45);
+  const end = { x: x + offset.x, y: y + offset.y };
   if (b.kind === 'storage' && b.outputEnabled) drawArrow(g, end.x, end.y + 1, b.direction, 0x3f8c76, 0.75);
   else diamond(g, end.x, end.y - 4, 4, 2, 0xd8bd7d);
 }
@@ -259,6 +280,7 @@ export function drawParcel(g: Graphics, x: number, y: number, item: Item): void 
     line(g, { x: x - 4, y: y - 5 }, { x: x + 3, y: y - 2 }, 0xe0d7a4, 1.5);
     return;
   }
+
   if (item === 'defense-supply') {
     g.fillStyle(0x1f372f, 0.2).fillEllipse(x + 3, y + 2, 18, 8);
     prism(g, x, y, 8, 4, 6, 0xd8b66f, 0x9b8050, 0x806941);
@@ -271,6 +293,46 @@ export function drawParcel(g: Graphics, x: number, y: number, item: Item): void 
   g.fillStyle(0x1f372f, 0.2).fillEllipse(x + 3, y + 2, 15, 7);
   prism(g, x, y, plate ? 8 : 6, plate ? 4 : 3, plate ? 2 : 6,
     copper ? 0xdbad7c : 0xc5d3ca, copper ? 0xa87954 : 0x8ca49a, copper ? 0x886244 : 0x6c887c);
+}
+
+export function drawBuildingActivity(g: Graphics, state: BuildingActivity): void {
+  const { x, y } = state.origin;
+  if ((state.kind === 'belt' || state.kind === 'splitter') && state.cargo) {
+    const t = state.motionPaused ? 0.5 : Math.min(1, state.progress);
+    const incoming = DIRECTIONS[state.enteredFrom];
+    const outgoing = DIRECTIONS[state.direction];
+    const c = state.kind === 'splitter' ? incoming.c * (t - 1) * 0.5
+      : t < 0.5 ? incoming.c * (t - 0.5) : outgoing.c * (t - 0.5);
+    const r = state.kind === 'splitter' ? incoming.r * (t - 1) * 0.5
+      : t < 0.5 ? incoming.r * (t - 0.5) : outgoing.r * (t - 0.5);
+    const p = project(c, r);
+    drawParcel(g, x + p.x, y + p.y - 6, state.cargo);
+  } else if (state.kind === 'miner') {
+    const angle = state.motionPaused ? 0 : state.progress * Math.PI * 2;
+    g.lineStyle(2, 0xd4d7bb);
+    g.lineBetween(x - 5 - Math.cos(angle) * 7, y - 46 - Math.sin(angle) * 3,
+      x - 5 + Math.cos(angle) * 7, y - 46 + Math.sin(angle) * 3);
+  } else if (state.kind === 'furnace' && state.running && !state.motionPaused) {
+    for (let i = 0; i < 5; i++) {
+      const t = (state.time / 34 + i / 5) % 1;
+      const alpha = Math.min(1, t * 8) * (1 - t) * 0.55;
+      const smokeX = x + 5 + t * 14 + Math.sin(t * Math.PI * 2) * 4;
+      const smokeY = y - 65 - t * 44;
+      const width = 14 + t * 24;
+      const height = 8 + t * 18;
+      g.fillStyle(0xbdc8bd, alpha).fillEllipse(smokeX, smokeY, width, height);
+      g.fillStyle(0xeef0dc, alpha * 0.5).fillEllipse(smokeX - 3, smokeY - 3, width * 0.65, height * 0.5);
+    }
+  } else if (state.kind === 'assembler' && state.running) {
+    const t = state.motionPaused ? 0.5 : state.progress;
+    g.fillStyle(0xd8b66f);
+    g.fillCircle(x - 12 + t * 24, y - 39, 3);
+  }
+  if (state.kind === 'splitter') {
+    const vector = DIRECTIONS[state.preferredOutput];
+    const p = project(vector.c * 0.46, vector.r * 0.46);
+    g.fillStyle(0xf3db99).fillCircle(x + p.x, y + p.y - 6, 2);
+  }
 }
 
 export function drawResident(
