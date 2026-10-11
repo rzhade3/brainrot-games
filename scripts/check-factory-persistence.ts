@@ -99,6 +99,7 @@ invalid(save => { save.simulation.machines[0].progress = 1000; });
 invalid(save => { save.simulation.mined['iron-ore'] = NaN; });
 invalid(save => { save.simulation.orderCompleted = save.simulation.ticks + 1; });
 invalid(save => { save.simulation.deliveryTicks.push(save.simulation.ticks + 1); });
+invalid(save => { save.simulation.machines[0].nextOutput = 1; }, /routing/);
 invalid(save => { save.simulation.machines = save.simulation.machines.filter(machine => machine.building.kind !== 'outpost'); });
 assert.throws(() => restoreSave(null), /Corrupt/);
 assert.throws(() => restoreSave({ version: 2, contractVersion: 1 }), /Corrupt/);
@@ -110,4 +111,35 @@ locked.simulation.machines.push({
 });
 assert.throws(() => restoreSave(locked), /locked/);
 
-console.log('Factory persistence checks passed: full real-production roundtrips, clocks, recipes, transfers, recovery, objectives, completion, conservation, and corrupt/version rejection.');
+const beforeSplitters = JSON.parse(JSON.stringify(createSave(sim, false, 'legacy-routing')));
+for (const machine of beforeSplitters.simulation.machines) delete machine.nextOutput;
+assert.deepEqual(restoreSave(beforeSplitters).simulation.serialize(), sim.serialize(), 'Existing saves without routing state must still resume identically');
+
+const splitting = FactorySimulation.forScenario('free-play');
+for (const building of [
+  { kind: 'miner', c: 7, r: 10, direction: 0 },
+  { kind: 'belt', c: 8, r: 10, direction: 0 },
+  { kind: 'splitter', c: 9, r: 10, direction: 0 },
+  { kind: 'storage', c: 10, r: 10, direction: 0 },
+  { kind: 'storage', c: 9, r: 11, direction: 0 },
+] satisfies Building[]) assert.equal(splitting.place(building), null);
+let splitReplica = roundtrip(splitting);
+let sawAlternate = false;
+let sawSplitCargo = false;
+for (let i = 0; i < 400; i++) {
+  splitting.advance(137);
+  splitReplica.advance(137);
+  assert.deepEqual(splitReplica.serialize(), splitting.serialize(), 'Restored splitter must preserve successful-delivery alternation and cargo');
+  const router = splitting.getState({ c: 9, r: 10 })!;
+  sawAlternate ||= router.nextOutput === 1;
+  sawSplitCargo ||= !!router.item && router.progress > 0 && router.progress < 8;
+  splitReplica = roundtrip(splitting);
+}
+assert.ok(sawAlternate && sawSplitCargo);
+const splitSave = createSave(splitting, true, 'splitter-save');
+for (const bad of [-1, 2, null, undefined, '1']) {
+  const candidate = JSON.parse(JSON.stringify(splitSave));
+  candidate.simulation.machines.find((machine: { building: Building }) => machine.building.kind === 'splitter').nextOutput = bad;
+  assert.throws(() => restoreSave(candidate), /routing/);
+}
+console.log('Factory persistence checks passed: real-production roundtrips, legacy compatibility, splitter routing/cargo, clocks, recipes, transfers, recovery, objectives, completion, conservation, and corrupt/version rejection.');

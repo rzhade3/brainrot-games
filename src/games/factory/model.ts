@@ -5,7 +5,7 @@ export const HALF_WIDTH = 38;
 export const HALF_HEIGHT = 19;
 
 export type Terrain = 'grass' | 'water' | 'iron' | 'copper' | 'tree';
-export type BuildingKind = 'belt' | 'miner' | 'furnace' | 'storage' | 'assembler' | 'outpost';
+export type BuildingKind = 'belt' | 'splitter' | 'miner' | 'furnace' | 'storage' | 'assembler' | 'outpost';
 export type BuildableKind = Exclude<BuildingKind, 'outpost'>;
 export type Tool = 'inspect' | BuildableKind;
 export type Scenario = 'free-play' | 'guided';
@@ -21,10 +21,11 @@ export const DIRECTIONS: readonly Tile[] = [
 export const DIRECTION_NAMES = ['East', 'South', 'West', 'North'] as const;
 export const NAMES: Record<BuildingKind, string> = {
   belt: 'Conveyor', miner: 'Extractor', furnace: 'Smelter', storage: 'Depot',
-  assembler: 'Assembler', outpost: 'Outpost',
+  splitter: 'Splitter', assembler: 'Assembler', outpost: 'Outpost',
 };
 export const DESCRIPTIONS: Record<BuildingKind, string> = {
-  belt: 'Carries one item at a time. Accepts items from behind or either side; the arrow points toward its output.',
+  belt: 'Carries one item at a time. Accepts items from behind or either side; connected branches merge fairly into the arrow-facing output.',
+  splitter: 'Accepts one item from the rear and sends it straight or right. Alternates successful deliveries; uses the other branch if one is blocked. Both blocked: retains its item. Same speed as a conveyor.',
   miner: 'Extracts one ore per second from a deposit. Its arrow feeds an adjacent conveyor or machine. Deposits are unlimited on this test site.',
   furnace: 'Turns one ore into one matching plate in 1.6 seconds. Accepts ore from any adjacent output; plates leave toward its arrow.',
   storage: 'Receives up to 64 items from adjacent outputs. When full, the line backs up. Removing it keeps its contents in the recovery tray.',
@@ -34,6 +35,32 @@ export const DESCRIPTIONS: Record<BuildingKind, string> = {
 
 export function tileKey(tile: Tile): string {
   return `${tile.c},${tile.r}`;
+}
+
+export function isConveyor(kind: BuildingKind): boolean {
+  return kind === 'belt' || kind === 'splitter';
+}
+
+export function outputDirections(building: Building): readonly Direction[] {
+  if (building.kind === 'storage' || building.kind === 'outpost') return [];
+  return building.kind === 'splitter' ? [building.direction, nextDirection(building.direction)] : [building.direction];
+}
+
+export function acceptsConveyorInput(building: Building, source: Tile): boolean {
+  const front = DIRECTIONS[building.direction];
+  return building.kind === 'splitter'
+    ? source.c === building.c - front.c && source.r === building.r - front.r
+    : source.c !== building.c + front.c || source.r !== building.r + front.r;
+}
+
+export function conveyorInputs(building: Building, buildings: ReadonlyMap<string, Building>): Direction[] {
+  const inputs: Direction[] = [];
+  for (const direction of [0, 1, 2, 3] as const) {
+    const vector = DIRECTIONS[direction];
+    const source = buildings.get(tileKey({ c: building.c - vector.c, r: building.r - vector.r }));
+    if (source && acceptsConveyorInput(building, source) && outputDirections(source).includes(direction)) inputs.push(direction);
+  }
+  return inputs;
 }
 
 export function project(c: number, r: number): Point {
@@ -70,7 +97,7 @@ export function placementError(
   if (terrain === 'water') return 'Cannot build on water';
   if (terrain === 'tree') return 'Choose a clear tile';
   if (kind === 'miner' && terrain !== 'iron' && terrain !== 'copper') return 'Extractors need an ore deposit';
-  if (kind !== 'miner' && kind !== 'belt' && (terrain === 'iron' || terrain === 'copper')) {
+  if (kind !== 'miner' && !isConveyor(kind) && (terrain === 'iron' || terrain === 'copper')) {
     return 'Leave deposits free for extractors';
   }
   return null;
@@ -108,7 +135,7 @@ export function nextDirection(direction: Direction): Direction {
 }
 
 export function isBuildingKind(value: string): value is BuildableKind {
-  return value === 'belt' || value === 'miner' || value === 'furnace' || value === 'storage' || value === 'assembler';
+  return value === 'belt' || value === 'splitter' || value === 'miner' || value === 'furnace' || value === 'storage' || value === 'assembler';
 }
 
 export function isTool(value: string): value is Tool {
@@ -133,9 +160,9 @@ export function pickBuilding(point: Point, buildings: ReadonlyMap<string, Buildi
   const sorted = [...buildings.values()].sort((a, b) => (b.c + b.r) - (a.c + a.r) || b.c - a.c);
   for (const building of sorted) {
     const { x, y } = project(building.c, building.r);
-    const w = building.kind === 'belt' ? 35 : 28;
+    const w = isConveyor(building.kind) ? 35 : 28;
     const h = w / 2;
-    const height = building.kind === 'belt' ? 5 : building.kind === 'storage' ? 42 : 44;
+    const height = isConveyor(building.kind) ? 5 : building.kind === 'storage' ? 42 : 44;
     const outline = [
       { x: x - w, y: y - height }, { x, y: y - h - height },
       { x: x + w, y: y - height }, { x: x + w, y },

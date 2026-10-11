@@ -1,11 +1,14 @@
 # Pocket Factory implementation plan
 
-Status: milestones 1-5 implemented on `feat/pocket-factory`. The visual direction
+Status: milestones 1-6 implemented on `feat/pocket-factory`. The visual direction
 is approved. The seeded 256x256 world, chunked rendering, and seed-aware saves
-are functional. First-time-player pacing and physical-device review, including
-the agreed-phone performance benchmark, remain outstanding. Milestone 6 and
-later work require separate implementation authorization. Next comes distinct
-biome art, then atmospheric weather and environmental polish. Production-fed
+are functional, with distinct biome artwork and cohesive ground transitions.
+An approved pre-weather logistics extension adds splitters, clearer conveyor
+merge junctions, and anchored conveyor connections.
+First-time-player pacing and physical-device review, including the agreed-phone
+performance benchmark, remain outstanding. Milestone 7 and later work require
+separate implementation authorization. Next comes atmospheric weather and
+environmental polish. Production-fed
 defense is deferred until that peaceful experience is evaluated.
 This is an exploratory prototype: future milestones may replace terrain,
 generator, and save formats without backward compatibility or migration work.
@@ -29,8 +32,9 @@ guided run: build copper production, unlock mixed-metal assembly, and supply an
 outpost. Free Play starts with an empty site and all machines unlocked.
 Milestone 4 preserves investment through local autosave and resume. Milestone 5
 expands the site into a seeded, explorable world while keeping starter production
-local. The next milestones enrich the place players build in, without changing
-production rules or adding environmental chores.
+local. Milestone 6 adds fuller meadows, wooded riverbanks, and rugged upland art.
+The next milestones enrich the place players build in, without changing production
+rules or adding environmental chores.
 
 Near-term arc:
 
@@ -118,8 +122,8 @@ for rendering; account for depth sorting, tile picking, and building occlusion.
 ## Proposed first-release scope
 
 This table describes the revised near-term target, not shipped behavior.
-Milestones 1-5 are implemented, including the seeded 256x256 world and basic
-region rendering; polished biome art and weather are planned. Each subsequent
+Milestones 1-6 are implemented, including the seeded 256x256 world and distinct
+biome art; weather is planned. Each subsequent
 implementation milestone requires approval. Combat and power remain deferred.
 
 | Area | Scope |
@@ -127,7 +131,7 @@ implementation milestone requires approval. Combat and power remain deferred.
 | World | Finite, seeded 256x256 tiles (65,536 total), organized into 32x32-tile chunks |
 | Terrain | Meadow, wooded riverbank, rocky upland; accessible iron/copper and connected building space |
 | Environment | Gentle clear/cloudy/rain transitions, restrained water/vegetation motion; atmospheric only |
-| Buildings | Miner, directional belt, furnace, assembler, storage, outpost receiver |
+| Buildings | Miner, directional belt, splitter, furnace, assembler, storage, outpost receiver |
 | Production | Ore to plates; one mixed-metal defense-supply recipe; later components only when they add a new decision |
 | Demand | Existing bounded delivery orders; no new weather-driven material sinks |
 | Combat | Deferred; peaceful building remains the near-term focus |
@@ -140,7 +144,7 @@ implementation milestone requires approval. Combat and power remain deferred.
 
 Defer free-roaming attacks, general enemy pathfinding, damage to individual
 production buildings, manual combat, multiple weapon/enemy trees, pollution-based
-aggression, power/fuel, trains, fluids, multiplayer, infinite worlds, splitters,
+aggression, power/fuel, trains, fluids, multiplayer, infinite worlds, filtered/priority splitters,
 underground belts, separate inserters, and production while the app is closed.
 Build the large-world rendering foundation before adding biome detail or weather.
 Map size does not expand the initial biome, recipe, or enemy feature list. The
@@ -227,10 +231,15 @@ or using its camera shortcuts, keeping the target area usable. Resizing does
 not reset the factory or its selected machine.
 
 The default HUD prioritizes the map, current mission, and construction controls.
-Mission guidance, depot/recovery stock, machine descriptions, and detailed
-save/offline information use expandable panels. Successful action feedback
+Mission guidance, machine descriptions, and detailed save/offline information
+use expandable panels. There is no global depot-stock or recovery panel;
+each depot's inspector shows its own contents and capacity, with a secondary
+recovered-items section only when recovered cargo exists. Save status, offline readiness,
+and the current world seed live under **Scenarios → Save & offline**, not in a
+routine bottom badge. Successful action feedback
 clears after 4.5 seconds; invalid placement feedback remains until the next
-action. Save failures automatically expand their full message and retry action.
+action. Save failures show an on-map warning with a retry action when safe;
+their full message also expands inside Scenarios.
 The small "AN AUTOMATION STUDY" brand label and Free Play's desktop-only
 "A little industry. A lot of possibility." headline retain the field-notebook
 character without adding instructions. Compact layouts omit the headline to
@@ -381,13 +390,17 @@ extractor, smelter, and conveyor rates unchanged.
 
 ### Recovery interaction
 
-In a selected depot's inspector, add one "Transfer recovered items here" action.
+In a selected depot's inspector, show a collapsed "Recovered items" section
+only when cargo has been recovered. Include the item breakdown, explain that
+removing buildings or undoing routes preserves those items, and provide one
+"Store N items here" action showing the amount that fits in this depot.
 Transfer up to its remaining total capacity, in a stable item order: iron ore,
 copper ore, iron plates, copper plates, then defense supplies. Move the source
 and destination quantities atomically; leave any overflow in the tray.
 
-Disable the action when the tray is empty or the depot is full, with an explicit
-reason. Report what moved and what remains. No drag-and-drop inventory screen,
+Hide the section when recovery is empty. Disable the action when the depot is
+full, with an explicit reason. Report what moved and what remains. No global
+stock panel, recovery modal, drag-and-drop inventory screen,
 receiver deposit shortcut, or manual assembler loading is included.
 
 Depots remain storage-only in this milestone. This action safely relocates
@@ -655,10 +668,14 @@ Remaining release follow-up: choose a reference phone and measure startup,
 sparse/dense factory frame times, pan responsiveness, and memory after repeated
 traversal against the 30 FPS target. First-time-player pacing also remains
 unverified; guided browser checks advanced simulation ticks to exercise recipes
-and accounting, not to establish real player completion times. Polished biome
-art and dynamic weather have not been implemented.
+and accounting, not to establish real player completion times. Biome art follows
+in milestone 6; dynamic weather remains deferred.
 
 ## Milestone 6: Distinct biome art and cohesive landscapes
+
+Implemented. This is a presentation-only update: existing seeded-world saves,
+generator version, terrain, deposits, buildability, recipes, and objectives remain
+unchanged. Physical-phone performance acceptance still requires an agreed device.
 
 Give the three generated regions a clear identity in original clean-isometric
 art: grasses/flowers in meadow, reeds and clustered trees along the wooded
@@ -686,6 +703,149 @@ Acceptance:
   phone-sized screens, including selection and placement previews.
 - Representative seeds look varied without repetitive tiling or excessive clutter.
 - Detailed biome art preserves the agreed chunk-memory and frame-time budgets.
+
+### Implementation and validation
+
+Meadows use fresh, softly mottled greens, broad low-profile grass/clover patches,
+and fuller wildflower beds with restrained cream, gold, lilac, and blush palettes.
+Flower themes follow coherent seeded patches rather than independent color picks
+per tile. The starter clearing shares the meadow's fuller grass and flowers;
+these low-profile details leave building space unobstructed and deposits visible.
+
+Wooded riverbanks use clustered rounded broadleaf canopies, reeds, sandy bank
+edges, and static water highlights. Rocky upland uses exposed flat stone,
+lichen-like patches, wiry grass, low scrub, and occasional rounded shrub clusters,
+not conifers or cacti. Ground details remain low-profile and buildable;
+existing vegetation obstacle tiles and water remain obstacles. Foreground trees become translucent
+when their canopies overlap machines, retaining their depth and obstacle rules.
+Removing a machine restores the tree's opacity without requiring camera movement.
+The upland shrub artwork replaces conifers on the same obstacle tiles without
+changing seeded terrain or saves.
+
+A coordinate-seeded visual sampler blends biome colors through a 5x5
+neighborhood and uses broad noise patches plus 256 ground-detail variations.
+Ground detailing is baked into the existing chunk textures, not allocated as
+live objects. A fixed 448 KiB visual cache, 20 shared prop textures, and a small
+reusable bitmap preview surface keep presentation resources bounded. Padded,
+overlapping ground coverage removes subpixel chunk-edge gaps. The existing
+24-chunk residency limit remains unchanged.
+
+The world suite checks four complete visual worlds in addition to the 32-seed
+generation suite: seed/traversal determinism, smooth neighboring colors,
+reciprocal shore edges, fuller-but-not-uniform meadow coverage, all six detail
+motifs, unchanged terrain/deposits, and fixed cache allocation. Desktop and
+emulated-touch checks cover construction and picking on each ground detail,
+tree/water rejection, canopy fading/removal, unclipped prop variants, opaque
+chunk edges, and deterministic texture rebuilds after eviction. Actual production
+was reviewed in all three regions. Cached offline launch, exact paused resume,
+ongoing production/autosave, and another offline reload preserve the seeded world.
+
+A local headless Chrome benchmark used 1,100 machines: 100 operating production
+chains and 700 conveyors concentrated near the starter area. It held the dense
+view, then traversed distant chunks over 300 frames. The latest desktop 1920x1080
+run measured 16.6 ms median and 23.1 ms p95 frame intervals; emulated 390x844
+touch measured 16.7 ms and 19.2 ms. Terrain-build batches peaked at 6.4 ms and
+7.8 ms respectively during that traversal. Both factories advanced on every
+eligible engine update, producing 500 ore and storing 200 plates while exploring.
+Clock checks use observed engine input time, not an assumed refresh rate.
+
+Repeated minimum-zoom traversal peaked at 21 resident chunks on desktop and nine
+in the touch layout; returning Home left three/four ground textures and the
+same fixed visual cache and 20 prop textures. The harsh desktop jump test observed
+a 16.3 ms terrain-entry batch. These are local development-browser measurements,
+not a physical-phone result or a total browser/GPU memory claim. The agreed-phone
+startup, frame-time, pan, and memory benchmark remains a release follow-up, as
+does first-time-player pacing. No weather, environmental animation, new biome
+type, raised terrain, or production penalty was added.
+
+## Approved logistics extension: Splitters and merge clarity
+
+Implemented ahead of weather as an explicitly approved scope change. A splitter
+occupies one tile and accepts one item from its rear. Its two adjacent outputs
+are straight ahead and to the right; rotating changes all three ports together.
+It has the same one-item capacity and eight-tick travel time as a conveyor,
+with no throughput bonus. Splitters are available in both scenarios under
+**Build → Logistics**, with keyboard shortcut **8**.
+
+Successful deliveries alternate the preferred output. A disconnected,
+incompatible, full, or contested preferred branch falls back to the other
+branch. When both are blocked, cargo stays inside and backpressure propagates.
+Only an actual delivery updates the preference. Transfer reservations use the
+same pre-transfer occupancy snapshot across both attempts, so fallback cannot
+double-send, overfill a receiver, or move fresh cargo through another tile.
+The inspector shows cargo, both output directions, the next preferred direction,
+and blockage; placement art shows the rear inlet and both output arrows.
+
+Existing conveyors already merge rear/side feeds using round-robin arbitration.
+Their artwork now shows actual connected inlet tracks and converging arrows,
+including a splitter's side output, rather than adding a separate joiner.
+Placement, rotation, removal, and camera re-entry refresh these junctions.
+Depots, opposing front feeds, and neighbors pointing away do not create
+false connections.
+
+### Anchored conveyor connections
+
+Choose **Conveyor**, click a start, move to preview, and click the destination
+to build. Desktop dragging remains a shortcut. On touch, tap the start and
+destination, inspect the unobstructed preview after lifting your finger, then
+confirm **Build N belts**. A single tile can be built by choosing it twice.
+Turns orient automatically along straight or L-shaped runs; **Swap bend**
+chooses the other bend. Complex connections use successive runs, not freehand
+staircases, maze pathfinding, or automatic splitter insertion.
+
+Starting from an existing belt or machine snaps to its output port. Existing
+belts, splitters, smelters, assemblers, depots, and the outpost are valid
+destinations; conveyors respect their rear/side inputs and splitters their
+rear-only input. Endpoints are never replaced or silently rotated.
+Already-connected ports are reported without adding conveyors. Any water,
+vegetation obstacle, occupied intervening cell, or invalid port is marked
+explicitly and prevents the entire route from being built. Confirmation
+revalidates the full route before any write and refuses a changed preview.
+
+There is no Draw/Pan mode or floating finger card. Small world-space endpoint
+markers and belt arrows replace it; one compact route strip holds confirmation,
+Swap bend, and Cancel. The conveyor rotate/placement strip is hidden. On touch,
+one finger drags the camera and two fingers pan/zoom; previews remain anchored
+through camera moves, wheel zoom, Home, resize, and interrupted gestures.
+Changing tools, opening Scenarios, Cancel, or leaving the page discards only
+the preview. **Select** exits construction.
+
+The toolbar **Undo** icon removes the latest route in the current session and
+recovers any cargo that entered it. It remains available after switching tools.
+It removes only the route's original conveyors, not later replacements at the
+same coordinates, and leaves existing machines and delivered stock untouched.
+Undo history and unfinished previews are not saved; placed conveyors and cargo
+use the existing save format and resume normally.
+
+Save schema 2 remains compatible with existing seeded factories that predate
+the routing field. New saves validate and retain splitter cargo, progress, and
+next-output preference; rotation retains cargo, and removal sends it to the
+recovery tray. Existing generator, recipes, unlocks, and starter layouts are
+unchanged. Filters, priorities, adjustable ratios, and extra-speed belts remain
+out of scope.
+
+Pure checks cover balanced alternation, all rotated ports, blocked/incompatible
+branches, competing primary/fallback reservations, backpressure, no extra hops,
+construction-order determinism, conservation, recovery, and repeated routing-state
+save roundtrips. Existing production, progression, persistence, and seeded-world
+suites remain regression gates.
+Native mouse/touch checks cover catalog placement, output previews, inspection,
+rotation, merge redraws, and exact paused resume on desktop, portrait phones,
+320px narrow screens, and short landscape. A production touch-built splitter
+factory preserves in-flight cargo and routing preference on a fresh cached
+offline launch, then continues balanced delivery. Four-direction artwork and
+merge regeneration after camera eviction/re-entry were checked locally;
+these checks do not replace physical-phone review.
+Connection checks additionally cover both L bends in every quadrant, rotated
+output/input ports, valid merges, obstacle marking, all-or-nothing revalidation,
+working production routes, and cargo-conserving grouped undo. Native
+mouse/multi-touch checks cover click/hover/drag, tap-to-confirm, preview-only
+state, one save per route, persistent pan/pinch previews, Swap bend, blocked
+confirmation, endpoint picking, Cancel, and compact portrait/short-screen
+controls. Production touch-built routes preserve in-flight cargo on a fresh
+cached offline launch. A new offline route can be built and undone without
+changing the resumed factory; subsequent production and autosave continue.
+Reload restores neither session-only undo history nor unfinished previews.
 
 ## Milestone 7: Atmospheric weather and environmental motion
 
@@ -864,7 +1024,7 @@ Largest uncertainties:
 ## Current state
 
 - Plan persisted.
-- Milestones 1-5 implemented at `/games/factory/`, accessible from the arcade
+- Milestones 1-6 implemented at `/games/factory/`, accessible from the arcade
   hub. The milestone 1 visual direction is approved.
 - Original vector-drawn isometric artwork and a seeded 256x256 world with real
   ore/plate transport, extraction, smelting, and storage. Free Play starts empty
@@ -894,7 +1054,9 @@ Largest uncertainties:
   The progression suite additionally covers recipes, objectives, consumed delivery
   accounting, scenario locks, recovery relocation, quotas, and actual delivery rates.
   The world suite covers 32 seeds, region/start constraints, deterministic
-  generation, chunk coverage, remote production, and seeded save restoration.
+  generation, chunk coverage, remote production, and seeded save restoration,
+  plus four full-world visual checks for detail, color/shore continuity,
+  unchanged terrain, and bounded caching.
 - Production build and desktop/mobile browser interaction checks passed,
   including native multi-touch gestures, narrow-screen layouts, and offline
   launch/reload/navigation with the production service worker. Production
@@ -907,13 +1069,17 @@ Largest uncertainties:
 - Milestone 5 adds seeded meadow/riverbank/upland regions, bounded chunked
   rendering, optional Free Play seeds, full-world navigation, and seed-aware
   persistence. Starter routes remain compact; distant factories keep producing.
-- No polished biome art, dynamic weather, power, defenses, or combat have been
+- Milestone 6 adds fuller grass/wildflower meadows, reed-lined wooded riverbanks,
+  and stone/lichen/scrub uplands with rounded shrubs. Blended ground and
+  foreground-canopy fading preserve construction clarity, bounded rendering,
+  and existing seeded-world saves.
+- No dynamic weather, power, defenses, or combat have been
   implemented. Real-device performance review and first-time-player pacing
   remain outstanding.
 - Roadmap updated: milestone 5 seeded 256x256 world and chunked rendering,
   milestone 6 biome art, milestone 7 weather, and milestone 8 livability playtesting
   precede optional defense in milestone 9. The large-world foundation is now
   implemented rather than a separate deferred expansion.
-- Next gate: authorize milestone 6's biome art and cohesive landscapes. Guided
+- Next gate: authorize milestone 7's atmospheric weather and environmental motion. Guided
   pacing and physical-device performance still need playtesting; implementation
   of each subsequent milestone and any combat work require separate approval.

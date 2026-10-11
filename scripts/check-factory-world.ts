@@ -5,10 +5,12 @@ import { HALF_WIDTH, HALF_HEIGHT, project, tileKey } from '../src/games/factory/
 import { MAX_RESIDENT_CHUNKS, visibleChunks, visibleTileBounds, WorldView } from '../src/games/factory/chunks';
 import { FactorySimulation } from '../src/games/factory/simulation';
 import { createSave, restoreSave } from '../src/games/factory/persistence';
+import { Landscape } from '../src/games/factory/landscape';
 
 assert.equal(WORLD_SIZE, 256);
 assert.equal(CHUNK_SIZE, 32);
 const fingerprints = new Set<number>();
+const visualFingerprints = new Set<number>();
 let maxGenerateMs = 0;
 for (let seed = 0; seed < 32; seed++) {
   const start = performance.now();
@@ -42,8 +44,71 @@ for (let seed = 0; seed < 32; seed++) {
   const replay = new FactoryWorld(world.seed);
   for (const tile of [{ c: 0, r: 0 }, { c: 31, r: 32 }, { c: 32, r: 31 }, { c: 127, r: 128 },
     { c: 128, r: 127 }, { c: 255, r: 255 }].reverse()) assert.deepEqual(world.at(tile), replay.at(tile));
+  if (seed < 4) {
+    const art = new Landscape(world);
+    const replayArt = new Landscape(replay);
+    assert.equal(art.byteLength, WORLD_SIZE * WORLD_SIZE * 7);
+    assert.ok(art.byteLength < 512 * 1024, 'Visual caching must remain bounded below 512 KiB');
+    const motifs = { grass: 0, flowers: 0, reeds: 0, stone: 0, scrub: 0, lichen: 0 };
+    let painted = 0;
+    let meadowCells = 0;
+    let meadowPainted = 0;
+    let starterPainted = 0;
+    let starterFlowers = 0;
+    let visualHash = 2166136261;
+    for (let r = WORLD_SIZE - 1; r >= 0; r--) for (let c = WORLD_SIZE - 1; c >= 0; c--) {
+      const tile = { c, r };
+      const before = world.at(tile);
+      const look = art.at(tile);
+      assert.deepEqual(world.at(tile), before, 'Visual sampling cannot mutate terrain or buildability');
+      assert.ok(Number.isInteger(look.color) && look.color > 0 && look.color <= 0xffffff);
+      assert.ok(Number.isInteger(look.variant) && look.variant >= 0 && look.variant < 256);
+      if (before.biome === 'meadow' && before.ground === 'land' && !before.deposit && (c >= 24 || r >= 24)) {
+        meadowCells++;
+        if (look.motif) meadowPainted++;
+      }
+      if (look.motif) {
+        motifs[look.motif]++;
+        painted++;
+        assert.equal(before.ground, 'land');
+        assert.equal(before.deposit, null, 'Ground detail cannot disguise deposits');
+      }
+      if (c < 24 && r < 24) {
+        assert.ok(look.motif === null || look.motif === 'grass' || look.motif === 'flowers');
+        if (c < 8 && r < 8) {
+          if (look.motif) starterPainted++;
+          if (look.motif === 'flowers') starterFlowers++;
+        }
+      }
+      if ((c + r * WORLD_SIZE) % 97 === 0) assert.deepEqual(look, replayArt.at(tile), 'Presentation must ignore traversal order');
+      for (const [direction, dc, dr] of [[0, 1, 0], [1, 0, 1]] as const) {
+        const other = { c: c + dc, r: r + dr };
+        if (!world.contains(other)) continue;
+        const neighbor = world.at(other);
+        const adjacentLook = art.at(other);
+        const boundary = before.ground !== neighbor.ground;
+        assert.equal(Boolean(look.shore & (1 << direction)), boundary);
+        assert.equal(Boolean(adjacentLook.shore & (1 << (direction + 2))), boundary);
+        if (before.ground === 'land' && neighbor.ground === 'land') {
+          for (const shift of [0, 8, 16]) assert.ok(Math.abs(((look.color >>> shift) & 255) -
+            ((adjacentLook.color >>> shift) & 255)) <= 24, 'Adjacent ground colors must blend without abrupt biome seams');
+        }
+      }
+      visualHash = Math.imul(visualHash ^ look.color ^ (look.shore << 24) ^ (look.variant << 16) ^
+        (look.motif ? Object.keys(motifs).indexOf(look.motif) + 1 : 0), 16777619);
+    }
+    for (const [motif, count] of Object.entries(motifs)) assert.ok(count > 100, `Missing substantial ${motif} presentation`);
+    assert.ok(meadowPainted > meadowCells * 0.6 && meadowPainted < meadowCells * 0.9,
+      'Meadows must be visibly fuller while retaining gaps between low-profile patches');
+    assert.ok(starterPainted >= 40, 'The first 64 starter tiles must have substantial meadow detail');
+    assert.ok(starterFlowers >= 8, 'The starting area must include visible wildflower patches');
+    assert.ok(painted < WORLD_SIZE * WORLD_SIZE * 0.8, 'Low-profile detailing must not cover every tile');
+    assert.equal(art.byteLength, WORLD_SIZE * WORLD_SIZE * 7, 'Exploration cannot grow visual cache allocation');
+    visualFingerprints.add(visualHash);
+  }
 }
 assert.equal(fingerprints.size, 32, 'Different seeds must generate different landscapes');
+assert.equal(visualFingerprints.size, 4, 'Representative seeds must also vary their presentation');
 assert.throws(() => new FactoryWorld(' '), /seed/);
 assert.throws(() => new FactoryWorld('x'.repeat(65)), /seed/);
 
@@ -109,4 +174,4 @@ assert.equal(FactorySimulation.forScenario('guided', 'ignored-user-seed').world.
 assert.equal(FactorySimulation.forScenario('free-play', 'chosen-user-seed').world.seed, 'chosen-user-seed');
 assert.equal(project(255, 255).y, 510 * HALF_HEIGHT);
 assert.equal(project(255, 0).x, 255 * HALF_WIDTH);
-console.log(`Factory world checks passed: 32 seeds, all regions/playable starts, deterministic boundaries, remote production/save restoration, camera coverage; max ${maxChunks} resident chunks, max generation ${maxGenerateMs.toFixed(1)}ms (local Node, not a phone benchmark).`);
+console.log(`Factory world checks passed: 32 seeds, all regions/playable starts, deterministic boundaries, remote production/save restoration, camera coverage; 4 full-world visual checks for seeded detail, color blending, shore continuity, unchanged terrain, and bounded caching; max ${maxChunks} resident chunks, max generation ${maxGenerateMs.toFixed(1)}ms (local Node, not a phone benchmark).`);

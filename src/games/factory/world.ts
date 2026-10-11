@@ -30,19 +30,19 @@ export function normalizeSeed(seed: string): string {
   return normalized;
 }
 
-function hashSeed(seed: string): number {
+export function hashSeed(seed: string): number {
   let result = 2166136261;
   for (let i = 0; i < seed.length; i++) result = Math.imul(result ^ seed.charCodeAt(i), 16777619);
   return result >>> 0;
 }
 
-function randomAt(seed: number, c: number, r: number): number {
+export function randomAt(seed: number, c: number, r: number): number {
   let value = Math.imul(c, 374761393) ^ Math.imul(r, 668265263) ^ seed;
   value = Math.imul(value ^ (value >>> 13), 1274126177);
   return ((value ^ (value >>> 16)) >>> 0) / 4294967296;
 }
 
-function noise(seed: number, c: number, r: number, scale: number): number {
+export function noise(seed: number, c: number, r: number, scale: number): number {
   const x = c / scale;
   const y = r / scale;
   const left = Math.floor(x);

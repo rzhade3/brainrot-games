@@ -1,6 +1,6 @@
 import {
-  Building, BuildingKind, createGuided, DIRECTIONS, nextDirection, OUTPOST,
-  inBounds, isBuildingKind, placementError, Scenario, terrainAt, Tile, tileKey,
+  acceptsConveyorInput, Building, BuildingKind, createGuided, DIRECTIONS, Direction, DIRECTION_NAMES, nextDirection, OUTPOST,
+  inBounds, isBuildingKind, isConveyor, outputDirections, placementError, Scenario, terrainAt, Tile, tileKey,
 } from './model';
 import { DEFAULT_WORLD, FactoryWorld, GUIDED_SEED, restoreWorld, WorldIdentity } from './world';
 
@@ -50,6 +50,7 @@ export interface MachineState {
   lastProcessed: Ore | null;
   item: Item | null;
   enteredFrom: Building['direction'];
+  nextOutput: 0 | 1;
   running: boolean;
 }
 
@@ -133,13 +134,17 @@ function saveMachine(value: unknown, world: FactoryWorld): MachineState {
     building: { ...saveTile(building), kind: building.kind, direction: saveDirection(building.direction) },
     input: saveInventory(source.input), output: saveInventory(source.output),
     progress: saveCount(source.progress), processing: saveOre(source.processing), lastProcessed: saveOre(source.lastProcessed),
-    item: null, enteredFrom: saveDirection(source.enteredFrom), running: false,
+    item: null, enteredFrom: saveDirection(source.enteredFrom), nextOutput: 0, running: false,
   };
   requireSave(source.item === null || typeof source.item === 'string' && ITEMS.some(item => item === source.item), 'unknown cargo');
   machine.item = source.item as Item | null;
   requireSave(typeof source.running === 'boolean', 'invalid machine activity');
   machine.running = source.running;
   const { kind } = machine.building;
+  // Saves made before splitters have no routing field on their existing machines.
+  const nextOutput = source.nextOutput === undefined && kind !== 'splitter' ? 0 : source.nextOutput;
+  requireSave(nextOutput === 0 || kind === 'splitter' && nextOutput === 1, 'invalid splitter routing state');
+  machine.nextOutput = nextOutput;
   const inputItems: readonly Item[] = kind === 'furnace' ? ['iron-ore', 'copper-ore']
     : kind === 'assembler' ? ['iron-plate', 'copper-plate'] : kind === 'storage' ? ITEMS : [];
   const outputItems: readonly Item[] = kind === 'miner'
@@ -152,13 +157,13 @@ function saveMachine(value: unknown, world: FactoryWorld): MachineState {
   requireSave(itemCount(machine.output) <= BUFFER_CAPACITY, 'machine output over capacity');
   requireSave(kind === 'assembler' ? machine.input['iron-plate'] <= 4 && machine.input['copper-plate'] <= 4
     : itemCount(machine.input) <= (kind === 'storage' ? DEPOT_CAPACITY : BUFFER_CAPACITY), 'machine input over capacity');
-  requireSave(kind === 'belt' || machine.item === null, 'cargo outside a conveyor');
+  requireSave(isConveyor(kind) || machine.item === null, 'cargo outside a conveyor');
   requireSave(kind === 'furnace' || machine.processing === null && machine.lastProcessed === null, 'recipe outside a smelter');
   requireSave(!machine.processing || machine.input[machine.processing] > 0, 'smelter recipe missing its input');
-  const max = kind === 'belt' ? BELT_TICKS + 1 : kind === 'miner' ? EXTRACT_TICKS
+  const max = isConveyor(kind) ? BELT_TICKS + 1 : kind === 'miner' ? EXTRACT_TICKS
     : kind === 'furnace' ? SMELT_TICKS : kind === 'assembler' ? ASSEMBLE_TICKS : 1;
   requireSave(machine.progress < max, 'invalid machine progress');
-  requireSave(kind !== 'belt' || machine.item !== null || machine.progress === 0, 'empty conveyor in progress');
+  requireSave(!isConveyor(kind) || machine.item !== null || machine.progress === 0, 'empty conveyor in progress');
   requireSave(kind !== 'furnace' || machine.processing !== null || machine.progress === 0, 'smelter missing its recipe');
   requireSave(kind !== 'assembler' || machine.progress === 0 || machine.input['iron-plate'] >= 2 && machine.input['copper-plate'] >= 1,
     'assembler missing its recipe inputs');
@@ -358,7 +363,7 @@ export class FactorySimulation {
     this.placed.set(key, copy);
     this.machines.set(key, {
       building: copy, input: inventory(), output: inventory(), progress: 0,
-      processing: null, lastProcessed: null, item: null, enteredFrom: copy.direction, running: false,
+      processing: null, lastProcessed: null, item: null, enteredFrom: copy.direction, nextOutput: 0, running: false,
     });
   }
 
@@ -436,45 +441,63 @@ export class FactorySimulation {
     const machines = [...this.machines.values()].sort((a, b) => compareTiles(a.building, b.building));
     for (const machine of machines) this.produce(machine);
 
-    const proposals = new Map<string, { source: MachineState; destination: MachineState; item: Item }[]>();
-    for (const source of machines) {
+    type Transfer = { source: MachineState; destination: MachineState; item: Item; direction: Direction; output: 0 | 1 };
+    const proposals = new Map<string, Transfer[]>();
+    const propose = (source: MachineState, output: 0 | 1) => {
       const item = this.outgoing(source);
-      if (!item) continue;
-      const destination = this.destination(source.building);
-      if (!destination || !this.accepts(destination, source.building, item)) continue;
+      if (!item) return;
+      const direction = outputDirections(source.building)[output];
+      const destination = this.destination(source.building, direction);
+      if (!destination || !this.accepts(destination, source.building, item)) return;
       const key = tileKey(destination.building);
       const group = proposals.get(key) ?? [];
-      group.push({ source, destination, item });
+      group.push({ source, destination, item, direction, output });
       proposals.set(key, group);
-    }
+    };
+    for (const source of machines) propose(source, source.building.kind === 'splitter' ? source.nextOutput : 0);
 
     // Reserve from a snapshot before moving anything: items cannot hop multiple
     // tiles in a tick, or enter a slot only because its occupant just left.
-    const accepted: { source: MachineState; destination: MachineState; item: Item }[] = [];
-    for (const [key, group] of proposals) {
-      const last = this.lastSource.get(key);
-      const start = last ? group.findIndex(proposal => compareTiles(proposal.source.building, last) > 0) : 0;
-      const ordered = start > 0 ? [...group.slice(start), ...group.slice(0, start)] : group;
-      const reserved = inventory();
-      for (const proposal of ordered) {
-        const used = proposal.destination.building.kind === 'assembler' ? reserved[proposal.item] : itemCount(reserved);
-        if (used >= this.freeSlots(proposal.destination, proposal.item)) continue;
-        accepted.push(proposal);
-        reserved[proposal.item]++;
-        this.lastSource.set(key, { c: proposal.source.building.c, r: proposal.source.building.r });
+    const accepted: Transfer[] = [];
+    const sent = new Set<MachineState>();
+    const reservations = new Map<string, Inventory>();
+    const reserve = () => {
+      for (const [key, group] of proposals) {
+        const last = this.lastSource.get(key);
+        const start = last ? group.findIndex(proposal => compareTiles(proposal.source.building, last) > 0) : 0;
+        const ordered = start > 0 ? [...group.slice(start), ...group.slice(0, start)] : group;
+        const reserved = reservations.get(key) ?? inventory();
+        reservations.set(key, reserved);
+        for (const proposal of ordered) {
+          const used = proposal.destination.building.kind === 'assembler' ? reserved[proposal.item] : itemCount(reserved);
+          if (used >= this.freeSlots(proposal.destination, proposal.item)) continue;
+          accepted.push(proposal);
+          sent.add(proposal.source);
+          reserved[proposal.item]++;
+          this.lastSource.set(key, { c: proposal.source.building.c, r: proposal.source.building.r });
+        }
       }
+    };
+    reserve();
+    // A splitter that lost its preferred slot may use its other branch, without
+    // double-sending or reusing a slot reserved by the first pass.
+    proposals.clear();
+    for (const source of machines) {
+      if (source.building.kind === 'splitter' && !sent.has(source)) propose(source, source.nextOutput === 0 ? 1 : 0);
     }
-    for (const { source, destination, item } of accepted) {
-      if (source.building.kind === 'belt') {
+    reserve();
+    for (const { source, destination, item, direction, output } of accepted) {
+      if (isConveyor(source.building.kind)) {
         source.item = null;
         source.progress = 0;
+        if (source.building.kind === 'splitter') source.nextOutput = output === 0 ? 1 : 0;
       } else {
         source.output[item]--;
       }
-      if (destination.building.kind === 'belt') {
+      if (isConveyor(destination.building.kind)) {
         destination.item = item;
         destination.progress = 0;
-        destination.enteredFrom = source.building.direction;
+        destination.enteredFrom = direction;
       } else if (destination.building.kind === 'outpost') {
         this.delivered[item]++;
         this.deliveryTicks.push(this.ticks);
@@ -538,26 +561,27 @@ export class FactorySimulation {
         this.assembled['defense-supply']++;
         machine.progress = 0;
       }
-    } else if (kind === 'belt' && machine.item) {
+    } else if (isConveyor(kind) && machine.item) {
       machine.progress = Math.min(BELT_TICKS, machine.progress + 1);
       machine.running = machine.progress < BELT_TICKS;
     }
   }
 
-  private destination(building: Building): MachineState | null {
-    const vector = DIRECTIONS[building.direction];
+  private destination(building: Building, direction = building.direction): MachineState | null {
+    const vector = DIRECTIONS[direction];
     return this.machines.get(tileKey({ c: building.c + vector.c, r: building.r + vector.r })) ?? null;
   }
 
   private outgoing(machine: MachineState): Item | null {
     if (machine.building.kind === 'storage' || machine.building.kind === 'outpost') return null;
-    if (machine.building.kind === 'belt') return machine.progress >= BELT_TICKS ? machine.item : null;
+    if (isConveyor(machine.building.kind)) return machine.progress >= BELT_TICKS ? machine.item : null;
     return firstItem(machine.output);
   }
 
   private freeSlots(machine: MachineState, item: Item | null = null): number {
     switch (machine.building.kind) {
-      case 'belt': return machine.item ? 0 : 1;
+      case 'belt':
+      case 'splitter': return machine.item ? 0 : 1;
       case 'furnace': return BUFFER_CAPACITY - itemCount(machine.input);
       case 'storage': return DEPOT_CAPACITY - itemCount(machine.input);
       case 'miner': return 0;
@@ -574,15 +598,12 @@ export class FactorySimulation {
     if (machine.building.kind === 'furnace') return isOre(item);
     if (machine.building.kind === 'assembler') return item === 'iron-plate' || item === 'copper-plate';
     if (machine.building.kind === 'outpost') return this.stage < ORDERS.length && item === ORDERS[this.stage].item;
-    if (machine.building.kind === 'belt') {
-      const front = DIRECTIONS[machine.building.direction];
-      return source.c !== machine.building.c + front.c || source.r !== machine.building.r + front.r;
-    }
+    if (isConveyor(machine.building.kind)) return acceptsConveyorInput(machine.building, source);
     return true;
   }
 
-  private blockage(machine: MachineState, item: Item | null): string | null {
-    const target = this.destination(machine.building);
+  private blockage(machine: MachineState, item: Item | null, direction = machine.building.direction): string | null {
+    const target = this.destination(machine.building, direction);
     if (!target) return 'Output disconnected';
     if (target.building.kind === 'outpost') {
       if (this.stage === ORDERS.length) return 'Order complete; items retained';
@@ -601,6 +622,17 @@ export class FactorySimulation {
       case 'belt':
         if (!machine.item) return 'Waiting for items';
         return machine.progress < BELT_TICKS ? 'Transporting' : this.blockage(machine, machine.item) ?? 'Ready to transfer';
+      case 'splitter': {
+        if (!machine.item) return 'Waiting for rear input';
+        if (machine.progress < BELT_TICKS) return 'Transporting';
+        const directions = outputDirections(machine.building);
+        const preferred = directions[machine.nextOutput];
+        const alternate = directions[machine.nextOutput === 0 ? 1 : 0];
+        const blocked = this.blockage(machine, machine.item, preferred);
+        const fallback = this.blockage(machine, machine.item, alternate);
+        return !blocked ? `Ready to route ${DIRECTION_NAMES[preferred]}`
+          : !fallback ? `Ready to route ${DIRECTION_NAMES[alternate]}` : `Both outputs blocked: ${blocked}; ${fallback}`;
+      }
       case 'miner':
         return itemCount(machine.output) >= BUFFER_CAPACITY
           ? this.blockage(machine, firstItem(machine.output)) ?? 'Output full' : 'Extracting';

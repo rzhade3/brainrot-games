@@ -1,4 +1,4 @@
-import { Building, BuildingKind, BuildableKind, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isTool, NAMES, Scenario, Tool } from './model';
+import { Building, BuildingKind, BuildableKind, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isConveyor, isTool, NAMES, outputDirections, Scenario, Tool } from './model';
 import { DEFAULT_WORLD, FactoryWorld } from './world';
 import {
   ASSEMBLE_TICKS, BELT_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, EXTRACT_TICKS, FactorySummary,
@@ -6,11 +6,12 @@ import {
 } from './simulation';
 
 export type Action = Tool | 'remove' | 'recover' | 'rotate' | 'zoom-in' | 'zoom-out' | 'home' | 'pause' | 'close'
-  | 'focus-copper' | 'focus-iron' | 'focus-outpost';
+  | 'focus-copper' | 'focus-iron' | 'focus-outpost' | 'build-route' | 'swap-bend' | 'cancel-route' | 'undo-trail';
 
 const ICONS: Record<BuildingKind | 'inspect' | 'remove', string> = {
   inspect: '<path d="m5 3 13 10-6 1-3 6z"/>',
   belt: '<path d="m3 8 9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/><path d="m8 8 4 2 4-2"/>',
+  splitter: '<path d="m3 8 9-5 9 5v8l-9 5-9-5zM3 8l9 5 9-5M12 13v8"/><path d="m7 10 5 3 5-3M12 13V7m-2 2 2-2 2 2"/>',
   miner: '<path d="m4 9 8-5 8 5-8 5zM4 9v9l8 4 8-4V9M12 14v8M12 4V1"/><path d="m8 17 4 2"/>',
   furnace: '<path d="m4 10 8-4 8 4v9l-8 4-8-4zM4 10l8 4 8-4M12 14v9M14 7V2h4v7"/><path d="m7 14 2 1v4l-2-1z"/>',
   storage: '<path d="m3 8 9-5 9 5v10l-9 5-9-5zM3 8l9 5 9-5M12 13v10M7 10l9-5"/>',
@@ -34,6 +35,7 @@ const CATALOG: { kind: BuildableKind; category: Exclude<Category, 'all'>; note: 
   { kind: 'miner', category: 'production', note: `${EXTRACT_TICKS * STEP_MS / 1000}s / ore · place on deposits`, shortcut: '3' },
   { kind: 'furnace', category: 'production', note: `Ore to plates · ${SMELT_TICKS * STEP_MS / 1000}s / plate`, shortcut: '4' },
   { kind: 'belt', category: 'logistics', note: `Directional transport · ${BELT_TICKS * STEP_MS / 1000}s / tile`, shortcut: '2' },
+  { kind: 'splitter', category: 'logistics', note: 'Rear input · alternating straight / right outputs', shortcut: '8' },
   { kind: 'storage', category: 'storage', note: `Receives and holds ${DEPOT_CAPACITY} items`, shortcut: '5' },
   { kind: 'assembler', category: 'production', note: '2 iron + 1 copper → defense supply · 2s', shortcut: '7' },
 ];
@@ -48,6 +50,7 @@ export class FactoryHud {
   onScenarioDialog: (open: boolean) => void = () => {};
   private status: HTMLElement;
   private inspector: HTMLElement;
+  private inspectedBuilding: Building | null = null;
   private zoom: HTMLElement;
   private buildButton: HTMLButtonElement;
   private catalog: HTMLElement;
@@ -61,12 +64,18 @@ export class FactoryHud {
   private pendingScenario: Scenario | null = null;
   private objectiveState: ObjectiveSummary | null = null;
   private recoveredCount = 0;
+  private recoveredText = 'Empty';
   private savedScenario: Scenario | null = null;
   private loadMessage = 'Reading local save...';
   private loadBlocked = true;
   private existingSave = false;
   private scenarioBusy = false;
   private seed = '';
+  private saveText = 'Reading local save...';
+  private saveError = false;
+  private saveRetry = false;
+  private offlineText = 'Offline cache: checking...';
+  private worldText = '';
   private statusTimer: ReturnType<typeof setTimeout> | null = null;
   private desktopLayout = window.matchMedia('(min-width: 1000px) and (min-height: 561px)');
 
@@ -80,10 +89,6 @@ export class FactoryHud {
         <button class="factory-scenario-button" data-command="scenarios" aria-label="Choose scenario">Scenarios</button>
       </header>
       <aside class="factory-intro"><span class="factory-overline">FIELD NOTES</span><h2>A little industry.<br>A lot of possibility.</h2></aside>
-      <details class="factory-totals" aria-label="Factory inventory">
-        <summary><span>Depot stock</span><span>Iron <output id="factory-iron" aria-label="Iron plates stored">0</output></span><span>Copper <output id="factory-copper" aria-label="Copper plates stored">0</output></span></summary>
-        <details class="factory-recovery"><summary>Recovery tray <output id="factory-recovered" aria-label="Recovered items">0</output></summary><p id="factory-recovery-items">Empty</p><small>Transfer to a depot from its inspector. Depots store items; they do not output or deliver them.</small></details>
-      </details>
       <details class="factory-objective" hidden>
         <summary><span class="factory-overline" id="factory-objective-stage">GUIDED RUN</span><strong id="factory-objective-title"></strong><span class="factory-objective-count" id="factory-objective-count" aria-live="polite"></span><span class="factory-details-toggle" aria-hidden="true">+</span></summary>
         <div class="factory-objective-body">
@@ -120,16 +125,20 @@ export class FactoryHud {
           <button data-action="rotate" aria-label="Rotate placement clockwise" title="Rotate placement (R)">${ROTATE_ICON}<span>Rotate</span></button>
           <button data-action="inspect" aria-label="Cancel placement" title="Cancel placement (Esc)">&times;</button>
         </div>
+        <div class="factory-route-controls" aria-label="Conveyor connection" hidden>
+          <span id="factory-route-label" role="status">Choose a start</span>
+          <button data-action="build-route" hidden>Build</button>
+          <button data-action="swap-bend" hidden title="Use the other L-shaped bend">Swap bend</button>
+          <button data-action="cancel-route" aria-label="Cancel conveyor route" title="Cancel route">&times;</button>
+        </div>
         <div class="factory-status" hidden><span class="factory-status-dot"></span><span id="factory-status" role="status"></span></div>
+        <div class="factory-save-warning" hidden><span id="factory-save-warning" role="alert"></span><button data-command="retry-save" hidden>Retry save</button></div>
         <nav class="factory-toolbar" aria-label="Construction tools">
           <button data-action="inspect" aria-label="Select" aria-pressed="true" title="Select (1)">${icon('inspect')}<span>Select</span><kbd>1</kbd></button>
           <button data-command="open-catalog" aria-label="Build" aria-pressed="false" aria-expanded="false" aria-controls="factory-catalog" aria-haspopup="dialog" title="Open construction catalog">${BUILD_ICON}<span>Build <span class="factory-build-chevron" aria-hidden="true">&#8963;</span></span></button>
+          <button data-action="undo-trail" aria-label="Undo last conveyor route" title="Undo last route; cargo goes to the recovery tray." disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m9 4-6 6 6 6M3 10h11a6 6 0 0 1 0 12"/></svg></button>
           <button data-action="pause" aria-label="Pause factory" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg><span id="factory-run-state">Pause</span></button>
         </nav>
-        <details class="factory-save-status" aria-label="Local save, offline status, and controls">
-          <summary><span id="factory-save-summary">Loading save...</span><span aria-hidden="true">&middot;</span><span id="factory-offline-summary">Checking cache...</span></summary>
-          <div class="factory-save-body"><span id="factory-save-state" role="status">Reading local save...</span><button data-command="retry-save" hidden>Retry save</button><span id="factory-offline-state">Offline cache: checking...</span><span id="factory-world-info"></span><p>Drag to pan. Pinch or scroll to zoom. Home returns to your starting site. R rotates; Esc cancels.</p><p>One local save on this browser. No production while closed.</p></div>
-        </details>
       </footer>`;
     document.body.appendChild(this.root);
     this.status = this.root.querySelector<HTMLElement>('#factory-status')!;
@@ -152,6 +161,8 @@ export class FactoryHud {
     const updateFooterBounds = () => {
       this.root.style.setProperty('--factory-footer-height', `${window.innerHeight - footer.getBoundingClientRect().top}px`);
       const controlsTop = Math.min(this.root.querySelector<HTMLElement>('.factory-toolbar')!.getBoundingClientRect().top,
+        this.root.querySelector<HTMLElement>('.factory-save-warning')!.hidden ? Infinity : this.root.querySelector<HTMLElement>('.factory-save-warning')!.getBoundingClientRect().top,
+        this.root.querySelector<HTMLElement>('.factory-route-controls')!.hidden ? Infinity : this.root.querySelector<HTMLElement>('.factory-route-controls')!.getBoundingClientRect().top,
         this.status.parentElement!.hidden ? Infinity : this.status.parentElement!.getBoundingClientRect().top,
         this.placement.hidden ? Infinity : this.placement.getBoundingClientRect().top);
       this.root.style.setProperty('--factory-controls-height', `${window.innerHeight - controlsTop}px`);
@@ -222,7 +233,8 @@ export class FactoryHud {
       const button = target instanceof HTMLButtonElement ? target : null;
       const action = button?.dataset.action;
       if (action && (isTool(action) || action === 'remove' || action === 'recover' || action === 'rotate' || action === 'zoom-in' || action === 'zoom-out' ||
-          action === 'home' || action === 'pause' || action === 'close' || action === 'focus-copper' || action === 'focus-iron' || action === 'focus-outpost')) {
+          action === 'home' || action === 'pause' || action === 'close' || action === 'focus-copper' || action === 'focus-iron' || action === 'focus-outpost' ||
+          action === 'build-route' || action === 'swap-bend' || action === 'cancel-route' || action === 'undo-trail')) {
         const fromCatalog = this.catalog.contains(button);
         this.closeCatalog(false);
         if (!this.desktopLayout.matches && (action === 'focus-copper' || action === 'focus-iron' || action === 'focus-outpost')) {
@@ -291,27 +303,44 @@ export class FactoryHud {
   }
 
   setSaveStatus(text: string, error = false, retry = true): void {
-    const state = this.root.querySelector<HTMLElement>('#factory-save-state')!;
-    state.textContent = text;
-    state.setAttribute('role', error ? 'alert' : 'status');
-    const details = this.root.querySelector<HTMLDetailsElement>('.factory-save-status')!;
-    details.classList.toggle('factory-save-error', error);
-    if (error) details.open = true;
-    this.root.querySelector<HTMLElement>('#factory-save-summary')!.textContent = error ? 'Save failed'
-      : text.startsWith('Saving') ? 'Saving...' : text.startsWith('Load failed') ? 'Load failed'
-      : text.startsWith('Saved') ? 'Saved' : text.startsWith('Autosave') ? 'Autosave on' : 'Local save';
-    this.root.querySelector<HTMLButtonElement>('[data-command="retry-save"]')!.hidden = !error || !retry;
+    this.saveText = text;
+    this.saveError = error;
+    this.saveRetry = error && retry;
+    const warning = this.root.querySelector<HTMLElement>('.factory-save-warning')!;
+    warning.hidden = !error;
+    this.root.querySelector<HTMLElement>('#factory-save-warning')!.textContent = error ? text : '';
+    this.updateSaveDetails();
   }
 
   setOfflineStatus(text: string): void {
-    this.root.querySelector<HTMLElement>('#factory-offline-state')!.textContent = text;
-    this.root.querySelector<HTMLElement>('#factory-offline-summary')!.textContent =
-      text.startsWith('Offline ready') ? 'Offline ready' : text.includes('production build only') ? 'Dev mode'
-      : text.includes('failed') ? 'Cache failed' : text.includes('unavailable') ? 'Online only' : 'Caching...';
+    this.offlineText = text;
+    this.updateSaveDetails();
   }
 
   setWorld(world: FactoryWorld): void {
-    this.root.querySelector<HTMLElement>('#factory-world-info')!.textContent = `World ${world.size} x ${world.size} · Seed: ${world.seed}`;
+    this.worldText = `World ${world.size} x ${world.size} · Seed: ${world.seed}`;
+    this.updateSaveDetails();
+  }
+
+  private updateSaveDetails(): void {
+    const state = this.scenarioDialog.querySelector<HTMLElement>('#factory-save-state');
+    if (state) {
+      state.textContent = this.saveText;
+      state.classList.toggle('factory-save-error', this.saveError);
+    }
+    const offline = this.scenarioDialog.querySelector<HTMLElement>('#factory-offline-state');
+    if (offline) offline.textContent = this.offlineText;
+    const world = this.scenarioDialog.querySelector<HTMLElement>('#factory-world-info');
+    if (world) {
+      world.textContent = this.worldText;
+      world.hidden = !this.worldText;
+    }
+    const details = this.scenarioDialog.querySelector<HTMLDetailsElement>('.factory-save-details');
+    if (details && this.saveError) details.open = true;
+    for (const button of this.root.querySelectorAll<HTMLButtonElement>('[data-command="retry-save"]')) {
+      button.hidden = !this.saveRetry;
+      button.disabled = this.scenarioBusy;
+    }
   }
 
   private renderScenarioDialog(confirm: boolean): void {
@@ -327,7 +356,7 @@ export class FactoryHud {
       </div>
       <label class="factory-seed-label" for="factory-world-seed">Free Play seed <span>(optional)</span></label>
       <input id="factory-world-seed" class="factory-seed-input" type="text" maxlength="64" placeholder="Random world" autocomplete="off" spellcheck="false" ${this.loadBlocked ? 'disabled' : ''}>
-      <p class="factory-dialog-note">Free construction. Local autosave. No combat yet.</p>
+      <p class="factory-dialog-note">Free construction. No combat yet.</p>
       ${this.scenario ? '<button data-command="cancel-scenario">Back to current factory</button>' : ''}`;
     const message = document.createElement('p');
     message.className = 'factory-load-message';
@@ -345,6 +374,11 @@ export class FactoryHud {
       retry.textContent = 'Retry loading save';
       this.scenarioDialog.appendChild(retry);
     }
+    const details = document.createElement('details');
+    details.className = 'factory-save-details';
+    details.innerHTML = `<summary>Save &amp; offline</summary><div class="factory-save-body"><span id="factory-save-state" role="status"></span><button data-command="retry-save" hidden>Retry save</button><span id="factory-offline-state"></span><span id="factory-world-info"></span><p>Autosaved in this browser. No production while closed.</p></div>`;
+    this.scenarioDialog.appendChild(details);
+    this.updateSaveDetails();
     for (const button of this.scenarioDialog.querySelectorAll<HTMLButtonElement>('button')) {
       if (this.scenarioBusy) button.disabled = true;
     }
@@ -378,7 +412,6 @@ export class FactoryHud {
 
   private openCatalog(): void {
     this.onAction('inspect');
-    this.root.querySelector<HTMLDetailsElement>('.factory-recovery')!.open = false;
     this.catalog.hidden = false;
     this.scrim.hidden = false;
     this.buildButton.setAttribute('aria-expanded', 'true');
@@ -415,10 +448,13 @@ export class FactoryHud {
     }
     const building = isBuildingKind(tool);
     this.buildButton.setAttribute('aria-pressed', String(building));
-    this.placement.hidden = !building;
+    this.placement.hidden = !building || tool === 'belt';
+    this.root.querySelector<HTMLElement>('.factory-route-controls')!.hidden = tool !== 'belt';
     if (building) {
       this.root.querySelector<HTMLElement>('#factory-placement-machine')!.innerHTML =
-        `${icon(tool)}<div><span class="factory-overline">PLACING ${NAMES[tool].toUpperCase()}</span><strong>Output faces ${DIRECTION_NAMES[direction]}</strong></div>`;
+        `${icon(tool)}<div><span class="factory-overline">PLACING ${NAMES[tool].toUpperCase()}</span><strong>${tool === 'splitter'
+          ? `Outputs ${outputDirections({ c: 0, r: 0, kind: tool, direction }).map(output => DIRECTION_NAMES[output]).join(' / ')}`
+          : `Output faces ${DIRECTION_NAMES[direction]}`}</strong></div>`;
     }
   }
 
@@ -433,12 +469,42 @@ export class FactoryHud {
     }, 4500);
   }
 
+  setUndo(undoCount: number): void {
+    const undo = this.root.querySelector<HTMLButtonElement>('[data-action="undo-trail"]')!;
+    undo.disabled = !undoCount;
+    undo.setAttribute('aria-label', `Undo last conveyor route${undoCount ? ` (${undoCount} belts)` : ''}`);
+  }
+
+  setRouteControls(state: {
+    enabled: boolean; anchored: boolean; ready: boolean; mobile: boolean;
+    count: number; canSwap: boolean; error: string | null;
+  }): void {
+    const controls = this.root.querySelector<HTMLElement>('.factory-route-controls')!;
+    controls.hidden = !state.enabled;
+    controls.classList.toggle('invalid', !!state.error && state.error !== 'Already connected');
+    const label = controls.querySelector<HTMLElement>('#factory-route-label')!;
+    label.textContent = state.error ?? (!state.anchored ? 'Choose a start' : !state.ready && state.mobile
+      ? 'Tap destination' : !state.count ? 'Choose destination' : state.mobile ? `${state.count} belts`
+        : `${state.count} belts · click to connect`);
+    const build = controls.querySelector<HTMLButtonElement>('[data-action="build-route"]')!;
+    build.hidden = !state.mobile || !state.ready || !!state.error;
+    build.disabled = !!state.error || !state.count;
+    build.textContent = `Build ${state.count} belts`;
+    if (!build.hidden && !state.error) label.textContent = '';
+    label.hidden = !label.textContent;
+    controls.querySelector<HTMLButtonElement>('[data-action="swap-bend"]')!.hidden = !state.canSwap;
+    controls.querySelector<HTMLButtonElement>('[data-action="cancel-route"]')!.hidden = !state.anchored;
+  }
+
   setZoom(value: number): void {
     this.zoom.textContent = `${Math.round(value * 100)}%`;
   }
 
   inspect(building: Building | null): void {
     const focusInInspector = this.inspector.contains(document.activeElement);
+    const recoveryOpen = this.inspectedBuilding === building &&
+      (this.inspector.querySelector<HTMLDetailsElement>('.factory-depot-recovery')?.open ?? false);
+    this.inspectedBuilding = building;
     this.inspector.hidden = !building;
     this.root.classList.toggle('has-selection', !!building);
     if (!building) {
@@ -447,20 +513,27 @@ export class FactoryHud {
     }
     const focused = document.activeElement instanceof HTMLButtonElement && this.inspector.contains(document.activeElement)
       ? document.activeElement.dataset.action : null;
-    this.root.querySelector<HTMLDetailsElement>('.factory-recovery')!.open = false;
     this.inspector.innerHTML = `
       <button class="factory-inspector-close" data-action="close" aria-label="Close inspector">&times;</button>
       <span class="factory-overline">${building.c}, ${building.r}</span>
       <div class="factory-inspector-title">${icon(building.kind)}<h2>${NAMES[building.kind]}</h2></div>
       <dl>
-        ${building.kind === 'outpost' ? '<div><dt>Position</dt><dd>Fixed receiver</dd></div>' : `<div><dt>${building.kind === 'storage' ? 'Orientation' : 'Output faces'}</dt><dd>${DIRECTION_NAMES[building.direction]}</dd></div>`}
+        ${building.kind === 'outpost' ? '<div><dt>Position</dt><dd>Fixed receiver</dd></div>' : `<div><dt>${building.kind === 'splitter' ? 'Outputs' : building.kind === 'storage' ? 'Orientation' : 'Output faces'}</dt><dd>${outputDirections(building).length > 1
+          ? outputDirections(building).map(direction => DIRECTION_NAMES[direction]).join(' / ') : DIRECTION_NAMES[building.direction]}</dd></div>`}
+        ${building.kind === 'splitter' ? '<div><dt>Next preferred</dt><dd id="factory-next-output"></dd></div>' : ''}
         <div><dt>State</dt><dd id="factory-machine-state"></dd></div>
-        <div><dt>${building.kind === 'storage' ? 'Stored' : building.kind === 'belt' ? 'Cargo' : 'Input'}</dt><dd id="factory-machine-input"></dd></div>
+        <div><dt>${building.kind === 'storage' ? 'Stored' : isConveyor(building.kind) ? 'Cargo' : 'Input'}</dt><dd id="factory-machine-input"></dd></div>
         ${building.kind === 'miner' || building.kind === 'furnace' || building.kind === 'assembler' ? '<div><dt>Output</dt><dd id="factory-machine-output"></dd></div>' : ''}
       </dl>
       <div class="factory-progress-label"><span id="factory-progress-label"></span><span id="factory-progress-value"></span></div>
       <div class="factory-progress" role="progressbar" aria-label="Machine progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
-      ${building.kind === 'storage' ? '<button class="factory-recover-button" data-action="recover">Collect recovered items</button><p class="factory-recover-reason"></p>' : ''}
+      ${building.kind === 'storage' ? `<details class="factory-depot-recovery" hidden ${recoveryOpen ? 'open' : ''}>
+        <summary>Recovered items <output aria-label="Items available to recover"></output></summary>
+        <p class="factory-recovered-items"></p>
+        <small>Kept safely when buildings are removed or routes undone.</small>
+        <button class="factory-recover-button" data-action="recover">Store items here</button>
+        <p class="factory-recover-reason"></p>
+      </details>` : ''}
       ${building.kind === 'outpost' ? '' : `<div class="factory-inspector-actions">
         <button class="factory-inspector-rotate" data-action="rotate" aria-label="Rotate selected building clockwise" title="Rotate selected building (R)">${ROTATE_ICON}<span>Rotate</span><kbd>R</kbd></button>
         <button class="factory-inspector-remove" data-action="remove" aria-label="Remove selected building" title="Remove this building. Its items go to the recovery tray.">${icon('remove')}<span>Remove</span></button>
@@ -477,12 +550,14 @@ export class FactoryHud {
     state.textContent = paused ? 'Paused' : status;
     state.classList.toggle('factory-machine-blocked', /blocked|full|disconnected|incompatible/i.test(status));
     const input = this.inspector.querySelector<HTMLElement>('#factory-machine-input')!;
-    input.textContent = kind === 'belt' ? machine.item ? `1/1 · ${ITEM_NAMES[machine.item]}` : '0/1 · Empty'
+    input.textContent = isConveyor(kind) ? machine.item ? `1/1 · ${ITEM_NAMES[machine.item]}` : '0/1 · Empty'
       : `${itemCount(machine.input)}/${kind === 'storage' ? DEPOT_CAPACITY : BUFFER_CAPACITY} · ${inventoryText(machine.input)}`;
     const output = this.inspector.querySelector<HTMLElement>('#factory-machine-output');
     if (output) output.textContent = `${itemCount(machine.output)}/${BUFFER_CAPACITY} · ${inventoryText(machine.output)}`;
     if (kind === 'miner') input.textContent = `${world.at(machine.building).deposit === 'copper' ? 'Copper' : 'Iron'} deposit`;
     if (kind === 'assembler') input.textContent = `Iron ${machine.input['iron-plate']}/4 · Copper ${machine.input['copper-plate']}/4`;
+    if (kind === 'splitter') this.inspector.querySelector<HTMLElement>('#factory-next-output')!.textContent =
+      DIRECTION_NAMES[outputDirections(machine.building)[machine.nextOutput]];
     if (kind === 'outpost') input.textContent = this.objectiveState
       ? `${this.objectiveState.accepted}/${this.objectiveState.quantity} ${ITEM_NAMES[this.objectiveState.item].toLowerCase()} delivered`
       : 'No active order';
@@ -492,15 +567,26 @@ export class FactoryHud {
     const percent = Math.round(progress * 100);
     this.inspector.querySelector<HTMLElement>('#factory-progress-label')!.textContent =
       kind === 'storage' ? 'Capacity used' : kind === 'outpost' ? 'Order delivered' : kind === 'assembler' ? 'Assembly cycle'
-      : kind === 'belt' ? 'Belt travel' : kind === 'miner' ? 'Extraction cycle' : 'Smelting cycle';
+      : isConveyor(kind) ? 'Belt travel' : kind === 'miner' ? 'Extraction cycle' : 'Smelting cycle';
     this.inspector.querySelector<HTMLElement>('#factory-progress-value')!.textContent = `${percent}%`;
     this.inspector.querySelector<HTMLElement>('.factory-progress')!.setAttribute('aria-valuenow', String(percent));
     this.inspector.querySelector<HTMLElement>('.factory-progress > span')!.style.width = `${percent}%`;
     if (kind === 'storage') {
-      const reason = itemCount(machine.input) >= DEPOT_CAPACITY ? 'Depot full; overflow stays in the recovery tray.'
-        : !this.recoveredCount ? 'Recovery tray empty.' : 'Stores recovered stock only; depots have no output.';
+      const recovery = this.inspector.querySelector<HTMLDetailsElement>('.factory-depot-recovery')!;
+      if (!this.recoveredCount && recovery.contains(document.activeElement)) {
+        this.inspector.querySelector<HTMLButtonElement>('.factory-inspector-close')!.focus({ preventScroll: true });
+      }
+      recovery.hidden = !this.recoveredCount;
+      if (!this.recoveredCount) recovery.open = false;
+      recovery.querySelector<HTMLOutputElement>('output')!.textContent = String(this.recoveredCount);
+      recovery.querySelector<HTMLElement>('.factory-recovered-items')!.textContent = this.recoveredText;
+      const slots = DEPOT_CAPACITY - itemCount(machine.input);
+      const count = Math.min(slots, this.recoveredCount);
+      const reason = !slots ? 'Depot full. Recovered items remain safely stored.'
+        : 'Storage only: depots cannot feed machines or fulfill orders.';
       const recover = this.inspector.querySelector<HTMLButtonElement>('[data-action="recover"]')!;
-      recover.disabled = itemCount(machine.input) >= DEPOT_CAPACITY || !this.recoveredCount;
+      recover.disabled = !count;
+      recover.textContent = count ? `Store ${count} ${count === 1 ? 'item' : 'items'} here` : 'Depot full';
       recover.title = reason;
       this.inspector.querySelector<HTMLElement>('.factory-recover-reason')!.textContent = reason;
     }
@@ -508,10 +594,7 @@ export class FactoryHud {
 
   setSummary(summary: FactorySummary): void {
     this.recoveredCount = itemCount(summary.recovered);
-    this.root.querySelector<HTMLElement>('#factory-iron')!.textContent = String(summary.stored['iron-plate']);
-    this.root.querySelector<HTMLElement>('#factory-copper')!.textContent = String(summary.stored['copper-plate']);
-    this.root.querySelector<HTMLElement>('#factory-recovered')!.textContent = String(itemCount(summary.recovered));
-    this.root.querySelector<HTMLElement>('#factory-recovery-items')!.textContent = inventoryText(summary.recovered);
+    this.recoveredText = inventoryText(summary.recovered);
     this.setObjective(summary.objective);
     for (const button of this.root.querySelectorAll<HTMLButtonElement>('.factory-building-card[data-action="assembler"]')) {
       button.disabled = !!summary.objective && !summary.objective.assemblerUnlocked;
@@ -524,9 +607,6 @@ export class FactoryHud {
     const previous = this.objectiveState;
     this.objectiveState = objective;
     const details = this.root.querySelector<HTMLDetailsElement>('.factory-objective')!;
-    const totals = this.root.querySelector<HTMLElement>('.factory-totals')!;
-    const totalsParent = objective ? this.root.querySelector<HTMLElement>('.factory-objective-body')! : this.root;
-    if (totals.parentElement !== totalsParent) totalsParent.appendChild(totals);
     details.hidden = !objective;
     this.root.classList.toggle('factory-guided', !!objective);
     if (!objective) return;
@@ -548,7 +628,7 @@ export class FactoryHud {
       this.root.querySelector<HTMLElement>('.factory-guide-actions')!.hidden = objective.complete;
     }
     const count = this.root.querySelector<HTMLElement>('#factory-objective-count')!;
-    const countText = `${objective.accepted} / ${objective.quantity} ${ITEM_NAMES[objective.item].toLowerCase()}${this.recoveredCount ? ` · ${this.recoveredCount} recovered` : ''}`;
+    const countText = `${objective.accepted} / ${objective.quantity} ${ITEM_NAMES[objective.item].toLowerCase()}`;
     if (count.textContent !== countText) count.textContent = countText;
     this.root.querySelector<HTMLElement>('#factory-objective-rate')!.textContent =
       `${objective.rate.toFixed(1)}/min · ${objective.windowSeconds < 30 ? `first ${objective.windowSeconds.toFixed(1)}s` : 'last 30s'}${objective.complete ? ' · final rate' : ''}`;

@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import {
-  Building, Direction, DIRECTIONS, HALF_HEIGHT, HALF_WIDTH, Point, project, variation,
+  Building, conveyorInputs, Direction, DIRECTIONS, HALF_HEIGHT, HALF_WIDTH, nextDirection, Point, project, variation,
 } from './model';
 import { Item } from './simulation';
+import type { Biome } from './world';
 
 type Graphics = Phaser.GameObjects.Graphics;
 
@@ -38,16 +39,35 @@ function line(g: Graphics, a: Point, b: Point, color: number, width = 1, alpha =
   g.lineBetween(a.x, a.y, b.x, b.y);
 }
 
-export function drawTree(g: Graphics, x: number, y: number, c: number, r: number): void {
+export function drawTree(g: Graphics, x: number, y: number, c: number, r: number, biome: Biome = 'upland'): void {
   g.fillStyle(0x314f40, 0.14).fillEllipse(x + 9, y + 4, 44, 15);
-  prism(g, x, y, 3, 1.5, 22, 0xa18f6b, 0x776d55, 0x615e4b);
-  const h = 27 + variation(c, r) * 13;
-  for (let tier = 0; tier < 3; tier++) {
-    const baseY = y - 12 - tier * 11;
-    const w = 22 - tier * 4;
-    polygon(g, [{ x: x - w, y: baseY }, { x, y: baseY - h }, { x: x + w, y: baseY }], 0x54765c);
-    polygon(g, [{ x, y: baseY - h }, { x: x + w, y: baseY }, { x, y: baseY + 6 }], 0x3f624f);
-    polygon(g, [{ x: x - w, y: baseY }, { x, y: baseY - h }, { x, y: baseY + 6 }], 0x70906b);
+  if (biome !== 'upland') {
+    const height = 34 + variation(c, r) * 8;
+    prism(g, x, y, 3, 1.5, height, 0xa18f6b, 0x776d55, 0x615e4b);
+    line(g, { x, y: y - 20 }, { x: x - 13, y: y - 38 }, 0x776d55, 3);
+    line(g, { x, y: y - 24 }, { x: x + 11, y: y - 43 }, 0x615e4b, 3);
+    const crown = biome === 'riverbank' ? [0x4f735b, 0x6e8d68, 0x8aa078] : [0x70885e, 0x91a473, 0xa7b47e];
+    const top = y - height - 9;
+    g.fillStyle(crown[0]).fillEllipse(x + 3, top + 7, 48, 32);
+    g.fillStyle(crown[1]).fillEllipse(x - 12, top, 34, 28);
+    g.fillStyle(crown[1]).fillEllipse(x + 12, top - 6, 34, 30);
+    g.fillStyle(crown[2]).fillEllipse(x - 7, top - 10, 30, 23);
+    g.fillStyle(crown[2], 0.6).fillEllipse(x + 13, top - 11, 16, 11);
+    line(g, { x: x - 5, y: y + 1 }, { x: x + 1, y: y - 5 }, 0x776d55, 2);
+    line(g, { x: x + 6, y: y + 2 }, { x: x + 1, y: y - 5 }, 0x615e4b, 2);
+    return;
+  }
+  const shape = variation(c, r);
+  const spread = 17 + shape * 5;
+  line(g, { x, y }, { x: x - 10, y: y - 16 }, 0x776d55, 2);
+  line(g, { x: x + 2, y }, { x: x + 13, y: y - 18 }, 0x615e4b, 2);
+  g.fillStyle(0x596c50).fillEllipse(x + 2, y - 8, spread * 2.2, 17);
+  for (let i = 0; i < 5; i++) {
+    const dx = (i - 2) * spread * 0.4;
+    const top = y - 13 - variation(c + i * 3, r + i) * 9;
+    const width = 15 + variation(c + i, r + 5) * 9;
+    g.fillStyle(i % 2 ? 0x879574 : 0x748568).fillEllipse(x + dx, top, width, 17);
+    g.fillStyle(0xa5ae89, 0.65).fillEllipse(x + dx - 3, top - 4, width * 0.6, 7);
   }
 }
 
@@ -60,10 +80,14 @@ export function drawOre(g: Graphics, x: number, y: number, copper: boolean, c: n
   }
 }
 
-export function drawBuilding(g: Graphics, b: Building): void {
+export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<string, Building>): void {
   const { x, y } = project(b.c, b.r);
   if (b.kind === 'belt') {
-    drawBelt(g, x, y, b.direction);
+    drawBelt(g, x, y, b.direction, buildings ? conveyorInputs(b, buildings) : []);
+    return;
+  }
+  if (b.kind === 'splitter') {
+    drawSplitter(g, x, y, b.direction);
     return;
   }
   g.fillStyle(0x243c36, 0.18).fillEllipse(x + 10, y + 10, 68, 23);
@@ -127,7 +151,7 @@ export function drawBuilding(g: Graphics, b: Building): void {
   diamond(g, end.x, end.y - 4, 4, 2, 0xd8bd7d);
 }
 
-function drawBelt(g: Graphics, x: number, y: number, direction: Direction): void {
+function drawBelt(g: Graphics, x: number, y: number, direction: Direction, inputs: readonly Direction[]): void {
   prism(g, x, y + 1, HALF_WIDTH - 3, HALF_HEIGHT - 2, 5, 0xaeb4a2, 0x78887a, 0x62796d);
   diamond(g, x, y - 5, HALF_WIDTH - 8, HALF_HEIGHT - 5, 0x4e6259);
   const along = DIRECTIONS[direction];
@@ -137,14 +161,54 @@ function drawBelt(g: Graphics, x: number, y: number, direction: Direction): void
     const b = project(along.c * i * 0.15 + across.c * 0.31, along.r * i * 0.15 + across.r * 0.31);
     line(g, { x: x + a.x, y: y - 5 + a.y }, { x: x + b.x, y: y - 5 + b.y }, 0x91a08d, 1.5, 0.7);
   }
-  const tip = project(along.c * 0.18, along.r * 0.18);
-  const left = project(-along.c * 0.08 + across.c * 0.12, -along.r * 0.08 + across.r * 0.12);
-  const right = project(-along.c * 0.08 - across.c * 0.12, -along.r * 0.08 - across.r * 0.12);
+  if (inputs.length > 1 || inputs.some(input => input !== direction)) {
+    for (const input of inputs) {
+      drawTrack(g, x, y, input, -0.43);
+      const vector = DIRECTIONS[input];
+      const p = project(-vector.c * 0.29, -vector.r * 0.29);
+      drawArrow(g, x + p.x, y + p.y, input, 0xb8c6ab, 0.65);
+    }
+    drawTrack(g, x, y, direction, 0.43);
+    const p = project(along.c * 0.27, along.r * 0.27);
+    drawArrow(g, x + p.x, y + p.y, direction, 0xdac58c);
+    if (inputs.length > 1) g.fillStyle(0xdac58c).fillCircle(x, y - 5, 2.5);
+  } else drawArrow(g, x, y, direction, 0xdac58c);
+}
+
+function drawTrack(g: Graphics, x: number, y: number, direction: Direction, length: number): void {
+  const vector = DIRECTIONS[direction];
+  const p = project(vector.c * length, vector.r * length);
+  line(g, { x, y: y - 5 }, { x: x + p.x, y: y - 5 + p.y }, 0x354f45, 10);
+  line(g, { x, y: y - 5 }, { x: x + p.x, y: y - 5 + p.y }, 0x91a08d, 4, 0.8);
+}
+
+function drawArrow(g: Graphics, x: number, y: number, direction: Direction, color: number, scale = 1): void {
+  const along = DIRECTIONS[direction];
+  const across = DIRECTIONS[nextDirection(direction)];
+  const tip = project(along.c * 0.18 * scale, along.r * 0.18 * scale);
+  const left = project((-along.c * 0.08 + across.c * 0.12) * scale, (-along.r * 0.08 + across.r * 0.12) * scale);
+  const right = project((-along.c * 0.08 - across.c * 0.12) * scale, (-along.r * 0.08 - across.r * 0.12) * scale);
   polygon(g, [
     { x: x + tip.x, y: y - 5 + tip.y },
     { x: x + left.x, y: y - 5 + left.y },
     { x: x + right.x, y: y - 5 + right.y },
-  ], 0xdac58c);
+  ], color);
+}
+
+function drawSplitter(g: Graphics, x: number, y: number, direction: Direction): void {
+  prism(g, x, y + 1, HALF_WIDTH - 3, HALF_HEIGHT - 2, 5, 0xc7b27d, 0x99865e, 0x7a785c);
+  diamond(g, x, y - 5, HALF_WIDTH - 8, HALF_HEIGHT - 5, 0x4e6259);
+  drawTrack(g, x, y, direction, -0.43);
+  const incoming = DIRECTIONS[direction];
+  const entry = project(-incoming.c * 0.3, -incoming.r * 0.3);
+  drawArrow(g, x + entry.x, y + entry.y, direction, 0xb8c6ab, 0.7);
+  for (const output of [direction, nextDirection(direction)]) {
+    drawTrack(g, x, y, output, 0.43);
+    const vector = DIRECTIONS[output];
+    const p = project(vector.c * 0.3, vector.r * 0.3);
+    drawArrow(g, x + p.x, y + p.y, output, 0xe9cb81, 0.8);
+  }
+  prism(g, x, y - 5, 5, 2.5, 3, 0xe9cb81, 0xb49763, 0x9b8050);
 }
 
 export function drawParcel(g: Graphics, x: number, y: number, item: Item): void {
