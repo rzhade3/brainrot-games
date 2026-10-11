@@ -5,10 +5,11 @@ import {
   inBounds, isBuildingKind, isConveyor, MAP_SIZE, NAMES, nextDirection, outputDirections, pickBuilding,
   Point, project, Scenario, Tile, tileKey, Tool, unproject,
 } from './model';
-import { drawBuilding, drawParcel, drawPreview } from './art';
+import { drawBuilding, drawParcel, drawPreview, drawResident } from './art';
+import { Resident, WALK_TICKS } from './settlement';
 import { Action, FactoryHud } from './hud';
 import {
-  BELT_TICKS, EXTRACT_TICKS, FactorySimulation, inventoryText, itemCount,
+  BELT_TICKS, EXTRACT_TICKS, FactorySimulation, inventoryText, itemCount, PROJECTS, UPGRADED_EXTRACT_TICKS,
 } from './simulation';
 import { createSave, FactorySave, FactorySaveStore, restoreSave, SaveConflictError } from './persistence';
 import WorldRenderer from './WorldRenderer';
@@ -26,11 +27,14 @@ export default class FactoryScene extends Phaser.Scene {
   private simulation = FactorySimulation.forScenario('free-play');
   private machineArt = new Map<string, Phaser.GameObjects.Graphics>();
   private motionArt = new Map<string, Phaser.GameObjects.Graphics>();
+  private residentArt = new Map<number, Phaser.GameObjects.Graphics>();
+  private residentFacing = new Map<number, Point>();
   private terrain!: WorldRenderer;
   private lastMachineView = '';
   private tool: Tool = 'inspect';
   private direction: Direction = 0;
   private selected: Building | null = null;
+  private selectedResident: number | null = null;
   private hover: Tile | null = null;
   private preview!: Phaser.GameObjects.Graphics;
   private ghost!: Phaser.GameObjects.Graphics;
@@ -79,6 +83,24 @@ export default class FactoryScene extends Phaser.Scene {
     this.ghost = this.add.graphics().setAlpha(0.55);
     this.home();
     this.hud.onAction = action => this.act(action);
+    this.hud.onHaulTarget = target => {
+      if (!this.selected) return;
+      const error = this.simulation.setHaulTarget(this.selected, target);
+      this.hud.setStatus(error ?? (target ? 'Resident destination updated. Any interrupted cargo is safe in recovery.'
+        : 'Resident hauling disabled. Any interrupted cargo is safe in recovery.'), !!error);
+      if (!error) { this.refreshSimulationHud(); this.saveChange(); }
+    };
+    this.hud.onResident = id => {
+      const resident = this.simulation.residents[id];
+      if (!resident) return;
+      this.selected = null;
+      this.selectedResident = id;
+      this.tool = 'inspect';
+      const position = project(resident.tile.c, resident.tile.r);
+      this.cameras.main.centerOn(position.x, position.y - 15);
+      this.hud.inspectResident(resident);
+      this.refreshTools();
+    };
     this.hud.onScenario = (scenario, seed) => this.replaceScenario(scenario, seed);
     this.hud.onResume = () => this.resumeFactory();
     this.hud.onRetrySave = () => { void this.autosave(true); };
@@ -176,6 +198,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.saveRevision = 0;
     this.savedRevision = 0;
     this.selected = null;
+    this.selectedResident = null;
     this.tool = 'inspect';
     this.direction = 0;
     this.resetElapsed = true;
@@ -222,6 +245,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.tool = 'inspect';
     this.direction = 0;
     this.selected = null;
+    this.selectedResident = null;
     this.hover = null;
     this.paused = false;
     this.resetElapsed = true;
@@ -233,6 +257,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.home();
     this.refreshSimulationHud();
     this.hud.setStatus('');
+    if (simulation.scenario === 'settlement') this.hud.setStatus('Welcome. People grow and carry food automatically. Inspect the plot to choose deliveries; People shows their work.');
   }
 
   private replaceTerrain(): void {
@@ -252,6 +277,9 @@ export default class FactoryScene extends Phaser.Scene {
     for (const art of this.motionArt.values()) art.destroy();
     this.machineArt.clear();
     this.motionArt.clear();
+    for (const art of this.residentArt.values()) art.destroy();
+    this.residentArt.clear();
+    this.residentFacing.clear();
     this.lastMachineView = '';
     this.syncVisibleMachines(this.view());
   }
@@ -477,6 +505,7 @@ export default class FactoryScene extends Phaser.Scene {
           event.target instanceof HTMLElement && event.target.matches('input, textarea, select, [contenteditable]')) return;
       const shortcuts: Record<string, Action> = {
         '1': 'inspect', '2': 'belt', '3': 'miner', '4': 'furnace', '5': 'storage', '7': 'assembler', '8': 'splitter',
+        '9': 'food-plot', '0': 'kitchen',
         r: 'rotate', Escape: 'close', '+': 'zoom-in', '-': 'zoom-out', Home: 'home',
       };
       const action = shortcuts[event.key];
@@ -553,12 +582,43 @@ export default class FactoryScene extends Phaser.Scene {
       this.zoomAt(action === 'zoom-in' ? 1.2 : 1 / 1.2, { x: this.scale.width / 2, y: this.scale.height / 2 });
     } else if (action === 'home') {
       this.home();
+    } else if (action === 'focus-home') {
+      this.act('close');
+      const home = [...this.buildings.values()].find(building => building.kind === 'home');
+      if (!home) return;
+      this.selected = home;
+      this.hud.inspect(home);
+      this.refreshSimulationHud();
+      this.refreshTools();
+      const point = project(home.c, home.r);
+      this.cameras.main.centerOn(point.x, point.y - 15);
     } else if (action === 'focus-copper' || action === 'focus-iron' || action === 'focus-outpost') {
       this.act('close');
       const world = this.simulation.world;
-      const tile = action === 'focus-copper' ? world.copper : action === 'focus-iron' ? world.iron : world.outpost;
+      const tile = action === 'focus-copper' ? world.copper : action === 'focus-iron' ? world.iron : this.simulation.receiver ?? world.outpost;
       const point = project(tile.c, tile.r);
       this.cameras.main.centerOn(point.x, point.y - 15);
+    } else if (action === 'project-extraction' || action === 'project-buffering' || action === 'project-pause') {
+      const id = action === 'project-extraction' ? 'extraction' : action === 'project-buffering' ? 'buffering' : null;
+      const error = this.simulation.selectProject(id);
+      this.hud.setStatus(error ?? (id ? 'Project active. Route its items to the outpost; accepted deliveries are preserved when switching.'
+        : 'Project deliveries paused. Accepted materials are preserved.'), !!error);
+      if (!error) {
+        this.redrawMachines();
+        this.refreshSimulationHud();
+        this.saveChange();
+        if (id) this.act('focus-outpost');
+      }
+    } else if (action === 'machine-option') {
+      if (!this.selected || this.tool !== 'inspect') return;
+      const error = this.simulation.setMachineOption(this.selected);
+      this.hud.setStatus(error ?? 'Machine setting updated. Blocked output retains its stock.', !!error);
+      if (!error) {
+        this.redrawMachines();
+        this.hud.inspect(this.selected);
+        this.refreshSimulationHud();
+        this.saveChange();
+      }
     } else if (action === 'pause') {
       this.paused = !this.paused;
       this.simulation.resetClock();
@@ -568,8 +628,8 @@ export default class FactoryScene extends Phaser.Scene {
       this.saveChange();
     } else if (action === 'rotate') {
       if (this.tool === 'inspect' && this.selected) {
-        if (this.selected.kind === 'outpost') {
-          this.hud.setStatus('The outpost is fixed; it cannot be rotated.', true);
+        if (this.selected.kind === 'outpost' || this.selected.kind === 'home') {
+          this.hud.setStatus('This founding building stays in place.', true);
           return;
         }
         this.direction = this.simulation.rotate(this.selected);
@@ -581,8 +641,8 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshTools();
     } else if (action === 'remove') {
       if (this.tool !== 'inspect' || !this.selected) return;
-      if (this.selected.kind === 'outpost') {
-        this.hud.setStatus('The outpost is fixed; it cannot be removed.', true);
+      if (this.selected.kind === 'outpost' || this.selected.kind === 'home') {
+        this.hud.setStatus('This founding building stays in place.', true);
         return;
       }
       const building = this.selected;
@@ -603,11 +663,12 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshSimulationHud();
       if (itemCount(result.moved)) this.saveChange();
       this.hud.setStatus(itemCount(result.moved)
-        ? `Stored ${inventoryText(result.moved)}. Tray: ${inventoryText(result.remaining)}. Depot storage does not fulfill orders.`
+        ? `Stored ${inventoryText(result.moved)}. Tray: ${inventoryText(result.remaining)}. Items count only when accepted at the outpost.`
         : itemCount(result.remaining) ? 'Depot full; recovered items remain in the tray.' : 'Recovery tray empty.', !itemCount(result.moved));
     } else if (action === 'close') {
       this.tool = 'inspect';
       this.selected = null;
+      this.selectedResident = null;
       this.hud.inspect(null);
       this.hover = null;
       this.refreshTools();
@@ -618,6 +679,7 @@ export default class FactoryScene extends Phaser.Scene {
       }
       this.tool = action;
       this.selected = null;
+      this.selectedResident = null;
       this.hud.inspect(null);
       this.refreshTools();
     }
@@ -625,7 +687,7 @@ export default class FactoryScene extends Phaser.Scene {
   }
 
   private refreshTools(): void {
-    this.hud.setTool(this.tool, this.direction, !!this.selected);
+    this.hud.setTool(this.tool, this.direction, !!this.selected || this.selectedResident !== null);
     this.hud.setUndo(this.lastTrail.filter(building => this.buildings.get(tileKey(building)) === building).length);
     this.game.canvas.style.cursor = this.tool === 'inspect' ? 'grab' : 'crosshair';
     this.hud.setStatus('');
@@ -634,6 +696,18 @@ export default class FactoryScene extends Phaser.Scene {
   private tap(world: Point): void {
     const tile = unproject(world.x, world.y);
     if (this.tool === 'inspect') {
+      const resident = this.simulation.residents.find(value => {
+        const position = this.residentPosition(value, this.paused ? 0 : this.simulation.interpolation);
+        return Math.abs(world.x - position.x) < 10 && world.y >= position.y - 28 && world.y <= position.y + 4;
+      });
+      if (resident) {
+        this.selected = null;
+        this.selectedResident = resident.id;
+        this.hud.inspectResident(resident);
+        this.refreshTools();
+        return;
+      }
+      this.selectedResident = null;
       this.selected = pickBuilding(world, this.buildings);
       if (this.selected) this.direction = this.selected.direction;
       this.hud.inspect(this.selected);
@@ -772,6 +846,7 @@ export default class FactoryScene extends Phaser.Scene {
   }
 
   private refreshSimulationHud(): void {
+    this.hud.setBuildings(this.buildings);
     this.hud.setSummary(this.simulation.summary());
     if (this.selected) {
       const state = this.simulation.getState(this.selected);
@@ -787,10 +862,15 @@ export default class FactoryScene extends Phaser.Scene {
       if (this.resetElapsed) this.resetElapsed = false;
       else {
         const stage = this.simulation.objective()?.stage;
+        const activeProject = this.simulation.summary().projects.active;
         if (this.simulation.advance(delta)) {
           this.saveRevision++;
           this.refreshSimulationHud();
-          if (stage !== this.simulation.objective()?.stage) void this.autosave();
+          if (activeProject && activeProject !== this.simulation.summary().projects.active) {
+            const project = PROJECTS.find(project => project.id === activeProject)!;
+            this.hud.setStatus(`${project.title} complete. ${project.reward}. Enable it in the machine inspector.`);
+          }
+          if (stage !== this.simulation.objective()?.stage || activeProject !== this.simulation.summary().projects.active) void this.autosave();
         }
       }
     } else this.simulation.resetClock();
@@ -802,6 +882,26 @@ export default class FactoryScene extends Phaser.Scene {
       }
     }
     const interpolation = this.paused || this.motionPaused ? 0 : this.simulation.interpolation;
+    for (const resident of this.simulation.residents) {
+      let art = this.residentArt.get(resident.id);
+      if (!art) { art = this.add.graphics(); this.residentArt.set(resident.id, art); }
+      art.clear();
+      const position = this.residentPosition(resident, interpolation);
+      if (!inView(position, view)) continue;
+      const next = resident.job?.path[0] ?? resident.tile;
+      const t = (resident.travel + interpolation) / WALK_TICKS;
+      art.setDepth(this.depth({ c: resident.tile.c + (next.c - resident.tile.c) * t,
+        r: resident.tile.r + (next.r - resident.tile.r) * t }) + 0.2);
+      const moving = !!resident.job?.path.length;
+      if (moving) this.residentFacing.set(resident.id, project(next.c - resident.tile.c, next.r - resident.tile.r));
+      const farming = resident.job?.kind === 'farm' && !moving;
+      drawResident(art, position.x, position.y, resident.id,
+        this.paused || this.motionPaused || !moving && !farming ? 0 : (this.simulation.ticks + interpolation) * 0.7,
+        resident.cargo, farming, this.residentFacing.get(resident.id) ?? { x: 0, y: 1 });
+      if (this.selectedResident === resident.id) {
+        art.lineStyle(1.5, 0x347875).strokeEllipse(position.x, position.y + 1, 22, 10);
+      }
+    }
     for (const [key, g] of this.motionArt) {
       g.clear();
       const b = this.buildings.get(key)!;
@@ -818,7 +918,8 @@ export default class FactoryScene extends Phaser.Scene {
         const p = project(c, r);
         drawParcel(g, p.x, p.y - 6, state.item);
       } else if (b.kind === 'miner') {
-        const angle = this.motionPaused ? 0 : (state.progress + (state.running ? interpolation : 0)) / EXTRACT_TICKS * Math.PI * 2;
+        const angle = this.motionPaused ? 0 : (state.progress + (state.running ? interpolation : 0)) /
+          (b.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS) * Math.PI * 2;
         g.lineStyle(2, 0xd4d7bb);
         g.lineBetween(x - 5 - Math.cos(angle) * 7, y - 46 - Math.sin(angle) * 3,
           x - 5 + Math.cos(angle) * 7, y - 46 + Math.sin(angle) * 3);
@@ -844,6 +945,13 @@ export default class FactoryScene extends Phaser.Scene {
         const p = project(b.c + vector.c * 0.46, b.r + vector.r * 0.46);
         g.fillStyle(0xf3db99).fillCircle(p.x, p.y - 6, 2);
       }
+
     }
+  }
+
+  private residentPosition(resident: Resident, interpolation: number): Point {
+    const next = resident.job?.path[0] ?? resident.tile;
+    const t = (resident.travel + interpolation) / WALK_TICKS;
+    return project(resident.tile.c + (next.c - resident.tile.c) * t, resident.tile.r + (next.r - resident.tile.r) * t);
   }
 }

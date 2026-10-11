@@ -224,6 +224,19 @@ const quotaFinished = quota.objective();
 ticks(quota, 1000);
 assert.deepEqual(quota.objective(), quotaFinished);
 assert.equal(quota.assemblerUnlocked, true, 'Completion cannot revoke the assembler');
+const commissioningLedger = quota.summary().delivered;
+const commissioningCompletion = quota.objective();
+assert.equal(quota.selectProject('extraction'), null, 'Completed Guided Run supports optional expansion without replacing its factory');
+assert.equal(quota.receiver?.c, OUTPOST.c);
+assert.equal(quota.receiver?.r, OUTPOST.r);
+for (let i = 0; i < 8; i++) {
+  state(quota, 17, 12).output['defense-supply'] = 1;
+  quota.step();
+}
+assert.equal(quota.projectComplete('extraction'), true);
+assert.equal(quota.summary().projects.accepted.extraction, 8);
+assert.deepEqual(quota.summary().delivered, commissioningLedger, 'Expansion uses a separate consumed-delivery ledger');
+assert.deepEqual(quota.objective(), commissioningCompletion, 'Guided completion and its final rate remain frozen');
 
 const recovery = new FactorySimulation();
 place(recovery, building('storage', 12, 12), building('storage', 13, 12));

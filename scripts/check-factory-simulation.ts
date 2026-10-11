@@ -230,7 +230,7 @@ clock.advance(10000);
 assert.equal(clock.ticks, 3, 'Long suspension gaps must not fast-forward the factory');
 assert.throws(() => clock.advance(-1), /nonnegative/);
 assert.throws(() => clock.advance(Number.NaN), /finite/);
-assert.deepEqual(inventory(), { 'iron-ore': 0, 'copper-ore': 0, 'iron-plate': 0, 'copper-plate': 0, 'defense-supply': 0 });
+assert.deepEqual(inventory(), { 'iron-ore': 0, 'copper-ore': 0, 'iron-plate': 0, 'copper-plate': 0, 'defense-supply': 0, 'food-unit': 0 });
 assert.match(opposing.place(building('belt', 8, 10))!, /occupied/);
 assert.match(opposing.place(building('belt', 8.5, 10))!, /Outside/);
 assert.throws(() => opposing.remove({ c: 0, r: 0 }), /missing/);

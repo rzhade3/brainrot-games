@@ -92,7 +92,34 @@ export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<s
   }
   g.fillStyle(0x243c36, 0.18).fillEllipse(x + 10, y + 10, 68, 23);
   prism(g, x, y, 32, 16, 5, 0xc5c9b9, 0x929f93, 0x7c9087);
-  if (b.kind === 'miner') {
+  if (b.kind === 'food-plot') {
+    diamond(g, x, y - 6, 29, 14, 0x84745a);
+    for (let i = -2; i <= 2; i++) {
+      const a = project(i * 0.15 - 0.3, i * 0.15 + 0.3);
+      const z = project(i * 0.15 + 0.3, i * 0.15 - 0.3);
+      line(g, { x: x + a.x, y: y - 7 + a.y }, { x: x + z.x, y: y - 7 + z.y }, 0xa69872, 3);
+      for (let j = -1; j <= 1; j++) {
+        const p = project(i * 0.15 + j * 0.16, i * 0.15 - j * 0.16);
+        g.fillStyle(0x658658).fillEllipse(x + p.x, y - 10 + p.y, 7, 5);
+        g.fillStyle(0x9db579).fillEllipse(x + p.x - 1, y - 12 + p.y, 4, 4);
+      }
+    }
+  } else if (b.kind === 'home' || b.kind === 'kitchen') {
+    const kitchen = b.kind === 'kitchen';
+    prism(g, x, y - 4, 27, 13.5, 28, 0xe2ddc9, 0xa9b09a, 0x839783);
+    polygon(g, [{ x: x - 31, y: y - 32 }, { x: x - 4, y: y - 53 },
+      { x: x + 31, y: y - 32 }, { x, y: y - 16 }], kitchen ? 0x9f9473 : 0x7d9488);
+    polygon(g, [{ x: x - 4, y: y - 53 }, { x: x + 31, y: y - 32 },
+      { x: x + 31, y: y - 28 }, { x: x - 4, y: y - 48 }], kitchen ? 0x756e56 : 0x526e66);
+    prism(g, x + 15, y - 34, 5, 2.5, 19, 0xb6c0af, 0x7e9485, 0x5d7d71);
+    polygon(g, [{ x: x - 19, y: y - 19 }, { x: x - 9, y: y - 14 },
+      { x: x - 9, y: y + 1 }, { x: x - 19, y: y - 4 }], 0x567464);
+    g.fillStyle(0xe8ce8b).fillEllipse(x + 12, y - 13, 8, 6);
+    if (kitchen) {
+      prism(g, x - 21, y + 2, 12, 6, 9, 0xd7b77b, 0xaa8d5c, 0x927648);
+      drawParcel(g, x - 21, y - 7, 'food-unit');
+    }
+  } else if (b.kind === 'miner') {
     prism(g, x, y - 3, 26, 13, 18, 0xa9bab1, 0x718a80, 0x526e66);
     prism(g, x - 5, y - 8, 19, 9, 20, 0xd8b66f, 0x9b8050, 0x806941);
     prism(g, x + 10, y - 6, 9, 4, 33, 0xe0dfd1, 0x9cab9f, 0x71897f);
@@ -100,6 +127,7 @@ export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<s
     g.fillStyle(0x8fa5a0).fillEllipse(x - 5, y - 46, 13, 6);
     line(g, { x: x - 24, y: y - 15 }, { x: x - 5, y: y - 6 }, 0xd9c58e, 3);
     g.fillStyle(0xe8ce8b).fillCircle(x + 15, y - 25, 2);
+    if (b.upgraded) line(g, { x: x - 18, y: y - 23 }, { x: x - 6, y: y - 17 }, 0x3f8c76, 4);
   } else if (b.kind === 'furnace') {
     prism(g, x, y - 3, 27, 13.5, 31, 0xdce0d5, 0x8b9c94, 0x667f78);
     prism(g, x, y - 35, 22, 11, 5, 0xebe7d9, 0xa9b3a7, 0x8a9d91);
@@ -145,10 +173,11 @@ export function drawBuilding(g: Graphics, b: Building, buildings?: ReadonlyMap<s
     }
     prism(g, x - 4, y - 36, 10, 5, 8, 0xd7b77b, 0xaa8d5c, 0x927648);
   }
-  if (b.kind === 'outpost') return;
+  if (b.kind === 'outpost' || b.kind === 'home' || b.kind === 'kitchen') return;
   const vector = DIRECTIONS[b.direction];
   const end = project(b.c + vector.c * 0.45, b.r + vector.r * 0.45);
-  diamond(g, end.x, end.y - 4, 4, 2, 0xd8bd7d);
+  if (b.kind === 'storage' && b.outputEnabled) drawArrow(g, end.x, end.y + 1, b.direction, 0x3f8c76, 0.75);
+  else diamond(g, end.x, end.y - 4, 4, 2, 0xd8bd7d);
 }
 
 function drawBelt(g: Graphics, x: number, y: number, direction: Direction, inputs: readonly Direction[]): void {
@@ -212,17 +241,68 @@ function drawSplitter(g: Graphics, x: number, y: number, direction: Direction): 
 }
 
 export function drawParcel(g: Graphics, x: number, y: number, item: Item): void {
+  if (item === 'food-unit') {
+    prism(g, x, y, 7, 3.5, 5, 0xb9be82, 0x92975b, 0x727c4d);
+    line(g, { x: x - 4, y: y - 5 }, { x: x + 3, y: y - 2 }, 0xe0d7a4, 1.5);
+    return;
+  }
   if (item === 'defense-supply') {
     g.fillStyle(0x1f372f, 0.2).fillEllipse(x + 3, y + 2, 18, 8);
     prism(g, x, y, 8, 4, 6, 0xd8b66f, 0x9b8050, 0x806941);
     line(g, { x: x - 4, y: y - 5 }, { x: x + 4, y: y - 5 }, 0xf0e4c3, 2);
     return;
   }
+
   const copper = item.startsWith('copper');
   const plate = item.endsWith('plate');
   g.fillStyle(0x1f372f, 0.2).fillEllipse(x + 3, y + 2, 15, 7);
   prism(g, x, y, plate ? 8 : 6, plate ? 4 : 3, plate ? 2 : 6,
     copper ? 0xdbad7c : 0xc5d3ca, copper ? 0xa87954 : 0x8ca49a, copper ? 0x886244 : 0x6c887c);
+}
+
+export function drawResident(
+  g: Graphics, x: number, y: number, id: number, stride: number,
+  cargo: Item | null, farming: boolean, facing: Point,
+): void {
+  g.fillStyle(0x243c36, 0.2).fillEllipse(x + 2, y + 1, 15, 6);
+  const swing = Math.sin(stride) * 2;
+  const shirt = [0x829c8a, 0xbca777, 0x9bafa4, 0xc19c80][id];
+  const skin = [0xd9b997, 0xb88b6b, 0xccaa87, 0xa87b5a][id];
+  if (facing.x !== 0) {
+    const side = Math.sign(facing.x);
+    const away = facing.y < 0;
+    const stepX = swing * side;
+    const stepY = swing * facing.y / Math.abs(facing.x);
+    const bob = Math.abs(Math.sin(stride)) * 0.6;
+    const shoulderY = y - 14 - bob;
+    const handX = x + side * (cargo ? 7 : 3) - (cargo ? 0 : stepX);
+    const handY = y - 10 - bob - (cargo ? 0 : stepY);
+    line(g, { x: x - side, y: y - 7 }, { x: x - stepX - side, y: y - stepY - 1 }, 0x405b54, 2.5);
+    line(g, { x: x - side * 2, y: shoulderY - 1 },
+      { x: x + side * (cargo ? 6 : 2) + (cargo ? 0 : stepX), y: y - 11 - bob + (cargo ? 0 : stepY) }, skin, 2);
+    line(g, { x: x + side, y: y - 7 }, { x: x + stepX + side, y: y + stepY }, 0x526e66, 2.5);
+    prism(g, x, y - 7 - bob, 3.5, 2, 9, shirt,
+      side < 0 && !away ? shirt : 0x718a80, side > 0 && !away ? shirt : 0x526e66);
+    g.fillStyle(skin).fillEllipse(x, y - 21 - bob, 6, 7);
+    g.fillStyle(skin).fillCircle(x + side * 3, y - 20.5 - bob, 1.3);
+    g.fillStyle(0x596f5f).fillEllipse(x - side, y - 23 - bob, away ? 6 : 4, away ? 5 : 3);
+    if (!away) g.fillStyle(0x344b48).fillCircle(x + side * 1.8, y - 21.5 - bob, 0.65);
+    g.fillStyle(0x596f5f).fillEllipse(x + side, y - 24 - bob, 9, 3);
+    if (cargo) drawParcel(g, x + side * 8, y - 9 - bob, cargo);
+    line(g, { x: x + side * 2, y: shoulderY }, { x: handX, y: handY }, skin, 2.5);
+    if (farming) line(g, { x: handX, y: handY - 2 },
+      { x: handX + side * 6, y: y - 2 + swing }, 0xaa8d5c, 2);
+    return;
+  }
+  line(g, { x: x - 2, y: y - 7 }, { x: x - 3 - swing, y }, 0x526e66, 2.5);
+  line(g, { x: x + 2, y: y - 7 }, { x: x + 3 + swing, y }, 0x526e66, 2.5);
+  prism(g, x, y - 7, 5, 2.5, 9, shirt, 0x718a80, 0x526e66);
+  g.fillStyle(skin).fillCircle(x, y - 21, 3.5);
+  g.fillStyle(0x596f5f).fillEllipse(x, y - 24, 9, 4);
+  line(g, { x: x - 5, y: y - 14 }, { x: x - 8, y: y - 10 + swing }, 0xcbb391, 2);
+  line(g, { x: x + 5, y: y - 14 }, { x: x + 8, y: y - 10 - swing }, 0xcbb391, 2);
+  if (cargo) drawParcel(g, x + 8, y - 9, cargo);
+  if (farming) line(g, { x: x + 7, y: y - 12 }, { x: x + 13, y: y - 2 + swing }, 0xaa8d5c, 2);
 }
 
 export function drawPreview(g: Graphics, c: number, r: number, color: number): void {

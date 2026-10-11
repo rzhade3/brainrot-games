@@ -5,15 +5,21 @@ export const HALF_WIDTH = 38;
 export const HALF_HEIGHT = 19;
 
 export type Terrain = 'grass' | 'water' | 'iron' | 'copper' | 'tree';
-export type BuildingKind = 'belt' | 'splitter' | 'miner' | 'furnace' | 'storage' | 'assembler' | 'outpost';
-export type BuildableKind = Exclude<BuildingKind, 'outpost'>;
+export type BuildingKind = 'belt' | 'splitter' | 'miner' | 'furnace' | 'storage' | 'assembler' | 'outpost' | 'home' | 'food-plot' | 'kitchen';
+export type BuildableKind = Exclude<BuildingKind, 'outpost' | 'home'>;
 export type Tool = 'inspect' | BuildableKind;
-export type Scenario = 'free-play' | 'guided';
+export type Scenario = 'free-play' | 'guided' | 'settlement';
 export const OUTPOST: Tile = { c: 16, r: 12 };
 export type Direction = 0 | 1 | 2 | 3;
 export interface Tile { c: number; r: number }
 export interface Point { x: number; y: number }
-export interface Building extends Tile { kind: BuildingKind; direction: Direction }
+export interface Building extends Tile {
+  kind: BuildingKind;
+  direction: Direction;
+  outputEnabled?: boolean;
+  upgraded?: boolean;
+  haulTo?: Tile;
+}
 
 export const DIRECTIONS: readonly Tile[] = [
   { c: 1, r: 0 }, { c: 0, r: 1 }, { c: -1, r: 0 }, { c: 0, r: -1 },
@@ -22,15 +28,19 @@ export const DIRECTION_NAMES = ['East', 'South', 'West', 'North'] as const;
 export const NAMES: Record<BuildingKind, string> = {
   belt: 'Conveyor', miner: 'Extractor', furnace: 'Smelter', storage: 'Depot',
   splitter: 'Splitter', assembler: 'Assembler', outpost: 'Outpost',
+  home: 'Homestead', 'food-plot': 'Food plot', kitchen: 'Communal kitchen',
 };
 export const DESCRIPTIONS: Record<BuildingKind, string> = {
   belt: 'Carries one item at a time. Accepts items from behind or either side; connected branches merge fairly into the arrow-facing output.',
   splitter: 'Accepts one item from the rear and sends it straight or right. Alternates successful deliveries; uses the other branch if one is blocked. Both blocked: retains its item. Same speed as a conveyor.',
   miner: 'Extracts one ore per second from a deposit. Its arrow feeds an adjacent conveyor or machine. Deposits are unlimited on this test site.',
   furnace: 'Turns one ore into one matching plate in 1.6 seconds. Accepts ore from any adjacent output; plates leave toward its arrow.',
-  storage: 'Receives up to 64 items from adjacent outputs. When full, the line backs up. Removing it keeps its contents in the recovery tray.',
+  storage: 'Receives up to 64 items from adjacent outputs. Storage-only by default. The buffering project unlocks optional arrow-facing output, one item every 0.8s, cycling through stocked item types. A blocked next item stays put. Removing it keeps its contents in the recovery tray.',
   assembler: 'Combines 2 iron plates and 1 copper plate into 1 defense supply in 2 seconds. Accepts plates from adjacent outputs; supplies leave toward its arrow.',
-  outpost: 'Commissioning deliveries arrive from adjacent outputs. Only the active order is accepted. Delivered items are consumed, not stored. This fixed outpost cannot be moved.',
+  outpost: 'Deliveries arrive from adjacent outputs. Only the active mission or optional project is accepted. Delivered items are consumed, not stored. Pausing or changing projects preserves accepted deliveries. This fixed receiver cannot be moved.',
+  home: 'Home to four residents. They farm and haul automatically. Food shortages never stop them working. This founding home stays in place.',
+  'food-plot': 'One resident grows one food unit every 2 seconds while working beside this plot. Holds four units. Choose a hauling destination, or connect the arrow to a conveyor to free carriers.',
+  kitchen: 'Holds sixteen food units. Four residents together consume one unit every 2.5 seconds. Delivery stocks the kitchen; food is consumed only at mealtime. Shortages do not harm residents.',
 };
 
 export function tileKey(tile: Tile): string {
@@ -42,7 +52,8 @@ export function isConveyor(kind: BuildingKind): boolean {
 }
 
 export function outputDirections(building: Building): readonly Direction[] {
-  if (building.kind === 'storage' || building.kind === 'outpost') return [];
+  if (building.kind === 'storage' && !building.outputEnabled || building.kind === 'outpost' ||
+      building.kind === 'home' || building.kind === 'kitchen') return [];
   return building.kind === 'splitter' ? [building.direction, nextDirection(building.direction)] : [building.direction];
 }
 
@@ -135,7 +146,8 @@ export function nextDirection(direction: Direction): Direction {
 }
 
 export function isBuildingKind(value: string): value is BuildableKind {
-  return value === 'belt' || value === 'splitter' || value === 'miner' || value === 'furnace' || value === 'storage' || value === 'assembler';
+  return value === 'belt' || value === 'splitter' || value === 'miner' || value === 'furnace' || value === 'storage' ||
+    value === 'assembler' || value === 'food-plot' || value === 'kitchen';
 }
 
 export function isTool(value: string): value is Tool {
