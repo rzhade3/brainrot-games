@@ -72,6 +72,19 @@ export const ITEM_NAMES: Record<Item, string> = {
   'iron-plate': 'Iron plates', 'copper-plate': 'Copper plates',
   'defense-supply': 'Defense supplies', 'food-unit': 'Food units', wood: 'Wood',
 };
+const ITEM_UNIT_NAMES: Record<Item, string> = {
+  'iron-ore': 'iron ore', 'copper-ore': 'copper ore',
+  'iron-plate': 'iron plate', 'copper-plate': 'copper plate',
+  'defense-supply': 'defense supply', 'food-unit': 'food unit', wood: 'wood',
+};
+
+export function itemName(item: Item, quantity = 1): string {
+  return quantity === 1 ? ITEM_UNIT_NAMES[item] : ITEM_NAMES[item].toLowerCase();
+}
+
+export function itemText(item: Item, quantity: number): string {
+  return `${quantity} ${itemName(item, quantity)}`;
+}
 
 export function inventory(): Inventory {
   return { 'iron-ore': 0, 'copper-ore': 0, 'iron-plate': 0, 'copper-plate': 0, 'defense-supply': 0, 'food-unit': 0, wood: 0 };
@@ -82,7 +95,7 @@ export function itemCount(items: Readonly<Inventory>): number {
 }
 
 export function inventoryText(items: Readonly<Inventory>): string {
-  return ITEMS.filter(item => items[item] > 0).map(item => `${items[item]} ${ITEM_NAMES[item].toLowerCase()}`).join(', ') || 'Empty';
+  return ITEMS.filter(item => items[item] > 0).map(item => itemText(item, items[item])).join(', ') || 'Empty';
 }
 
 export function firstItem(items: Readonly<Inventory>): Item | null {
@@ -105,15 +118,15 @@ export const NAMES: Record<BuildingKind, string> = {
 
 export const DESCRIPTIONS: Record<BuildingKind, string> = {
   belt: 'Items enter from behind or either side and leave toward the arrow. Merging branches take turns.',
-  splitter: 'Rear input alternates between straight and right outputs. A blocked branch is skipped; both blocked means the item waits.',
-  miner: 'Place on an ore deposit; deposits do not run out on this site. The arrow feeds a neighboring conveyor or machine.',
-  furnace: 'Ore keeps its metal type when smelted. Items arrive from neighboring outputs; plates leave toward the arrow.',
-  storage: 'Stored goods feed the neighboring conveyor or machine in the arrow direction. Stock types take turns; a blocked type waits. Removed contents go to recovery.',
-  assembler: 'Plates arrive from neighboring outputs; supplies leave toward the arrow.',
-  home: 'Residents share farming, gathering and deliveries automatically, even during food shortages. Choose work priorities at buildings.',
-  'food-plot': 'Keep a clear tile beside the plot; farming pauses when it is full. A connected conveyor frees its carriers.',
-  kitchen: 'Food feeds the whole household at each serving, not when delivered. Shortages do not harm residents or stop their work.',
-  'woodcutting-site': 'One resident gathers wood from the nearby grove at a time. Trees stay in place; a conveyor replaces the carriers, not the woodcutter.',
+  splitter: 'Items enter from behind and alternate between the straight and right outputs. A blocked branch is skipped; if both are blocked, the item waits.',
+  miner: 'Deposits do not run out. The arrow sends ore to a neighboring conveyor or building.',
+  furnace: 'Iron ore becomes iron plates; copper ore becomes copper plates. The arrow sends plates to the next building.',
+  storage: 'The arrow sends stored goods to a neighboring conveyor or building. Item types take turns; a blocked type waits.',
+  assembler: 'Iron and copper plates become defense supplies. The arrow sends supplies to the next building.',
+  home: 'Residents share farming, gathering and deliveries automatically. They keep working during food shortages.',
+  'food-plot': 'The farmer works inside the plot; keep one clear exit. Farming pauses when the plot is full; a conveyor frees its carriers.',
+  kitchen: 'Each serving uses one food unit for the whole household. Shortages do not harm residents or stop their work.',
+  'woodcutting-site': 'Workers gather on the tree tile, then carry wood back; keep one clear exit beside the tree. Trees remain in place, and a conveyor frees carriers, not the woodcutter.',
 };
 
 export const CATALOG = [

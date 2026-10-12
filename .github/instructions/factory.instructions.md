@@ -88,6 +88,10 @@ relevant control or context.
 "No clear path. Leave access beside both buildings." Keep failures, save
 warnings, replacement consequences, and recovery behavior explicit and accurate;
 never soften them into ambiguous notebook flavor. Keep accessible names clear.
+Distinguish an incompatible save from a damaged one. Show one recovery instruction,
+not raw validation details followed by another instruction. Replacement confirmation
+explains what will be lost; replacement failures must say that no save was replaced.
+Use the shared item-name helpers so quantities have the correct singular or plural form.
 
 ## Before finishing
 

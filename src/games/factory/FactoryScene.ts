@@ -12,7 +12,7 @@ import {
 } from './game/model';
 import { getRenderScale, reducedMotionPreference } from './rendering/platform';
 import { FactorySession } from './session/session';
-import { Resident, WALK_TICKS } from './game/settlement';
+import { Resident, residentNextTile, residentWorkTile, WALK_TICKS } from './game/settlement';
 import { FactorySimulation, inventoryText, itemCount } from './game/simulation';
 import WorldRenderer from './rendering/WorldRenderer';
 
@@ -63,7 +63,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.paused = paused;
       this.hud.setPaused(paused);
       this.refreshSimulationHud();
-      if (resumed) this.hud.setStatus('Factory resumed');
+      if (resumed) this.hud.setStatus('Settlement loaded');
     });
   }
 
@@ -88,10 +88,13 @@ export default class FactoryScene extends Phaser.Scene {
     this.home();
     this.hud.onAction = action => this.act(action);
     this.hud.onHaulTarget = target => {
-      if (!this.selected) return 'Choose a source of goods first.';
-      const error = this.simulation.setHaulTarget(this.selected, target);
-      this.hud.setStatus(error ?? (target ? 'Resident destination updated. Any interrupted cargo is safe in recovery.'
-        : 'Resident hauling disabled. Any interrupted cargo is safe in recovery.'), !!error);
+      const source = this.selected;
+      if (!source) return 'Choose a source of goods first.';
+      const carrying = this.simulation.residents.some(resident => resident.job?.kind === 'deliver' &&
+        tileKey(resident.job.source) === tileKey(source));
+      const error = this.simulation.setHaulTarget(source, target);
+      this.hud.setStatus(error ?? `${target ? 'Delivery destination changed.' : 'Deliveries stopped.'}${carrying
+        ? ' Carried goods returned to recovery.' : ''}`, !!error);
       if (!error) { this.refreshSimulationHud(); this.saveChange(); }
       return error;
     };
@@ -109,7 +112,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.hud.onWorkPriority = priority => {
       if (!this.selected) return 'Choose a building first.';
       const error = this.simulation.setWorkPriority(this.selected, priority);
-      this.hud.setStatus(error ?? 'Work priority updated. Residents finish their current trip or harvest.', !!error);
+      this.hud.setStatus(error ?? 'Work priority changed. Current jobs finish first.', !!error);
       if (!error) { this.refreshSimulationHud(); this.saveChange(); }
       return error;
     };
@@ -174,7 +177,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.home();
     this.refreshSimulationHud();
     this.hud.setStatus('');
-    this.hud.setStatus('Welcome. People grow and carry food automatically. Inspect the plot to choose deliveries; People shows their work.');
+    this.hud.setStatus('Residents grow food and carry it to the kitchen automatically.');
   }
 
   private replaceTerrain(): void {
@@ -492,7 +495,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshSimulationHud();
       this.refreshTools();
       this.hud.setStatus(result.removed
-        ? `Undid ${result.removed} conveyors.${itemCount(result.recovered) ? ` Recovered ${inventoryText(result.recovered)}.` : ''}`
+        ? `Removed ${result.removed} ${result.removed === 1 ? 'conveyor' : 'conveyors'}.${itemCount(result.recovered) ? ` Recovered ${inventoryText(result.recovered)}.` : ''}`
         : 'No conveyors from that route remain.');
       if (result.removed) this.saveChange();
       this.renderPreview();
@@ -521,7 +524,7 @@ export default class FactoryScene extends Phaser.Scene {
     } else if (action === 'machine-option') {
       if (!this.selected || this.tool !== 'inspect') return;
       const error = this.simulation.setMachineOption(this.selected);
-      this.hud.setStatus(error ?? 'Machine setting updated. Blocked output retains its stock.', !!error);
+      this.hud.setStatus(error ?? (this.selected.upgraded ? 'Extractor upgraded.' : 'Standard extractor restored.'), !!error);
       if (!error) {
         this.redrawMachines();
         this.hud.inspect(this.selected);
@@ -538,7 +541,7 @@ export default class FactoryScene extends Phaser.Scene {
     } else if (action === 'rotate') {
       if (this.tool === 'inspect' && this.selected) {
         if (this.selected.kind === 'home') {
-          this.hud.setStatus('This founding building stays in place.', true);
+          this.hud.setStatus('The homestead stays in place.', true);
           return;
         }
         this.direction = this.simulation.rotate(this.selected);
@@ -551,7 +554,7 @@ export default class FactoryScene extends Phaser.Scene {
     } else if (action === 'remove') {
       if (this.tool !== 'inspect' || !this.selected) return;
       if (this.selected.kind === 'home') {
-        this.hud.setStatus('This founding building stays in place.', true);
+        this.hud.setStatus('The homestead stays in place.', true);
         return;
       }
       const building = this.selected;
@@ -565,15 +568,15 @@ export default class FactoryScene extends Phaser.Scene {
       this.saveChange();
     } else if (action === 'recover') {
       if (this.tool !== 'inspect' || this.selected?.kind !== 'storage') {
-        this.hud.setStatus('Select a depot to transfer recovered items.', true);
+        this.hud.setStatus('Select a depot to store recovered items.', true);
         return;
       }
       const result = this.simulation.transferRecovered(this.selected);
       this.refreshSimulationHud();
       if (itemCount(result.moved)) this.saveChange();
       this.hud.setStatus(itemCount(result.moved)
-        ? `Stored ${inventoryText(result.moved)}. Tray: ${inventoryText(result.remaining)}.`
-        : itemCount(result.remaining) ? 'Depot full; recovered items remain in the tray.' : 'Recovery tray empty.', !itemCount(result.moved));
+        ? `Stored ${inventoryText(result.moved)}.${itemCount(result.remaining) ? ` Still in recovery: ${inventoryText(result.remaining)}.` : ''}`
+        : itemCount(result.remaining) ? 'No room here. Items stay in recovery.' : 'No recovered items to store.', !itemCount(result.moved));
     } else if (action === 'close') {
       this.tool = 'inspect';
       this.selected = null;
@@ -754,7 +757,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshTools();
       this.saveChange();
     }
-    this.hud.setStatus(`${result.placed.length} conveyors connected.`);
+    this.hud.setStatus(`${result.placed.length} ${result.placed.length === 1 ? 'conveyor' : 'conveyors'} connected.`);
     this.renderPreview();
   }
 
@@ -789,16 +792,16 @@ export default class FactoryScene extends Phaser.Scene {
       art.clear();
       const position = this.residentPosition(resident, interpolation);
       if (!inView(position, view)) continue;
-      const next = resident.job?.path[0] ?? resident.tile;
+      const next = residentNextTile(resident);
       const t = (resident.travel + interpolation) / WALK_TICKS;
       art.setDepth(this.depth({ c: resident.tile.c + (next.c - resident.tile.c) * t,
         r: resident.tile.r + (next.r - resident.tile.r) * t }) + 0.2);
-      const moving = !!resident.job?.path.length;
+      const moving = next.c !== resident.tile.c || next.r !== resident.tile.r;
       if (moving) this.residentFacing.set(resident.id, project(next.c - resident.tile.c, next.r - resident.tile.r));
-      const farming = (resident.job?.kind === 'farm' || resident.job?.kind === 'gather') && !moving;
+      const working = !!residentWorkTile(resident.job) && !moving;
       drawResident(art, position.x, position.y, resident.id,
-        this.paused || this.motionPaused || !moving && !farming ? 0 : (this.simulation.ticks + interpolation) * 0.7,
-        resident.cargo, farming, this.residentFacing.get(resident.id) ?? { x: 0, y: 1 });
+        this.paused || this.motionPaused || !moving && !working ? 0 : (this.simulation.ticks + interpolation) * 0.7,
+        resident.cargo, working, this.residentFacing.get(resident.id) ?? { x: 0, y: 1 });
       if (this.selectedResident === resident.id) {
         art.lineStyle(1.5, 0x347875).strokeEllipse(position.x, position.y + 1, 22, 10);
       }
@@ -812,7 +815,7 @@ export default class FactoryScene extends Phaser.Scene {
   }
 
   private residentPosition(resident: Resident, interpolation: number): Point {
-    const next = resident.job?.path[0] ?? resident.tile;
+    const next = residentNextTile(resident);
     const t = (resident.travel + interpolation) / WALK_TICKS;
     return project(resident.tile.c + (next.c - resident.tile.c) * t, resident.tile.r + (next.r - resident.tile.r) * t);
   }

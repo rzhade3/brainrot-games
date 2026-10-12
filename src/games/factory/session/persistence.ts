@@ -1,4 +1,5 @@
 import { requireSave, saveObject } from './saveState';
+import { requireCompatibleSave } from './saveErrors';
 import { FactorySimulation, SimulationSave } from '../game/simulation';
 import { GENERATOR_VERSION, WORLD_SIZE, WorldIdentity } from '../game/world';
 
@@ -24,13 +25,11 @@ export function createSave(simulation: FactorySimulation, paused: boolean, world
 
 export function restoreSave(value: unknown): { save: FactorySave; simulation: FactorySimulation } {
   const source = saveObject(value);
-  if (source.version !== SAVE_VERSION || source.contractVersion !== CONTRACT_VERSION) {
-    throw new Error('Unsupported factory save version. Start a new settlement; older saves cannot be resumed.');
-  }
+  requireCompatibleSave(source.version === SAVE_VERSION && source.contractVersion === CONTRACT_VERSION,
+    'Unsupported factory save version');
   const map = saveObject(source.map);
-  if (map.id !== 'seeded-world' || map.generatorVersion !== GENERATOR_VERSION || map.size !== WORLD_SIZE) {
-    throw new Error('Unsupported factory map version. Start a new settlement for this prototype revision.');
-  }
+  requireCompatibleSave(map.id === 'seeded-world' && map.generatorVersion === GENERATOR_VERSION && map.size === WORLD_SIZE,
+    'Unsupported factory map version');
   requireSave(typeof source.worldId === 'string' && source.worldId.length > 0 && source.worldId.length <= 100, 'invalid world identity');
   requireSave(typeof source.savedAt === 'number' && Number.isSafeInteger(source.savedAt) && source.savedAt >= 0, 'invalid save date');
   requireSave(typeof source.paused === 'boolean', 'invalid pause state');
@@ -53,9 +52,11 @@ export const SAVE_STORE = 'worlds';
 
 export class SaveConflictError extends Error {
   constructor() {
-    super('Another tab changed the saved factory. Autosave stopped to protect it. Reload to resume that save.');
+    super('Another tab changed this save. Autosave has stopped. Reload to use the saved settlement.');
   }
 }
+
+export class SaveStorageError extends Error {}
 
 export class FactorySaveStore {
   private connection: Promise<IDBDatabase> | null = null;
@@ -68,7 +69,7 @@ export class FactorySaveStore {
     if (this.connection) return this.connection;
     this.connection = new Promise<IDBDatabase>((resolve, reject) => {
       if (!globalThis.indexedDB) {
-        reject(new Error('Local saving is unavailable: this browser does not provide IndexedDB.'));
+        reject(new SaveStorageError('This browser cannot save settlements on this device. Try a browser with local storage enabled.'));
         return;
       }
       const request = indexedDB.open(SAVE_DATABASE, 1);
@@ -79,12 +80,12 @@ export class FactorySaveStore {
         clearTimeout(timeout);
         reject(error);
       };
-      const timeout = setTimeout(() => fail(new Error('Local storage did not respond. Close other factory tabs and retry.')), 10000);
+      const timeout = setTimeout(() => fail(new SaveStorageError('Local storage did not respond. Close other Pocket Factory tabs, then retry.')), 10000);
       request.onupgradeneeded = () => {
         if (!request.result.objectStoreNames.contains(SAVE_STORE)) request.result.createObjectStore(SAVE_STORE);
       };
-      request.onerror = () => fail(request.error ?? new Error('Could not open local factory storage.'));
-      request.onblocked = () => fail(new Error('Local storage is blocked by another tab. Close other factory tabs and retry.'));
+      request.onerror = () => fail(request.error ?? new SaveStorageError('Could not open local storage. Check your browser settings, then retry.'));
+      request.onblocked = () => fail(new SaveStorageError('Another tab is blocking local storage. Close other Pocket Factory tabs, then retry.'));
       request.onsuccess = () => {
         if (settled) {
           request.result.close();
@@ -112,7 +113,7 @@ export class FactorySaveStore {
       const transaction = db.transaction(SAVE_STORE, 'readonly');
       const request = transaction.objectStore(SAVE_STORE).get('active');
       transaction.oncomplete = () => resolve(request.result ?? null);
-      transaction.onabort = () => reject(transaction.error ?? new Error('Reading the factory save failed.'));
+      transaction.onabort = () => reject(transaction.error ?? new SaveStorageError('Could not read the saved settlement. Retry loading.'));
     });
     this.expected = value;
     this.loaded = true;
@@ -126,7 +127,7 @@ export class FactorySaveStore {
 
   async write(save: FactorySave): Promise<void> {
     restoreSave(save);
-    if (!this.loaded) throw new Error('The existing save could not be read. Retry loading before replacing it.');
+    if (!this.loaded) throw new SaveStorageError('The existing save has not been read. Retry loading before replacing it.');
     if (this.conflicted) throw new SaveConflictError();
     const db = await this.open();
     await new Promise<void>((resolve, reject) => {
@@ -150,7 +151,7 @@ export class FactorySaveStore {
         resolve();
       };
       transaction.onabort = () => reject(conflict ? new SaveConflictError()
-        : transaction.error ?? new Error('Local save transaction failed. The previous save was not changed.'));
+        : transaction.error ?? new SaveStorageError('Could not save the settlement. Retry saving.'));
     });
   }
 

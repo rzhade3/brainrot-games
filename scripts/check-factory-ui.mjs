@@ -109,6 +109,11 @@ try {
     await tap(await coordinates(page, 'inspect', site));
     assert.equal(await page.locator('[data-command="choose-worker"]').count(), 0);
     assert.equal(await page.locator('[data-priority="normal"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('.factory-labor-card small').innerText(),
+      'Higher priority gives this work a larger share of available labor.');
+    assert.equal(await page.locator('#factory-machine-pace').innerText(), '2s');
+    await page.locator('.factory-machine-help summary').click();
+    assert.match(await page.locator('.factory-machine-help').innerText(), /Trees remain in place/);
     await page.locator('[data-priority="high"]').click();
     assert.equal(await page.locator('[data-priority="high"]').getAttribute('aria-pressed'), 'true');
     assert.equal((await gameState(page)).machines.find(machine => machine.building.kind === 'woodcutting-site').building.workPriority, 'high');
@@ -160,12 +165,119 @@ try {
     await page.getByRole('button', { name: 'People', exact: true }).click();
     await page.locator(`[data-resident="${carrier.id}"]`).click();
     assert.match(await page.locator('#factory-resident-destination').innerText(), /^Woodcutting site/);
-    assert.match(await page.locator('#factory-resident-cargo').innerText(), /Wood/);
+    assert.equal(await page.locator('#factory-resident-cargo').innerText(), '1 wood');
     assert.equal(await page.locator('[data-action="unassign-worker"]').count(), 0);
     assert.deepEqual(errors, []);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     console.log('Native wood gathering interaction passed:', `${viewport.width}x${viewport.height}`,
       'catalog, placement, automatic staffing, priority controls, uninterrupted cargo, exact resume and read-only People');
+    await context.close();
+  }
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+    const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    await page.goto(url);
+    await page.locator('[data-command="new-settlement"]:not(:disabled)').click();
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+    const result = await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const { FactorySimulation } = await import('/src/games/factory/game/simulation.ts');
+      const { CATALOG, STEP_MS } = await import('/src/games/factory/game/domain.ts');
+      const { ASSEMBLER_RECIPE } = await import('/src/games/factory/game/machines.ts');
+      game.loop.stop();
+      const hud = game.scene.getScene('FactoryScene').hud;
+      const sim = FactorySimulation.create();
+      for (const { kind } of CATALOG) {
+        if ([...sim.buildings.values()].some(building => building.kind === kind)) continue;
+        const tiles = [];
+        for (let c = 0; c < 32; c++) for (let r = 0; r < 32; r++) {
+          if (!sim.placementError({ c, r }, kind)) tiles.push({ c, r });
+        }
+        const tile = tiles[0];
+        if (!tile) throw new Error(`No inspector fixture for ${kind}`);
+        const error = sim.place({ ...tile, kind, direction: 0 });
+        if (error) throw new Error(error);
+      }
+      hud.setBuildings(sim.buildings);
+      hud.setSummary(sim.summary());
+      const before = sim.serialize();
+      const rows = [];
+      const visible = id => getComputedStyle(document.getElementById(id)).display !== 'none';
+      for (const building of sim.buildings.values()) {
+        const inspection = sim.inspectMachine(building);
+        hud.inspect(building);
+        hud.setMachine(inspection, false);
+        rows.push({
+          kind: building.kind,
+          output: visible('factory-machine-output-row'),
+          expectedOutput: inspection.outputCapacity > 0,
+          recipe: visible('factory-machine-recipe-row'),
+          expectedRecipe: inspection.recipe !== null,
+          status: document.getElementById('factory-machine-state')?.textContent ?? null,
+          expectedStatus: building.kind === 'home' ? null : inspection.status,
+          progress: document.getElementById('factory-progress-label')?.textContent ?? null,
+          expectedProgress: building.kind === 'home' ? null
+            : ['storage', 'kitchen'].includes(building.kind) ? 'Capacity used' : 'Progress',
+          progressName: document.querySelector('.factory-progress')?.getAttribute('aria-label') ?? null,
+          cycle: document.getElementById('factory-machine-pace')?.textContent ?? null,
+          expectedCycle: building.kind === 'home' ? null
+            : building.kind === 'kitchen' ? `1 food unit every ${inspection.cycleTicks * STEP_MS / 1000}s`
+              : `${inspection.cycleTicks * STEP_MS / 1000}s`,
+        });
+      }
+      const plot = [...sim.buildings.values()].find(building => building.kind === 'food-plot');
+      const inspection = sim.inspectMachine(plot);
+      hud.inspect(plot);
+      hud.setMachine(inspection, false);
+      const outputRow = document.getElementById('factory-machine-output-row');
+      hud.setMachine({ ...inspection, outputCapacity: 0, recipe: ASSEMBLER_RECIPE }, false);
+      const overridden = {
+        output: visible('factory-machine-output-row'), recipe: visible('factory-machine-recipe-row'),
+        recipeText: document.getElementById('factory-machine-recipe').textContent,
+      };
+      hud.setMachine(inspection, false);
+      const restored = {
+        output: visible('factory-machine-output-row'), recipe: visible('factory-machine-recipe-row'),
+        recipeText: document.getElementById('factory-machine-recipe').textContent,
+        sameNode: outputRow === document.getElementById('factory-machine-output-row'),
+      };
+      const raw = sim.serialize();
+      const kitchen = raw.machines.find(machine => machine.building.kind === 'kitchen');
+      raw.recovered['food-unit'] += kitchen.input['food-unit'];
+      kitchen.input['food-unit'] = 0;
+      const hungry = FactorySimulation.restore(raw);
+      const shortage = hungry.inspectMachine(kitchen.building);
+      hud.inspect(kitchen.building);
+      hud.setMachine(shortage, false);
+      const status = document.getElementById('factory-machine-state');
+      const empty = { text: status.textContent, expected: shortage.status,
+        highlighted: status.classList.contains('factory-machine-blocked') };
+      hud.setMachine(shortage, true);
+      const paused = { text: status.textContent, highlighted: status.classList.contains('factory-machine-blocked') };
+      hud.setMachine(sim.inspectMachine(kitchen.building), false);
+      const stocked = { text: status.textContent, highlighted: status.classList.contains('factory-machine-blocked') };
+      return { rows, overridden, restored, empty, paused, stocked, before, after: sim.serialize() };
+    });
+    for (const row of result.rows) {
+      assert.equal(row.output, row.expectedOutput, `${row.kind} output visibility follows capacity`);
+      assert.equal(row.recipe, row.expectedRecipe, `${row.kind} recipe visibility follows inspection`);
+      assert.equal(row.status, row.expectedStatus, `${row.kind} activity follows simulation status`);
+      assert.equal(row.progress, row.expectedProgress);
+      assert.equal(row.progressName, row.expectedProgress, 'Visible and accessible progress labels agree');
+      assert.equal(row.cycle, row.expectedCycle);
+    }
+    assert.deepEqual(result.overridden, {
+      output: false, recipe: true, recipeText: '2 iron plates + 1 copper plate → 1 defense supply',
+    }, 'Live inspection capabilities override building-kind assumptions');
+    assert.deepEqual(result.restored, { output: true, recipe: false, recipeText: '', sameNode: true });
+    assert.equal(result.empty.text, result.empty.expected);
+    assert.match(result.empty.text, /Food shortage/);
+    assert.equal(result.empty.highlighted, true);
+    assert.deepEqual(result.paused, { text: 'Paused', highlighted: true });
+    assert.deepEqual(result.stocked, { text: 'Kitchen stocked', highlighted: false });
+    assert.deepEqual(result.after, result.before, 'Inspector rendering does not change simulation state');
+    console.log('Shared inspector presentation passed:', `${viewport.width}x${viewport.height}`,
+      'all building kinds, generic progress/cycles, live capability-based fields, simulation status and pause/shortage');
     await context.close();
   }
   for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 },
@@ -351,7 +463,8 @@ try {
     assert.match(await page.locator('#factory-delivery-state').innerText(), /cannot accept/);
     await page.locator('[data-command="choose-delivery"]').click();
     assert.equal(await page.locator('[data-delivery-target]').count(), 0);
-    assert.match(await page.locator('.factory-delivery-dialog .factory-picker-empty').innerText(), /No compatible destinations/);
+    assert.equal(await page.locator('.factory-delivery-dialog .factory-picker-empty').innerText(),
+      'No building can receive these goods. Build a suitable destination.');
     assert.equal(await page.locator('[data-command="confirm-delivery"]').isDisabled(), true);
     await page.locator('.factory-delivery-dialog .factory-picker-footer [data-command="close-delivery-picker"]').click();
     await page.locator('[data-command="clear-delivery"]').click();
@@ -478,7 +591,8 @@ try {
     console.log('Native factory interaction passed:', touch ? 'touch/pinch' : 'desktop/zoom', 'placement, picking, route, undo, save, reload and resident motion policies');
     await context.close();
   }
-  for (const touch of [false, true]) {
+  for (const { touch, format } of ['envelope', 'ruleset', 'damaged'].flatMap(format =>
+    [false, true].map(touch => ({ touch, format })))) {
     const context = await browser.newContext({
       viewport: touch ? { width: 390, height: 844 } : { width: 1280, height: 800 },
       isMobile: touch, hasTouch: touch, reducedMotion: 'reduce',
@@ -488,13 +602,16 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(url);
     await page.locator('[data-command="new-settlement"]:not(:disabled)').waitFor();
-    const legacy = await page.evaluate(async () => {
+    const legacy = await page.evaluate(async format => {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
       const { createSave } = await import('/src/games/factory/session/persistence.ts');
       const save = createSave(game.scene.getScene('FactoryScene').simulation, true, 'legacy-do-not-overwrite');
-      save.version = 2;
-      save.simulation.ruleset = 'settlement-v1';
-      save.simulation.scenario = 'settlement';
+      if (format === 'envelope') {
+        save.version = 2;
+        save.simulation.ruleset = 'settlement-v1';
+        save.simulation.scenario = 'settlement';
+      } else if (format === 'ruleset') save.simulation.ruleset = 'settlement-v5';
+      else save.simulation.recovered['food-unit']++;
       await new Promise((resolve, reject) => {
         const request = indexedDB.open('brainrot-pocket-factory', 1);
         request.onerror = () => reject(request.error);
@@ -507,15 +624,23 @@ try {
         };
       });
       return save;
-    });
+    }, format);
     await page.reload();
     await page.locator('[data-command="new-settlement"]:not(:disabled)').waitFor();
-    assert.match(await page.locator('.factory-load-message').innerText(), /Start a new settlement/);
+    assert.equal(await page.locator('.factory-load-message').innerText(), `${format === 'damaged'
+      ? 'This save is damaged and cannot be resumed.'
+      : 'This save cannot be resumed in this version of Pocket Factory.'} You can replace it with a new settlement. No save was replaced.`);
+    await page.locator('.factory-save-details summary').click();
+    const dialogCopy = await page.locator('.factory-settlement-dialog').innerText();
+    assert.doesNotMatch(dialogCopy, /Corrupt|unsupported|ruleset|prototype|Load failed/i);
+    assert.equal((dialogCopy.match(/replace it with a new settlement/g) ?? []).length, 1);
     assert.equal(await page.locator('[data-command="resume-save"]').count(), 0);
     assert.equal(await page.locator('[data-scenario], [data-command="projects"], .factory-objective').count(), 0);
     assert.deepEqual(await storedSave(page), legacy, 'Loading an incompatible save must not write');
     await page.locator('#factory-world-seed').fill('replacement-seed');
     await page.locator('[data-command="new-settlement"]').click();
+    assert.equal(await page.locator('.factory-save-details').count(), 0, 'Confirmation should not repeat save diagnostics');
+    assert.equal(await page.locator('.factory-load-message').isVisible(), false);
     await page.locator('[data-command="cancel-settlement"]').click();
     assert.deepEqual(await storedSave(page), legacy, 'Cancelling replacement must not write');
     await page.locator('[data-command="new-settlement"]').click();
@@ -523,10 +648,13 @@ try {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
       const store = game.scene.getScene('FactoryScene').session.store;
       store.originalWrite = store.write;
-      store.write = async () => { throw new Error('Replacement quota test'); };
+      store.write = async () => { throw new DOMException('Replacement quota test', 'QuotaExceededError'); };
     });
     await page.locator('[data-command="confirm-settlement"]').click();
-    await page.waitForFunction(() => document.querySelector('.factory-load-message').textContent.includes('Replacement quota test'));
+    await page.waitForFunction(() => document.querySelector('.factory-load-message').textContent.includes('Not enough space to save.'));
+    assert.equal(await page.locator('.factory-load-message').innerText(),
+      'Not enough space to save. Free some space on this device, then retry. No save was replaced.');
+    assert.doesNotMatch(await page.locator('.factory-settlement-dialog').innerText(), /Replacement quota test/);
     assert.deepEqual(await storedSave(page), legacy, 'Failed replacement must preserve the old save');
     assert.equal(await page.evaluate(async () => {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
@@ -542,11 +670,11 @@ try {
     await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
     const saved = await storedSave(page);
     assert.equal(saved.version, 4);
-    assert.equal(saved.simulation.ruleset, 'settlement-v5');
+    assert.equal(saved.simulation.ruleset, 'settlement-v6');
     assert.equal(saved.simulation.world.seed, 'replacement-seed');
     assert.notEqual(saved.worldId, legacy.worldId);
     assert.deepEqual(errors, []);
-    console.log('Incompatible save protection passed:', touch ? 'touch' : 'desktop', 'no migration, cancellation, failed write and confirmed replacement');
+    console.log('Save recovery copy and protection passed:', format, touch ? 'touch' : 'desktop', 'clean messages, cancellation, failed write and confirmed replacement');
     await context.close();
   }
   {

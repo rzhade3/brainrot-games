@@ -31,7 +31,7 @@ function fixture(population: number, state?: SettlementSave, machines?: Map<stri
   const host = { world, machines: map, automated: () => false, recover: () => { assert.fail('Unexpected cargo recovery'); } };
   const initial = state ?? new Settlement(host).serialize();
   if (!state) initial.residents = Array.from({ length: population }, (_, id) =>
-    ({ id, tile: { c: 8, r: 8 }, travel: 0, cargo: null, job: null, note: 'Looking for work' }));
+    ({ id, tile: { c: 8, r: 8 }, siteAccess: null, exit: null, travel: 0, cargo: null, job: null, note: 'Looking for work' }));
   const settlement = new Settlement(host, initial);
   return { settlement, map, sources, sinks };
 }

@@ -2,6 +2,25 @@ import assert from 'node:assert/strict';
 import { createSave, restoreSave } from '../src/games/factory/session/persistence';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
 import { Building, BuildingKind, Direction, tileKey } from '../src/games/factory/game/model';
+import { Resident, WALK_TICKS } from '../src/games/factory/game/settlement';
+
+export function assertResidentLocation(simulation: FactorySimulation, resident: Resident): void {
+  const clear = (tile: Resident['tile']) => !simulation.buildings.has(tileKey(tile)) &&
+    !['water', 'tree'].includes(simulation.world.terrainAt(tile));
+  if (resident.siteAccess) {
+    assert.ok(simulation.buildings.get(tileKey(resident.tile))?.kind === 'food-plot' ||
+      simulation.world.terrainAt(resident.tile) === 'tree', 'Only work sites can be inhabited');
+    assert.ok(clear(resident.siteAccess), 'An occupied work site retains a clear exit');
+    assert.equal(Math.abs(resident.tile.c - resident.siteAccess.c) + Math.abs(resident.tile.r - resident.siteAccess.r), 1);
+    assert.ok(resident.job || resident.exit);
+  } else assert.ok(clear(resident.tile), 'Residents do not cross unrelated occupied footprints');
+  if (resident.exit) {
+    assert.equal(resident.job, null);
+    assert.deepEqual(resident.exit, resident.siteAccess);
+  }
+  assert.ok(resident.travel >= 0 && resident.travel < WALK_TICKS);
+  assert.ok(!resident.travel || resident.job?.path.length || resident.exit, 'Movement requires a next tile');
+}
 
 export function createDemo(): Map<string, Building> {
   const buildings = new Map<string, Building>();

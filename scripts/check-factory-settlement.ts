@@ -3,6 +3,7 @@ import { DIRECTIONS, tileKey } from '../src/games/factory/game/model';
 import { createSave, restoreSave } from '../src/games/factory/session/persistence';
 import { FARM_TICKS, KITCHEN_CAPACITY, MEAL_TICKS, STARTER_FOOD, WALK_TICKS } from '../src/games/factory/game/settlement';
 import { DEPOT_CAPACITY, FactorySimulation, itemCount, ITEMS } from '../src/games/factory/game/simulation';
+import { assertResidentLocation } from './factory-check-helpers';
 
 const fresh = () => FactorySimulation.create();
 const ticks = (sim: FactorySimulation, count: number) => { for (let i = 0; i < count; i++) sim.step(); };
@@ -23,15 +24,13 @@ function accounted(sim: FactorySimulation): void {
   }
   for (const resident of settlement.residents) {
     if (resident.cargo === 'food-unit') food++;
-    assert.ok(!sim.buildings.has(tileKey(resident.tile)), 'Workers never walk through occupied footprints');
-    assert.ok(!['water', 'tree'].includes(sim.world.terrainAt(resident.tile)));
-    assert.ok(resident.travel >= 0 && resident.travel < WALK_TICKS);
+    assertResidentLocation(sim, resident);
   }
   assert.equal(food + settlement.consumedFood, settlement.starterFood + settlement.producedFood);
 }
 
 const sim = fresh();
-assert.equal(sim.serialize().ruleset, 'settlement-v5');
+assert.equal(sim.serialize().ruleset, 'settlement-v6');
 assert.equal(sim.buildings.size, 3);
 assert.equal(Object.hasOwn(sim.summary(), 'projects'), false);
 assert.equal(state(sim).residents.length, 4);
@@ -51,7 +50,7 @@ for (let i = 0; i < 1800; i++) {
   const settlement = state(sim);
   sawCargo ||= settlement.residents.some(resident => resident.cargo === 'food-unit');
   sawTravel ||= settlement.residents.some(resident => resident.travel > 0);
-  sawFarm ||= settlement.residents.some(resident => resident.note === 'Farming');
+  sawFarm ||= settlement.residents.some(resident => resident.note === 'Growing food');
   if (!firstFood && settlement.producedFood > 0) firstFood = sim.ticks / 10;
   const heldAway = sim.getState({ c: 10, r: 9 })!.output['food-unit'] +
     settlement.residents.filter(resident => resident.cargo === 'food-unit').length;
@@ -179,10 +178,11 @@ accounted(blocked);
 // Replace food carrying with a conveyor, then measure useful labor on an identical second route.
 const walking = fresh();
 const automated = fresh();
+const comparisonDepot = { c: 15, r: 12 };
 for (const factory of [walking, automated]) {
   assert.equal(factory.place({ kind: 'miner', c: 7, r: 10, direction: 0 }), null);
-  assert.equal(factory.place({ kind: 'storage', c: 15, r: 10, direction: 0 }), null);
-  assert.equal(factory.setHaulTarget({ c: 7, r: 10 }, { c: 15, r: 10 }), null);
+  assert.equal(factory.place({ kind: 'storage', ...comparisonDepot, direction: 0 }), null);
+  assert.equal(factory.setHaulTarget({ c: 7, r: 10 }, comparisonDepot), null);
 }
 for (const b of [
   { c: 11, r: 9, direction: 0 }, { c: 12, r: 9, direction: 0 }, { c: 13, r: 9, direction: 0 },
@@ -190,8 +190,8 @@ for (const b of [
 ] as const) assert.equal(automated.place({ kind: 'belt', ...b }), null);
 ticks(walking, 1200);
 ticks(automated, 1200);
-const walkingIron = walking.getState({ c: 15, r: 10 })!.input['iron-ore'];
-const automatedIron = automated.getState({ c: 15, r: 10 })!.input['iron-ore'];
+const walkingIron = walking.getState(comparisonDepot)!.input['iron-ore'];
+const automatedIron = automated.getState(comparisonDepot)!.input['iron-ore'];
 assert.ok(automatedIron > walkingIron, `Automation releases labor: expected more than ${walkingIron}, got ${automatedIron}`);
 assert.equal(state(automated).residents.some(resident => resident.job?.source.c === 10 &&
   resident.job.source.r === 9 && resident.job.kind !== 'farm'), false);
@@ -220,7 +220,7 @@ for (const scenario of ['guided', 'free-play'] as const) {
     delete machine.output['food-unit'];
   }
   const before = structuredClone(raw);
-  assert.throws(() => restoreSave(raw), /Unsupported.*Start a new settlement/);
+  assert.throws(() => restoreSave(raw), /Unsupported factory save version/);
   assert.deepEqual(raw, before);
 }
 
@@ -233,12 +233,12 @@ for (const seed of ['north-bank', 'settlement', 'food', 'river', 'wood', '42', '
   roundtrip(seeded);
 }
 const valid = sim.serialize();
-const invalid = (change: (raw: typeof valid) => void) => {
+const invalid = (change: (raw: typeof valid) => void, pattern = /Corrupt/) => {
   const raw = structuredClone(valid);
   change(raw);
-  assert.throws(() => FactorySimulation.restore(raw), /Corrupt/);
+  assert.throws(() => FactorySimulation.restore(raw), pattern);
 };
-invalid(raw => { Object.assign(raw, { ruleset: 'factory-v1' }); });
+invalid(raw => { Object.assign(raw, { ruleset: 'factory-v1' }); }, /unsupported settlement ruleset/);
 invalid(raw => { Object.assign(raw, { settlement: null }); });
 invalid(raw => { raw.settlement!.residents.pop(); });
 invalid(raw => { raw.settlement!.starterFood++; });

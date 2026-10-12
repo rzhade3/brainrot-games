@@ -1,4 +1,5 @@
-import { createSave, FactorySave, FactorySaveStore, restoreSave, SaveConflictError } from './persistence';
+import { createSave, FactorySave, FactorySaveStore, restoreSave, SaveConflictError, SaveStorageError } from './persistence';
+import { FactorySaveError } from './saveErrors';
 import { FactorySimulation } from '../game/simulation';
 
 export interface SaveStore {
@@ -12,11 +13,26 @@ interface SessionView {
   setSaveStatus(text: string, error?: boolean, retry?: boolean): void;
 }
 
+function storageMessage(error: unknown, action: 'load' | 'replace' | 'save'): string {
+  if (error instanceof SaveStorageError || error instanceof SaveConflictError) return error.message;
+  if (error instanceof DOMException) {
+    if (error.name === 'QuotaExceededError') return 'Not enough space to save. Free some space on this device, then retry.';
+    if (error.name === 'SecurityError' || error.name === 'NotAllowedError') {
+      return 'Browser settings block local saving. Allow storage for this site, then retry.';
+    }
+  }
+  console.error(`Pocket Factory save ${action} failed.`, error);
+  return action === 'load' ? 'Could not read your save. Retry loading.'
+    : action === 'replace' ? 'Could not save the new settlement. Try again.'
+      : 'Could not save changes. Retry saving.';
+}
+
 export class FactorySession {
   simulation = FactorySimulation.create();
   paused = false;
   worldId: string | null = null;
   private savedFactory: FactorySave | null = null;
+  private existingSave = false;
   private saveQueue: Promise<void> = Promise.resolve();
   private revision = 0;
   private savedRevision = -1;
@@ -40,16 +56,20 @@ export class FactorySession {
       const saved = await this.store.load();
       if (this.closed) return;
       this.savedFactory = saved;
+      this.existingSave = !!saved;
       this.view.setSavedSettlement(!!saved, saved
         ? `Last saved ${new Date(saved.savedAt).toLocaleString()}` : '', false, !!saved);
-      this.view.setSaveStatus(saved ? 'Local save available to resume' : 'Start a new settlement to begin autosaving');
+      this.view.setSaveStatus(saved ? 'Saved on this device' : 'No saved settlement');
     } catch (error) {
       if (this.closed) return;
-      const message = error instanceof Error ? error.message : String(error);
-      const invalid = /Corrupt factory save|Unsupported factory/.test(message);
-      this.view.setSavedSettlement(false, `${message} ${invalid ? 'Start a new settlement only if you want to replace this incompatible save.' : 'No save was replaced.'}`,
-        !invalid, invalid);
-      this.view.setSaveStatus(`Load failed: ${message}`);
+      const invalid = error instanceof FactorySaveError;
+      this.existingSave = invalid;
+      const message = invalid
+        ? `${error.kind === 'incompatible' ? 'This save cannot be resumed in this version of Pocket Factory.'
+          : 'This save is damaged and cannot be resumed.'} You can replace it with a new settlement.`
+        : storageMessage(error, 'load');
+      this.view.setSavedSettlement(false, `${message} No save was replaced.`, !invalid, invalid);
+      this.view.setSaveStatus(invalid ? 'Existing save kept on this device' : 'Local save unavailable');
     } finally {
       this.loading = false;
     }
@@ -76,6 +96,7 @@ export class FactorySession {
       if (this.closed) return false;
       this.worldId = id;
       this.savedFactory = save;
+      this.existingSave = true;
       this.revision = this.savedRevision = 0;
       this.autosaveElapsed = 0;
       this.conflicted = false;
@@ -87,10 +108,10 @@ export class FactorySession {
       return true;
     } catch (error) {
       if (this.closed) return false;
-      const message = error instanceof Error ? error.message : String(error);
+      const message = storageMessage(error, 'replace');
       this.view.setSavedSettlement(!!this.savedFactory,
-        `Could not start a new settlement: ${message} Your previous save was not changed.`, false, true);
-      this.view.setSaveStatus(`Save failed: ${message}`, !!this.worldId);
+        `${message} No save was replaced.`, false, this.existingSave);
+      this.view.setSaveStatus('New settlement not saved', !!this.worldId, false);
       return false;
     } finally {
       this.replacing = false;
@@ -105,7 +126,7 @@ export class FactorySession {
     this.paused = save.paused;
     this.revision = this.savedRevision = 0;
     this.activate(simulation, save.paused, true);
-    this.view.setSaveStatus('Saved settlement resumed on this device');
+    this.view.setSaveStatus('Saved on this device');
   }
 
   changed(saveImmediately = true): void {
@@ -128,18 +149,17 @@ export class FactorySession {
     const worldId = this.worldId;
     const revision = this.revision;
     const save = createSave(this.simulation, this.paused, worldId);
-    this.view.setSaveStatus('Saving locally...');
+    this.view.setSaveStatus('Saving on this device...');
     try {
       await this.queueWrite(save);
       if (this.closed || this.worldId !== worldId) return;
       this.savedFactory = save;
       this.savedRevision = revision;
-      this.view.setSaveStatus(this.savedRevision === this.revision ? 'Saved on this device' : 'Autosave active · new changes pending');
+      this.view.setSaveStatus(this.savedRevision === this.revision ? 'Saved on this device' : 'Saving new changes...');
     } catch (error) {
       if (this.closed || this.worldId !== worldId) return;
       if (error instanceof SaveConflictError) this.conflicted = true;
-      const message = error instanceof Error ? error.message : String(error);
-      this.view.setSaveStatus(`Not saved: ${message}`, true, !this.conflicted);
+      this.view.setSaveStatus(storageMessage(error, 'save'), true, !this.conflicted);
     }
   }
 

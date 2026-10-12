@@ -339,21 +339,22 @@ export function drawBuildingActivity(g: Graphics, state: BuildingActivity): void
 
 export function drawResident(
   g: Graphics, x: number, y: number, id: number, stride: number,
-  cargo: Item | null, farming: boolean, facing: Point,
+  cargo: Item | null, working: boolean, facing: Point,
 ): void {
   g.fillStyle(0x243c36, 0.2).fillEllipse(x + 2, y + 1, 15, 6);
   const swing = Math.sin(stride) * 2;
+  const walkSwing = working ? 0 : swing;
   const shirt = [0x829c8a, 0xbca777, 0x9bafa4, 0xc19c80][id];
   const skin = [0xd9b997, 0xb88b6b, 0xccaa87, 0xa87b5a][id];
   if (facing.x !== 0) {
     const side = Math.sign(facing.x);
     const away = facing.y < 0;
-    const stepX = swing * side;
-    const stepY = swing * facing.y / Math.abs(facing.x);
-    const bob = Math.abs(Math.sin(stride)) * 0.6;
+    const stepX = walkSwing * side;
+    const stepY = walkSwing * facing.y / Math.abs(facing.x);
+    const bob = working ? 0 : Math.abs(Math.sin(stride)) * 0.6;
     const shoulderY = y - 14 - bob;
     const handX = x + side * (cargo ? 7 : 3) - (cargo ? 0 : stepX);
-    const handY = y - 10 - bob - (cargo ? 0 : stepY);
+    const handY = y - 10 - bob + (working ? swing : cargo ? 0 : -stepY);
     line(g, { x: x - side, y: y - 7 }, { x: x - stepX - side, y: y - stepY - 1 }, 0x405b54, 2.5);
     line(g, { x: x - side * 2, y: shoulderY - 1 },
       { x: x + side * (cargo ? 6 : 2) + (cargo ? 0 : stepX), y: y - 11 - bob + (cargo ? 0 : stepY) }, skin, 2);
@@ -367,19 +368,19 @@ export function drawResident(
     g.fillStyle(0x596f5f).fillEllipse(x + side, y - 24 - bob, 9, 3);
     if (cargo) drawParcel(g, x + side * 8, y - 9 - bob, cargo);
     line(g, { x: x + side * 2, y: shoulderY }, { x: handX, y: handY }, skin, 2.5);
-    if (farming) line(g, { x: handX, y: handY - 2 },
+    if (working) line(g, { x: handX, y: handY - 2 },
       { x: handX + side * 6, y: y - 2 + swing }, 0xaa8d5c, 2);
     return;
   }
-  line(g, { x: x - 2, y: y - 7 }, { x: x - 3 - swing, y }, 0x526e66, 2.5);
-  line(g, { x: x + 2, y: y - 7 }, { x: x + 3 + swing, y }, 0x526e66, 2.5);
+  line(g, { x: x - 2, y: y - 7 }, { x: x - 3 - walkSwing, y }, 0x526e66, 2.5);
+  line(g, { x: x + 2, y: y - 7 }, { x: x + 3 + walkSwing, y }, 0x526e66, 2.5);
   prism(g, x, y - 7, 5, 2.5, 9, shirt, 0x718a80, 0x526e66);
   g.fillStyle(skin).fillCircle(x, y - 21, 3.5);
   g.fillStyle(0x596f5f).fillEllipse(x, y - 24, 9, 4);
   line(g, { x: x - 5, y: y - 14 }, { x: x - 8, y: y - 10 + swing }, 0xcbb391, 2);
   line(g, { x: x + 5, y: y - 14 }, { x: x + 8, y: y - 10 - swing }, 0xcbb391, 2);
   if (cargo) drawParcel(g, x + 8, y - 9, cargo);
-  if (farming) line(g, { x: x + 7, y: y - 12 }, { x: x + 13, y: y - 2 + swing }, 0xaa8d5c, 2);
+  if (working) line(g, { x: x + 7, y: y - 12 }, { x: x + 13, y: y - 2 + swing }, 0xaa8d5c, 2);
 }
 
 export function drawPreview(g: Graphics, c: number, r: number, color: number): void {

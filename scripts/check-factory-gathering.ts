@@ -3,7 +3,7 @@ import { containsBuilding, pickBuilding } from '../src/games/factory/assets/pick
 import { DIRECTIONS, GATHER_RADIUS, GATHER_TICKS, project, Tile, tileKey } from '../src/games/factory/game/domain';
 import { gatheringAccess } from '../src/games/factory/game/gathering';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks, assertInvariants, roundTrip } from './factory-check-helpers';
+import { advanceTicks, assertInvariants, assertResidentLocation, roundTrip } from './factory-check-helpers';
 
 function sites(sim: FactorySimulation): Tile[] {
   const result: Tile[] = [];
@@ -47,8 +47,7 @@ function accounted(sim: FactorySimulation): void {
       assert.ok(Math.abs(resident.job.tree.c - resident.job.source.c) +
         Math.abs(resident.job.tree.r - resident.job.source.r) <= GATHER_RADIUS);
     }
-    assert.ok(!['water', 'tree'].includes(sim.world.terrainAt(resident.tile)));
-    assert.equal(sim.buildings.has(tileKey(resident.tile)), false);
+    assertResidentLocation(sim, resident);
     assert.equal(Object.hasOwn(resident, 'workplace'), false);
   }
   assert.equal(held, snapshot.settlement.producedWood);

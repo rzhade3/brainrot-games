@@ -77,7 +77,7 @@ invalid(save => { Object.assign(save.simulation, { ruleset: 'settlement-v1' }); 
 assert.throws(() => restoreSave(null), /Corrupt/);
 assert.throws(() => restoreSave({ version: SAVE_VERSION, contractVersion: 1 }), /Corrupt/);
 for (const version of [1, 2]) {
-  invalid(save => { save.version = version; }, /Unsupported.*Start a new settlement/);
+  invalid(save => { save.version = version; }, /Unsupported factory save version/);
 }
 for (const field of ['nextOutput', 'nextItem'] as const) {
   const missing = JSON.parse(JSON.stringify(valid));

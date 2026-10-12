@@ -25,8 +25,37 @@ try {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
       const { FactorySimulation } = await import('/src/games/factory/game/simulation.ts');
       const { project } = await import('/src/games/factory/game/model.ts');
+      const { drawResident } = await import('/src/games/factory/assets/art.ts');
       game.loop.stop();
       const scene = game.scene.getScene('FactoryScene');
+      const drawing = scene.add.graphics();
+      const lines = [];
+      const lineBetween = drawing.lineBetween.bind(drawing);
+      drawing.lineBetween = (...coordinates) => {
+        lines.push(coordinates);
+        return lineBetween(...coordinates);
+      };
+      const frame = (stride, working, facing) => {
+        lines.length = 0;
+        drawing.clear();
+        drawResident(drawing, 0, 0, 0, stride, null, working, facing);
+        return structuredClone(lines);
+      };
+      const feet = frame => frame.filter(([, startY]) => startY === -7);
+      for (const facing of [{ x: 0, y: 1 }, { x: 38, y: 19 }, { x: -38, y: -19 },
+        { x: 38, y: -19 }, { x: -38, y: 19 }]) {
+        const a = frame(0, true, facing);
+        const b = frame(0.75, true, facing);
+        if (feet(a).length !== 2 || JSON.stringify(feet(a)) !== JSON.stringify(feet(b)) ||
+            JSON.stringify(a) === JSON.stringify(b)) {
+          throw new Error('Shared work animation must plant both feet while arms/tool move');
+        }
+        if (JSON.stringify(feet(frame(0, false, facing))) ===
+            JSON.stringify(feet(frame(0.75, false, facing)))) {
+          throw new Error('Walking animation must retain its leg motion');
+        }
+      }
+      drawing.destroy();
       const sim = FactorySimulation.create();
       for (const building of [
         { kind: 'miner', c: 7, r: 10, direction: 0 },
@@ -75,5 +104,5 @@ try {
   else if (operation === '--compare' && path) assert.deepEqual(results, JSON.parse(await readFile(path, 'utf8')),
     'Normal, paused and reduced-motion cargo/machinery frames must remain pixel-identical');
   else assert.equal(operation, undefined);
-  console.log('Factory motion checks passed: desktop/DPR-3 cargo, rotating extractors, active smelters, pause and reduced motion.');
+  console.log('Factory motion checks passed: planted working feet, animated arms/tools, walking legs, desktop/DPR-3 cargo, rotating extractors, active smelters, pause and reduced motion.');
 } finally { await browser.close(); }

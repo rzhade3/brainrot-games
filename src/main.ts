@@ -17,7 +17,7 @@ const games: GameEntry[] = [
   {
     title: 'Pocket Factory',
     emoji: '🏭',
-    description: 'Build a small settlement. Farm, carry goods, and automate supply chains, with local autosave and offline resume.',
+    description: 'Grow food, gather wood, and build supply chains in a small settlement.',
     href: './games/factory/',
     ready: true,
   },

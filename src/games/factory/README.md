@@ -6,7 +6,7 @@ Settlement is the only ruleset and starting layout. New settlement, Resume and a
 optional seed share one entry menu. Farming, hauling and industry are available
 without mission or project gates; extractor upgrades are optional. Depots
 automatically feed connected outputs and otherwise store goods. Saves use
-envelope version 4 and `settlement-v5`.
+envelope version 4 and `settlement-v6`.
 Earlier saves are rejected without migration or writes. Replacement requires
 confirmation and activates only after the new save commits.
 
@@ -23,6 +23,10 @@ Inactive buildings do not bank credit. These are soft effort shares, not assigne
 headcounts or staffing caps.
 One farmer or woodcutter works each site at a time; full buffers and inaccessible
 jobs do not hold residents. People shows activity without assignment controls.
+Workers enter their plot or tree tile while working, leaving neighboring land
+free for construction. Shared resident navigation protects the last clear exit
+of an occupied work tile and walks residents out when their work ends. Only the
+assigned work tile is enterable; other buildings and trees remain obstacles.
 Residents finish each harvest or cargo trip before choosing new work; changing
 priority never cancels progress or carried goods.
 The woodcutter gathers for two seconds, then carries
@@ -53,7 +57,7 @@ card so the player can change or stop them without resetting the settlement.
 | Residents, jobs, navigation, reservations and food consumption | `game/settlement.ts` |
 | Demand-capped weighted labor targets | `game/labor.ts` |
 | Bounded grove access search | `game/gathering.ts` |
-| Save-state validation and conservation | `session/saveState.ts` |
+| Save-state validation, error classification and conservation | `session/saveState.ts`, `session/saveErrors.ts` |
 | Save format and IndexedDB conflict protection | `session/persistence.ts` |
 | Save queue, revisions and world replacement | `session/session.ts` |
 | Atomic conveyor planning, commit and undo | `game/beltRoute.ts` |

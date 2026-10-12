@@ -3,8 +3,7 @@ import {
   compareTiles,
   EXTRACT_TICKS,
   firstItem, inventory, Inventory, Item,
-  ITEM_NAMES,
-  itemCount,
+  itemCount, itemText,
   ITEMS,
   MEAL_TICKS,
   moveInventory,
@@ -29,6 +28,7 @@ import {
   outputDirections, placementError, Tile, tileKey,
 } from './model';
 import { assertConservation, copyMachine, requireSave, restoreMachine, saveCount, saveInventory, saveObject, saveTile } from '../session/saveState';
+import { requireCompatibleSave } from '../session/saveErrors';
 import { Resident, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
 import { gatheringAccess } from './gathering';
 import { DEFAULT_WORLD, FactoryWorld, DEFAULT_SEED, restoreWorld, WorldIdentity } from './world';
@@ -90,7 +90,7 @@ export interface SimulationSave {
   smelted: Inventory;
   assembled: Inventory;
   recipeConsumed: Inventory;
-  ruleset: 'settlement-v5';
+  ruleset: 'settlement-v6';
   settlement: SettlementSave;
 }
 
@@ -148,16 +148,16 @@ export class FactorySimulation {
         .map(([key, source]) => [key, { ...source }]),
       recovered: { ...this.recovered }, mined: { ...this.productionLedger.mined }, smelted: { ...this.productionLedger.smelted },
       assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed },
-      ruleset: 'settlement-v5',
+      ruleset: 'settlement-v6',
       settlement: this.settlement.serialize(),
     };
   }
 
   static restore(value: unknown): FactorySimulation {
     const source = saveObject(value);
-    requireSave(source.ruleset === 'settlement-v5', 'unsupported settlement ruleset; start a new settlement');
-    requireSave(!['scenario', 'delivered', 'stage', 'orderStarted', 'orderCompleted', 'deliveryTicks', 'projects']
-      .some(field => Object.hasOwn(source, field)), 'legacy factory fields; start a new settlement');
+    requireCompatibleSave(source.ruleset === 'settlement-v6', 'unsupported settlement ruleset');
+    requireCompatibleSave(!['scenario', 'delivered', 'stage', 'orderStarted', 'orderCompleted', 'deliveryTicks', 'projects']
+      .some(field => Object.hasOwn(source, field)), 'legacy factory fields');
     const world = restoreWorld(source.world);
     const sim = new FactorySimulation(world);
     sim.placed.clear();
@@ -271,12 +271,13 @@ export class FactorySimulation {
   }
 
   placementError(tile: Tile, kind: BuildingKind): string | null {
-    if (kind === 'home') return 'The founding home stays in place';
+    if (kind === 'home') return 'The homestead stays in place';
     if (this.settlement.occupied(tile)) return 'A resident is using this tile';
     const error = placementError(tile, kind, this.placed, this.world);
     if (error) return error;
+    if (this.settlement.blocksExit(tile)) return 'Leave a clear exit beside the occupied work site.';
     return kind === 'woodcutting-site' && !gatheringAccess(tile, this.placed, this.world).length
-      ? 'No accessible trees nearby; choose clear land beside a grove' : null;
+      ? 'No accessible trees nearby. Choose clear land beside a grove.' : null;
   }
 
   setWorkPriority(tile: Tile, priority: WorkPriority): string | null {
@@ -296,18 +297,18 @@ export class FactorySimulation {
       const item = kind === 'food-plot' ? 'food-unit' : 'wood';
       if (machine.output[item] >= outputCapacity(kind)) return 'Output full';
       if (kind === 'woodcutting-site' && !gatheringAccess(machine.building, this.buildings, this.world).length) return 'Grove access blocked';
-      return 'Waiting for a resident or clear access';
+      return 'Waiting for a resident or a clear path';
     }
     if (this.settlementHost().automated(machine)) return 'Delivery handled by conveyors';
     const target = machine.building.haulTo;
-    if (!target) return 'No resident deliveries requested';
+    if (!target) return 'No delivery destination';
     const destination = this.machines.get(tileKey(target));
     const stock = kind === 'storage' ? machine.input : machine.output;
     if (!destination || !ITEMS.some(item => stock[item] > 0 && acceptsInventoryItem(destination.building.kind, item)))
       return 'Waiting for matching goods';
     if (!ITEMS.some(item => stock[item] > 0 && acceptsInventoryItem(destination.building.kind, item) &&
       this.freeSlots(destination, item) > 0)) return 'Destination full';
-    return 'Waiting for a resident or clear access';
+    return 'Waiting for a resident or a clear path';
   }
 
   private addMachine(building: Building): void {
@@ -465,31 +466,26 @@ export class FactorySimulation {
     const machine = this.machines.get(tileKey(tile));
     if (!machine) throw new Error('Cannot inspect a missing building');
     switch (machine.building.kind) {
-      case 'home': return this.residents.length === 4 ? 'Four residents; farming and hauling automatically'
-        : `${this.residents.length} residents; farming and hauling automatically`;
+      case 'home': return `${this.residents.length} residents sharing the work`;
       case 'food-plot': {
         const worker = this.settlement.state.residents.find(resident => resident.job?.kind === 'farm' &&
           tileKey(resident.job.source) === tileKey(tile));
-        return itemCount(machine.output) >= outputCapacity(machine.building.kind) ? 'Plot full; transport needed'
-          : !worker ? 'Waiting for a resident or clear access'
-            : worker.job?.path.length ? 'Farmer approaching' : 'Growing food';
+        return itemCount(machine.output) >= outputCapacity(machine.building.kind) ? 'Plot full · waiting for transport'
+          : !worker ? 'Waiting for a resident or a clear path'
+            : worker.job?.path.length ? 'On the way to the plot' : 'Growing food';
       }
       case 'woodcutting-site': {
         const worker = this.residents.find(resident => (resident.job?.kind === 'gather' || resident.job?.kind === 'return-wood') &&
           tileKey(resident.job.source) === tileKey(tile));
-        if (itemCount(machine.output) >= outputCapacity(machine.building.kind)) return 'Site full; transport needed';
-        if (!worker) return gatheringAccess(tile, this.buildings, this.world).length ? 'Waiting for a resident or clear access' : 'Grove access blocked';
-        if (worker.job?.kind === 'return-wood') return 'Wood returning to site';
+        if (itemCount(machine.output) >= outputCapacity(machine.building.kind)) return 'Site full · waiting for transport';
+        if (!worker) return gatheringAccess(tile, this.buildings, this.world).length ? 'Waiting for a resident or a clear path' : 'Grove access blocked';
+        if (worker.job?.kind === 'return-wood') return 'Taking wood back to the site';
         if (worker.job?.kind === 'gather') {
-          const destination = this.destination(machine.building);
-          const transport = machine.building.haulTo || destination && this.accepts(destination, machine.building, 'wood');
-          const activity = worker.job.path.length ? 'Woodcutter approaching grove' : 'Gathering wood';
-          return transport ? activity : `${activity}; no transport chosen`;
+          return worker.job.path.length ? 'On the way to the grove' : 'Gathering wood';
         }
         return worker.note;
       }
-      case 'kitchen': return machine.input['food-unit'] > 0 ? this.residents.length === 4 ? 'Provisioning four residents'
-        : `Provisioning ${this.residents.length} residents` : 'Food shortage; residents keep working';
+      case 'kitchen': return machine.input['food-unit'] > 0 ? 'Kitchen stocked' : 'Food shortage · residents keep working';
       case 'storage':
         if (!this.destination(machine.building)) return this.freeSlots(machine) === 0 ? 'Depot full' : 'Storing goods';
         return !depotNextItem(machine) ? 'Waiting for stock'
@@ -505,8 +501,12 @@ export class FactorySimulation {
         const alternate = directions[machine.nextOutput === 0 ? 1 : 0];
         const blocked = this.blockage(machine, machine.item, preferred);
         const fallback = this.blockage(machine, machine.item, alternate);
+        const reason = (value: string) => value === 'Output disconnected' ? 'not connected'
+          : value === 'Output incompatible' ? 'incompatible' : 'full';
         return !blocked ? `Ready to route ${DIRECTION_NAMES[preferred]}`
-          : !fallback ? `Ready to route ${DIRECTION_NAMES[alternate]}` : `Both outputs blocked: ${blocked}; ${fallback}`;
+          : !fallback ? `Ready to route ${DIRECTION_NAMES[alternate]}`
+            : blocked === fallback ? `Both outputs ${reason(blocked)}`
+              : `${DIRECTION_NAMES[preferred]}: ${reason(blocked)} · ${DIRECTION_NAMES[alternate]}: ${reason(fallback)}`;
       }
       case 'miner':
         return itemCount(machine.output) >= outputCapacity(machine.building.kind)
@@ -517,9 +517,7 @@ export class FactorySimulation {
       case 'assembler': {
         if (itemCount(machine.output) >= outputCapacity(machine.building.kind)) return this.blockage(machine, ASSEMBLER_RECIPE.output.item) ?? 'Output full';
         const missing = ASSEMBLER_RECIPE.inputs.filter(ingredient => machine.input[ingredient.item] < ingredient.quantity);
-        if (missing.length === ASSEMBLER_RECIPE.inputs.length) return `Needs ${missing.map(ingredient =>
-          `${ingredient.quantity} ${ingredient.item === 'iron-plate' ? 'iron' : 'copper'}`).join(' + ')} plate`;
-        if (missing.length) return `Needs ${missing[0].quantity} ${ITEM_NAMES[missing[0].item].toLowerCase().replace(/s$/, missing[0].quantity === 1 ? '' : 's')}`;
+        if (missing.length) return `Needs ${missing.map(ingredient => itemText(ingredient.item, ingredient.quantity)).join(' + ')}`;
         return 'Assembling';
       }
     }

@@ -8,9 +8,10 @@ import {
 import { inBounds } from '../game/model';
 import type { SettlementSave } from '../game/settlement';
 import type { FactoryWorld } from '../game/world';
+import { FactorySaveError } from './saveErrors';
 
 export function requireSave(condition: unknown, message: string): asserts condition {
-  if (!condition) throw new Error(`Corrupt factory save: ${message}`);
+  if (!condition) throw new FactorySaveError('damaged', `Corrupt factory save: ${message}`);
 }
 
 export function saveObject(value: unknown): Record<string, unknown> {

@@ -1,12 +1,22 @@
 import assert from 'node:assert/strict';
 import { BUILDING_SHAPES, containsBuilding, pickBuilding } from '../src/games/factory/assets/picking';
-import { BuildingKind, BUILDING_KINDS, CATALOG, inventory, itemCount, ITEMS, moveInventory, project, tileKey } from '../src/games/factory/game/domain';
+import { BuildingKind, BUILDING_KINDS, CATALOG, inventory, inventoryText, itemCount, ITEMS, itemText, moveInventory, project, tileKey } from '../src/games/factory/game/domain';
 import { ASSEMBLER_RECIPE, canHaulBetween, haulItems, inputCapacity, inputSlots, machineCycleTicks, machineRecipe, SMELTER_RECIPES } from '../src/games/factory/game/machines';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
 import { roundTrip } from './factory-check-helpers';
 
 const source = inventory();
 const destination = inventory();
+for (const [item, singular, plural] of [
+  ['iron-ore', 'iron ore', 'iron ore'], ['copper-ore', 'copper ore', 'copper ore'],
+  ['iron-plate', 'iron plate', 'iron plates'], ['copper-plate', 'copper plate', 'copper plates'],
+  ['food-unit', 'food unit', 'food units'], ['defense-supply', 'defense supply', 'defense supplies'],
+  ['wood', 'wood', 'wood'],
+] as const) {
+  assert.equal(itemText(item, 1), `1 ${singular}`);
+  assert.equal(itemText(item, 2), `2 ${plural}`);
+  assert.equal(inventoryText({ ...inventory(), [item]: 1 }), `1 ${singular}`);
+}
 source['iron-ore'] = 5;
 moveInventory(source, destination, 'iron-ore', 3);
 assert.equal(itemCount(source) + itemCount(destination), 5);

@@ -1,4 +1,5 @@
 import type { Tile } from './domain';
+import { FactorySaveError, requireCompatibleSave } from '../session/saveErrors';
 
 export const WORLD_SIZE = 256;
 export const CHUNK_SIZE = 32;
@@ -150,14 +151,13 @@ export const DEFAULT_WORLD = new FactoryWorld();
 let restoredWorld: FactoryWorld | null = null;
 
 export function restoreWorld(value: unknown): FactoryWorld {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Corrupt factory save: missing world identity');
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new FactorySaveError('damaged', 'Corrupt factory save: missing world identity');
   const source = value as Record<string, unknown>;
-  if (source.id !== 'seeded-world' || source.generatorVersion !== GENERATOR_VERSION || source.size !== WORLD_SIZE) {
-    throw new Error('Unsupported factory map version. Start a new settlement for this prototype revision.');
-  }
+  requireCompatibleSave(source.id === 'seeded-world' && source.generatorVersion === GENERATOR_VERSION && source.size === WORLD_SIZE,
+    'Unsupported factory map version');
   if (typeof source.seed !== 'string' || source.seed !== source.seed.trim() || !source.seed || source.seed.length > 64 ||
       !Array.isArray(source.terrainChanges) || source.terrainChanges.length !== 0) {
-    throw new Error('Corrupt factory save: invalid generated world identity');
+    throw new FactorySaveError('damaged', 'Corrupt factory save: invalid generated world identity');
   }
   if (source.seed === DEFAULT_SEED) return DEFAULT_WORLD;
   if (restoredWorld?.seed !== source.seed) restoredWorld = new FactoryWorld(source.seed);

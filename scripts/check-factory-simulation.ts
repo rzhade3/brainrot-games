@@ -120,7 +120,7 @@ assert.equal(assemblyInspection.outputCapacity, 4);
 assert.equal(assemblyInspection.availableInput, 8);
 assert.deepEqual(assemblyInspection.recipe, ASSEMBLER_RECIPE);
 assert.equal(assemblyInspection.cycleTicks, 20);
-assert.equal(assemblyInspection.status, 'Needs 2 iron + 1 copper plate');
+assert.equal(assemblyInspection.status, 'Needs 2 iron plates + 1 copper plate');
 assert.throws(() => ingredientFactory.inspectMachine({ c: 0, r: 0 }), /missing/);
 
 const demo = factoryFrom(createDemo());
@@ -326,7 +326,7 @@ assert.ok(split.getState({ c: 9, r: 11 })!.input['iron-ore'] > 20);
 const congestedSplit = factory(...splitterLine.filter(value => value.r !== 11));
 run(congestedSplit, 1000);
 assert.equal(congestedSplit.getState({ c: 10, r: 10 })!.input['iron-ore'], DEPOT_CAPACITY);
-assert.match(congestedSplit.status({ c: 9, r: 10 }), /Both outputs blocked/);
+assert.equal(congestedSplit.status({ c: 9, r: 10 }), 'South: not connected · East: full');
 const beforeBlocked = congestedSplit.serialize();
 run(congestedSplit, 100);
 assert.deepEqual(congestedSplit.summary().mined, beforeBlocked.mined, 'Blocked splitter must propagate backpressure');

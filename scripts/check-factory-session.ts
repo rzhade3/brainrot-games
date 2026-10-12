@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { createSave, SaveConflictError, type FactorySave } from '../src/games/factory/session/persistence';
+import { createSave, restoreSave, SaveConflictError, SaveStorageError, type FactorySave } from '../src/games/factory/session/persistence';
+import { FactorySaveError } from '../src/games/factory/session/saveErrors';
 import { FactorySession, type SaveStore } from '../src/games/factory/session/session';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
 
@@ -25,12 +26,13 @@ class Store implements SaveStore {
 }
 function fixture(store = new Store()) {
   const statuses: { text: string; error?: boolean; retry?: boolean }[] = [];
+  const messages: { resumable: boolean; message: string; blocked: boolean; existing: boolean }[] = [];
   const activations: FactorySimulation[] = [];
   const session = new FactorySession({
-    setSavedSettlement() {},
+    setSavedSettlement(resumable, message, blocked, existing) { messages.push({ resumable, message, blocked, existing }); },
     setSaveStatus(text, error, retry) { statuses.push({ text, error, retry }); },
   }, simulation => activations.push(simulation), store);
-  return { store, session, statuses, activations };
+  return { store, session, statuses, messages, activations };
 }
 {
   const { store, session, statuses, activations } = fixture();
@@ -38,12 +40,12 @@ function fixture(store = new Store()) {
   assert.equal(await session.replace('north-bank'), true);
   const original = session.simulation;
   const originalId = session.worldId;
-  store.failure = new Error('quota exceeded');
+  store.failure = new DOMException('Raw browser quota diagnostic', 'QuotaExceededError');
   assert.equal(await session.replace('new-world'), false);
   assert.equal(session.simulation, original);
   assert.equal(session.worldId, originalId);
   assert.equal(activations.length, 1);
-  assert.match(statuses.at(-1)!.text, /quota exceeded/);
+  assert.equal(statuses.at(-1)!.text, 'New settlement not saved');
   store.failure = null;
   store.hold = true;
   original.step();
@@ -143,8 +145,72 @@ function fixture(store = new Store()) {
 }
 {
   const { store, session, statuses } = fixture();
-  store.failure = new Error('storage unavailable');
+  store.failure = new SaveStorageError('Local storage did not respond. Close other Pocket Factory tabs, then retry.');
   await session.load();
-  assert.match(statuses.at(-1)!.text, /Load failed: storage unavailable/);
+  assert.equal(statuses.at(-1)!.text, 'Local save unavailable');
 }
-console.log('Factory session checks passed: failures, FIFO snapshots, conflicts, suspension, resume and close.');
+for (const [change, kind] of [
+  [(save: FactorySave) => { save.version = 2; }, 'incompatible'],
+  [(save: FactorySave) => { Object.assign(save.simulation, { ruleset: 'settlement-v5' }); }, 'incompatible'],
+  [(save: FactorySave) => { save.map.generatorVersion = 99; }, 'incompatible'],
+  [(save: FactorySave) => { save.simulation.world.generatorVersion = 99; }, 'incompatible'],
+  [(save: FactorySave) => { Object.assign(save.simulation.settlement, { version: 4 }); }, 'incompatible'],
+  [(save: FactorySave) => { save.simulation.recovered['food-unit']++; }, 'damaged'],
+] as const) {
+  const candidate = createSave(FactorySimulation.create(), false, 'copy-check');
+  change(candidate);
+  const before = structuredClone(candidate);
+  const { store, session, messages, statuses } = fixture();
+  try {
+    restoreSave(candidate);
+    assert.fail('Fixture must be rejected');
+  } catch (error) {
+    assert.ok(error instanceof FactorySaveError);
+    assert.equal(error.kind, kind);
+    store.failure = error;
+  }
+  await session.load();
+  const result = messages.at(-1)!;
+  assert.equal(result.message, `${kind === 'incompatible'
+    ? 'This save cannot be resumed in this version of Pocket Factory.'
+    : 'This save is damaged and cannot be resumed.'} You can replace it with a new settlement. No save was replaced.`);
+  assert.equal(result.resumable, false);
+  assert.equal(result.blocked, false);
+  assert.equal(result.existing, true);
+  assert.equal(statuses.at(-1)!.text, 'Existing save kept on this device');
+  assert.doesNotMatch(result.message, /Corrupt|unsupported|ruleset|prototype|version \d/i);
+  assert.equal((result.message.match(/new settlement/g) ?? []).length, 1);
+  assert.deepEqual(candidate, before);
+  assert.equal(store.writes.length, 0);
+  store.failure = new DOMException('Raw quota detail', 'QuotaExceededError');
+  assert.equal(await session.replace('copy-replacement'), false);
+  assert.equal(messages.at(-1)!.message,
+    'Not enough space to save. Free some space on this device, then retry. No save was replaced.');
+  assert.equal(messages.at(-1)!.existing, true);
+}
+{
+  const { store, session, messages } = fixture();
+  store.failure = new DOMException('Raw permission detail', 'SecurityError');
+  await session.load();
+  assert.equal(messages.at(-1)!.message,
+    'Browser settings block local saving. Allow storage for this site, then retry. No save was replaced.');
+  assert.equal(messages.at(-1)!.blocked, true);
+  assert.equal(messages.at(-1)!.existing, false);
+}
+{
+  const { store, session, messages } = fixture();
+  const diagnostic = new Error('Internal save diagnostic');
+  store.failure = diagnostic;
+  const original = console.error;
+  const logs: unknown[][] = [];
+  console.error = (...args: unknown[]) => { logs.push(args); };
+  try {
+    await session.load();
+  } finally {
+    console.error = original;
+  }
+  assert.equal(messages.at(-1)!.message, 'Could not read your save. Retry loading. No save was replaced.');
+  assert.equal(messages.at(-1)!.blocked, true);
+  assert.equal(logs[0][1], diagnostic, 'Unknown failures retain diagnostics without exposing them as player copy');
+}
+console.log('Factory session checks passed: clean incompatible/damaged/storage copy, protected replacements, failures, FIFO snapshots, conflicts, suspension, resume and close.');
