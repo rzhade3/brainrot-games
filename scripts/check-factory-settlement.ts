@@ -31,7 +31,7 @@ function accounted(sim: FactorySimulation): void {
 }
 
 const sim = fresh();
-assert.equal(sim.serialize().ruleset, 'settlement-v4');
+assert.equal(sim.serialize().ruleset, 'settlement-v5');
 assert.equal(sim.buildings.size, 3);
 assert.equal(Object.hasOwn(sim.summary(), 'projects'), false);
 assert.equal(state(sim).residents.length, 4);

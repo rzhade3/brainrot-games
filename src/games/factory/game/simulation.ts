@@ -90,7 +90,7 @@ export interface SimulationSave {
   smelted: Inventory;
   assembled: Inventory;
   recipeConsumed: Inventory;
-  ruleset: 'settlement-v4';
+  ruleset: 'settlement-v5';
   settlement: SettlementSave;
 }
 
@@ -148,14 +148,14 @@ export class FactorySimulation {
         .map(([key, source]) => [key, { ...source }]),
       recovered: { ...this.recovered }, mined: { ...this.productionLedger.mined }, smelted: { ...this.productionLedger.smelted },
       assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed },
-      ruleset: 'settlement-v4',
+      ruleset: 'settlement-v5',
       settlement: this.settlement.serialize(),
     };
   }
 
   static restore(value: unknown): FactorySimulation {
     const source = saveObject(value);
-    requireSave(source.ruleset === 'settlement-v4', 'unsupported settlement ruleset; start a new settlement');
+    requireSave(source.ruleset === 'settlement-v5', 'unsupported settlement ruleset; start a new settlement');
     requireSave(!['scenario', 'delivered', 'stage', 'orderStarted', 'orderCompleted', 'deliveryTicks', 'projects']
       .some(field => Object.hasOwn(source, field)), 'legacy factory fields; start a new settlement');
     const world = restoreWorld(source.world);
@@ -416,7 +416,7 @@ export class FactorySimulation {
     this.ticks++;
     const machines = this.orderedMachines ??= [...this.machines.values()].sort((a, b) => compareTiles(a.building, b.building));
     for (const machine of machines) produceMachine(machine, this.world, this.productionLedger);
-    this.settlement.step(this.ticks);
+    this.settlement.step();
     transferMachines(machines, this.lastSource, this.transportHost);
   }
 

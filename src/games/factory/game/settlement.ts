@@ -1,5 +1,6 @@
 import { Building, compareTiles, DIRECTIONS, FARM_TICKS, GATHER_TICKS, Item, ITEMS, MEAL_TICKS, Tile, tileKey, WALK_TICKS } from './domain';
 import { gatheringAccess, TreeAccess } from './gathering';
+import { weightedLaborTargets } from './labor';
 import { acceptsInventoryItem, inputSlots, MachineState, outputCapacity } from './machines';
 import { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
 import { FactoryWorld } from './world';
@@ -23,8 +24,8 @@ export interface Resident {
 }
 
 export interface SettlementSave {
-  version: 3;
-  waiting: Record<string, number>;
+  version: 4;
+  labor: Record<string, number>;
   residents: Resident[];
   starterFood: number;
   producedFood: number;
@@ -47,15 +48,26 @@ interface Host {
   recover: (item: Item) => void;
 }
 
+interface LaborRequest {
+  machine: MachineState;
+  key: string;
+  region: number;
+  task: 'farm' | 'gather' | Item;
+  capacity: number;
+}
+
 export class Settlement {
   readonly state: SettlementSave;
-  private unreachable = new Set<string>();
+  private regions: Int32Array | null = null;
+  private accessRegions = new Map<string, number[]>();
   private assignmentSources: MachineState[] | null = null;
   private treeAccess = new Map<string, TreeAccess[]>();
+  private targets = new Map<string, number>();
+  private working = new Map<string, number>();
 
   constructor(private host: Host, state?: SettlementSave) {
     this.state = state ?? {
-      version: 3, waiting: {}, starterFood: STARTER_FOOD, producedFood: 0, producedWood: 0, consumedFood: 0,
+      version: 4, labor: {}, starterFood: STARTER_FOOD, producedFood: 0, producedWood: 0, consumedFood: 0,
       missedMeals: 0, mealClock: 0,
       residents: [{ c: 11, r: 11 }, { c: 12, r: 11 }, { c: 12, r: 12 }, { c: 11, r: 13 }]
         .map((tile, id) => ({ id, tile, travel: 0, cargo: null, job: null, note: 'Looking for work' })),
@@ -68,18 +80,22 @@ export class Settlement {
 
   static restore(value: unknown, host: Host): Settlement {
     const source = saveObject(value);
-    requireSave(source.version === 3, 'unsupported settlement version');
+    requireSave(source.version === 4, 'unsupported settlement version');
     const state: SettlementSave = {
-      version: 3, waiting: {}, residents: [], starterFood: saveCount(source.starterFood), producedWood: saveCount(source.producedWood),
+      version: 4, labor: {}, residents: [], starterFood: saveCount(source.starterFood), producedWood: saveCount(source.producedWood),
       producedFood: saveCount(source.producedFood), consumedFood: saveCount(source.consumedFood),
       missedMeals: saveCount(source.missedMeals), mealClock: saveCount(source.mealClock),
     };
-    const waiting = saveObject(source.waiting);
-    requireSave(Object.keys(waiting).length <= host.machines.size * (ITEMS.length + 1), 'invalid labor queue');
-    for (const [key, age] of Object.entries(waiting)) {
-      requireSave(/^\d+,\d+:(farm|gather|iron-ore|copper-ore|iron-plate|copper-plate|defense-supply|food-unit|wood)$/.test(key) &&
-        host.machines.has(key.split(':')[0]), 'invalid labor request');
-      state.waiting[key] = saveCount(age);
+    const labor = saveObject(source.labor);
+    requireSave(Object.keys(labor).length <= host.machines.size * RESIDENT_NAMES.length, 'invalid labor accounts');
+    for (const [key, credit] of Object.entries(labor)) {
+      const parts = /^(\d+,\d+)@(\d+)$/.exec(key);
+      requireSave(parts && host.machines.has(parts[1]) && Number(parts[2]) < host.world.size ** 2,
+        'invalid labor request');
+      requireSave(typeof credit === 'number' && Number.isFinite(credit) &&
+        Math.abs(credit) <= RESIDENT_NAMES.length * (2 * host.world.size ** 2 * WALK_TICKS + Math.max(FARM_TICKS, GATHER_TICKS)),
+      'invalid labor credit');
+      state.labor[key] = credit;
     }
     requireSave(state.starterFood === STARTER_FOOD && state.mealClock < MEAL_TICKS, 'invalid settlement food clock or grant');
     requireSave(Array.isArray(source.residents) && source.residents.length === RESIDENT_NAMES.length, 'invalid resident population');
@@ -189,12 +205,13 @@ export class Settlement {
   }
 
   layoutChanged(): void {
-    this.unreachable.clear();
+    this.regions = null;
+    this.accessRegions.clear();
+    this.targets.clear();
+    this.working.clear();
+    this.state.labor = {};
     this.assignmentSources = null;
     this.treeAccess.clear();
-    for (const key of Object.keys(this.state.waiting)) {
-      if (!this.host.machines.has(key.split(':')[0])) delete this.state.waiting[key];
-    }
     for (const resident of this.state.residents) {
       resident.travel = 0;
       const job = resident.job;
@@ -239,8 +256,61 @@ export class Settlement {
       if (source) source.progress = 0;
     }
     if (resident.cargo) { this.host.recover(resident.cargo); resident.cargo = null; }
+    this.clearJob(resident);
+  }
+
+  private jobKey(resident: Resident): string {
+    return `${tileKey(resident.job!.source)}@${this.region(resident.tile)}`;
+  }
+
+  private clearJob(resident: Resident): void {
+    if (resident.job) {
+      const key = this.jobKey(resident);
+      if (this.working.has(key)) this.working.set(key, this.working.get(key)! - 1);
+    }
     resident.job = null;
     resident.travel = 0;
+  }
+
+  private region(tile: Tile): number {
+    if (!this.host.world.contains(tile)) return -2;
+    const size = this.host.world.size;
+    const regions = this.regions ??= new Int32Array(size * size).fill(-1);
+    const initial = tile.r * size + tile.c;
+    if (regions[initial] !== -1) return regions[initial];
+    if (!this.walkable(tile)) return regions[initial] = -2;
+    const queue = new Int32Array(size * size);
+    queue[0] = initial;
+    regions[initial] = initial;
+    let read = 0;
+    let write = 1;
+    let root = initial;
+    while (read < write) {
+      const index = queue[read++];
+      root = Math.min(root, index);
+      for (const vector of DIRECTIONS) {
+        const next = { c: index % size + vector.c, r: Math.floor(index / size) + vector.r };
+        if (!this.host.world.contains(next)) continue;
+        const key = next.r * size + next.c;
+        if (regions[key] !== -1) continue;
+        if (!this.walkable(next)) { regions[key] = -2; continue; }
+        regions[key] = initial;
+        queue[write++] = key;
+      }
+    }
+    for (let i = 0; i < write; i++) regions[queue[i]] = root;
+    return root;
+  }
+
+  private regionsFor(tile: Tile): number[] {
+    const key = tileKey(tile);
+    let regions = this.accessRegions.get(key);
+    if (!regions) {
+      regions = [...new Set(DIRECTIONS.map(vector => this.region({ c: tile.c + vector.c, r: tile.r + vector.r }))
+        .filter(region => region >= 0))].sort((a, b) => a - b);
+      this.accessRegions.set(key, regions);
+    }
+    return regions;
   }
 
   private accessFor(tile: Tile): TreeAccess[] {
@@ -273,8 +343,8 @@ export class Settlement {
   }
 
   private route(start: Tile, target: Tile, exact = false): Tile[] | null {
-    const cache = `${tileKey(start)}>${tileKey(target)}:${exact}`;
-    if (this.unreachable.has(cache)) return null;
+    const region = this.region(start);
+    if (region < 0 || (exact ? this.region(target) !== region : !this.regionsFor(target).includes(region))) return null;
     const size = this.host.world.size;
     const initial = start.r * size + start.c;
     const previous = new Int32Array(size * size).fill(-2);
@@ -300,20 +370,17 @@ export class Settlement {
         queue[write++] = key;
       }
     }
-    this.unreachable.add(cache);
     return null;
   }
 
   private assign(resident: Resident): void {
-    const candidates: { key: string; job: ResidentJob; score: number }[] = [];
+    const candidates: { key: string; job: ResidentJob; score: number; distance: number }[] = [];
     let blocked = false;
-    for (const { machine, key, task } of this.requests()) {
+    for (const { machine, key, task, region } of this.requests()) {
+      if (region !== this.region(resident.tile)) continue;
       const source = { c: machine.building.c, r: machine.building.r };
-      const workers = this.state.residents.filter(worker => worker.job &&
-        tileKey(worker.job.source) === tileKey(source)).length;
-      const add = (job: ResidentJob, distance: number) => candidates.push({ key, job,
-        score: ({ low: 120, normal: 240, high: 360 }[machine.building.workPriority ?? 'normal']) / (workers + 1) +
-          (this.state.waiting[key] ?? 0) - distance * WALK_TICKS });
+      const add = (job: ResidentJob, distance: number) => candidates.push({ key, job, distance,
+        score: (this.state.labor[key] ?? 0) + (this.targets.get(key) ?? 0) - (this.working.get(key) ?? 0) });
       if (task === 'farm') {
         const path = this.route(resident.tile, source);
         if (path) add({ kind: 'farm', source, destination: null, item: null, path }, path.length);
@@ -323,6 +390,7 @@ export class Settlement {
       if (task === 'gather') {
         let found = false;
         for (const access of this.accessFor(source)) {
+          if (this.region(access.access) !== region) continue;
           if (this.state.residents.some(worker => worker.job?.kind === 'gather' &&
             tileKey(worker.job.tree) === tileKey(access.tree))) continue;
           const path = this.route(resident.tile, access.access, true);
@@ -343,53 +411,124 @@ export class Settlement {
       if (!path || !delivery) { blocked = true; continue; }
       add({ kind: 'collect', source, destination: { ...target }, item: task, path }, path.length + delivery.length);
     }
-    candidates.sort((a, b) => b.score - a.score || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    candidates.sort((a, b) => b.score - a.score || a.distance - b.distance ||
+      (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     const selected = candidates[0];
     if (selected) {
       resident.job = selected.job;
-      delete this.state.waiting[selected.key];
+      this.working.set(selected.key, (this.working.get(selected.key) ?? 0) + 1);
       resident.note = selected.job.kind === 'farm' ? 'Walking to farm'
         : selected.job.kind === 'gather' ? 'Walking to grove' : 'Walking to collect';
-    } else resident.note = blocked ? 'Work blocked: check destination or access' : 'Available for work';
+    } else {
+      const region = this.region(resident.tile);
+      blocked ||= (this.assignmentSources ?? []).some(machine => {
+        if (!this.regionsFor(machine.building).includes(region)) return false;
+        if (machine.building.kind === 'woodcutting-site' && machine.output.wood < outputCapacity('woodcutting-site') &&
+          !this.accessFor(machine.building).some(access => this.region(access.access) === region)) return true;
+        const target = machine.building.haulTo;
+        const destination = target && this.host.machines.get(tileKey(target));
+        return !!target && !!destination && !this.host.automated(machine) &&
+          !this.regionsFor(target).includes(region) && ITEMS.some(item => this.compatible(destination, item) &&
+            this.stock(machine)[item] > this.reservedSource(machine.building, item) &&
+            this.capacity(destination, item) > this.reservedDestination(target, item));
+      });
+      resident.note = blocked ? 'Work blocked: check destination or access' : 'Available for work';
+    }
   }
 
-  private requests(): { machine: MachineState; key: string; task: 'farm' | 'gather' | Item }[] {
-    const requests: { machine: MachineState; key: string; task: 'farm' | 'gather' | Item }[] = [];
+  private requests(): LaborRequest[] {
+    const requests: LaborRequest[] = [];
     const machines = this.assignmentSources ??= [...this.host.machines.values()].sort((a, b) => compareTiles(a.building, b.building));
     for (const machine of machines) {
       const source = tileKey(machine.building);
       const { kind } = machine.building;
-      const add = (task: 'farm' | 'gather' | Item) => requests.push({ machine, key: `${source}:${task}`, task });
+      const add = (task: 'farm' | 'gather' | Item, region: number, capacity: number) =>
+        requests.push({ machine, key: `${source}@${region}`, region, task, capacity });
+      const regions = this.regionsFor(machine.building);
       if (kind === 'food-plot' || kind === 'woodcutting-site') {
         const occupied = this.state.residents.some(resident => resident.job &&
           (resident.job.kind === 'farm' || resident.job.kind === 'gather' || resident.job.kind === 'return-wood') &&
           tileKey(resident.job.source) === source);
         const item = kind === 'food-plot' ? 'food-unit' : 'wood';
         if (!occupied && machine.output[item] + this.returningWood(machine.building) < outputCapacity(kind)) {
-          add(kind === 'food-plot' ? 'farm' : 'gather');
+          for (const region of regions) if (kind === 'food-plot' || this.accessFor(machine.building).some(access =>
+            this.region(access.access) === region && !this.state.residents.some(worker => worker.job?.kind === 'gather' &&
+              tileKey(worker.job.tree) === tileKey(access.tree)))) {
+            add(kind === 'food-plot' ? 'farm' : 'gather', region, 1);
+          }
         }
       }
       const target = machine.building.haulTo;
       const destination = target && this.host.machines.get(tileKey(target));
       if (!target || !destination || this.host.automated(machine)) continue;
-      for (const item of ITEMS) if (this.stock(machine)[item] > this.reservedSource(machine.building, item) &&
-        this.compatible(destination, item) && this.capacity(destination, item) > this.reservedDestination(target, item)) add(item);
+      for (const item of ITEMS) if (this.compatible(destination, item)) {
+        const capacity = Math.min(this.stock(machine)[item] - this.reservedSource(machine.building, item),
+          this.capacity(destination, item) - this.reservedDestination(target, item));
+        if (capacity > 0) for (const region of regions) if (this.regionsFor(target).includes(region)) add(item, region, capacity);
+      }
     }
     return requests;
   }
 
-  step(tick: number): void {
-    const pending = new Set(this.requests().map(request => request.key));
-    for (const key of Object.keys(this.state.waiting)) if (!pending.has(key)) delete this.state.waiting[key];
-    for (const key of pending) this.state.waiting[key] = (this.state.waiting[key] ?? 0) + 1;
+  private prepareLabor(): void {
+    const populations = new Map<number, number>();
+    this.working.clear();
+    for (const resident of this.state.residents) {
+      const region = this.region(resident.tile);
+      populations.set(region, (populations.get(region) ?? 0) + 1);
+      if (resident.job) {
+        const key = this.jobKey(resident);
+        this.working.set(key, (this.working.get(key) ?? 0) + 1);
+      }
+    }
+    const groups = new Map<string, { machine: MachineState; region: number; production: number; hauling: number }>();
+    for (const request of this.requests()) {
+      if (!populations.has(request.region)) continue;
+      const group = groups.get(request.key) ?? { machine: request.machine, region: request.region, production: 0, hauling: 0 };
+      if (request.task === 'farm' || request.task === 'gather') group.production += request.capacity;
+      else group.hauling += request.capacity;
+      groups.set(request.key, group);
+    }
+    for (const resident of this.state.residents) if (resident.job) {
+      const key = this.jobKey(resident);
+      if (!groups.has(key)) groups.set(key, {
+        machine: this.host.machines.get(tileKey(resident.job.source))!, region: this.region(resident.tile), production: 0, hauling: 0,
+      });
+    }
+    this.targets.clear();
+    for (const [region, population] of populations) {
+      const demands = [...groups].filter(([, group]) => group.region === region).map(([key, group]) => {
+        const target = group.machine.building.haulTo;
+        const destination = target && this.host.machines.get(tileKey(target));
+        const inbound = target ? this.state.residents.filter(resident => resident.job?.destination &&
+          tileKey(resident.job.destination) === tileKey(target)).length : 0;
+        const hauling = destination ? Math.min(group.hauling, Math.max(0, this.capacity(destination) - inbound)) : 0;
+        return { key, weight: { low: 1, normal: 2, high: 3 }[group.machine.building.workPriority ?? 'normal'],
+          capacity: (this.working.get(key) ?? 0) + group.production + hauling };
+      });
+      for (const [key, target] of weightedLaborTargets(demands, population)) this.targets.set(key, target);
+    }
+    for (const key of Object.keys(this.state.labor)) if (!this.targets.has(key)) delete this.state.labor[key];
+    for (const key of this.targets.keys()) this.state.labor[key] ??= 0;
+  }
+
+  step(): void {
+    this.prepareLabor();
+    const worked = new Map<string, number>();
+    const charge = (resident: Resident) => {
+      const key = this.jobKey(resident);
+      worked.set(key, (worked.get(key) ?? 0) + 1);
+    };
     for (const machine of this.host.machines.values()) if (machine.building.kind === 'food-plot' ||
       machine.building.kind === 'woodcutting-site') machine.running = false;
     for (let index = 0; index < this.state.residents.length; index++) {
       const resident = this.state.residents[index];
       if (!resident.job) {
-        if (tick % (this.state.residents.length + 1) === index) this.assign(resident);
+        this.assign(resident);
+        if (resident.job) charge(resident);
         continue;
       }
+      charge(resident);
       const job = resident.job;
       if (job.path.length) {
         resident.note = job.kind === 'return-wood' ? 'Taking wood to the site' : job.kind === 'gather' ? 'Walking to grove'
@@ -403,13 +542,13 @@ export class Settlement {
       const source = this.host.machines.get(tileKey(job.source))!;
       if (job.kind === 'farm') {
         resident.note = source.output['food-unit'] >= outputCapacity(source.building.kind) ? 'Plot full; waiting for transport' : 'Farming';
-        if (source.output['food-unit'] >= outputCapacity(source.building.kind)) { resident.job = null; continue; }
+        if (source.output['food-unit'] >= outputCapacity(source.building.kind)) { this.clearJob(resident); this.assign(resident); continue; }
         source.running = true;
         if (++source.progress >= FARM_TICKS) {
           source.progress = 0;
           source.output['food-unit']++;
           this.state.producedFood++;
-          resident.job = null;
+          this.clearJob(resident);
         }
       } else if (job.kind === 'gather') {
         resident.note = 'Gathering wood';
@@ -427,7 +566,7 @@ export class Settlement {
       } else if (job.kind === 'return-wood') {
         source.output.wood++;
         resident.cargo = null;
-        resident.job = null;
+        this.clearJob(resident);
         resident.note = 'Wood delivered to site';
       } else if (job.kind === 'collect') {
         const path = this.route(resident.tile, job.destination);
@@ -441,10 +580,14 @@ export class Settlement {
         const destination = this.host.machines.get(tileKey(job.destination!))!;
         destination.input[resident.cargo!]++;
         resident.cargo = null;
-        resident.job = null;
+        this.clearJob(resident);
         resident.note = 'Delivery complete';
       }
       if (!resident.job) this.assign(resident);
+    }
+    const bound = this.state.residents.length * (2 * this.host.world.size ** 2 * WALK_TICKS + Math.max(FARM_TICKS, GATHER_TICKS));
+    for (const [key, target] of this.targets) {
+      this.state.labor[key] = Math.max(-bound, Math.min(bound, this.state.labor[key] + target - (worked.get(key) ?? 0)));
     }
     if (++this.state.mealClock >= MEAL_TICKS) {
       this.state.mealClock = 0;

@@ -6,7 +6,7 @@ Settlement is the only ruleset and starting layout. New settlement, Resume and a
 optional seed share one entry menu. Farming, hauling and industry are available
 without mission or project gates; extractor upgrades are optional. Depots
 automatically feed connected outputs and otherwise store goods. Saves use
-envelope version 4 and `settlement-v4`.
+envelope version 4 and `settlement-v5`.
 Earlier saves are rejected without migration or writes. Replacement requires
 confirmation and activates only after the new save commits.
 
@@ -14,10 +14,13 @@ Woodcutting sites need clear land within four tiles of an accessible tree.
 Residents share a labor pool. Each producer and depot has Low / Normal / High
 work priority, defaulting to Normal, for both production and outgoing delivery
 jobs. Extractors and industry produce automatically; their priority only affects
-resident deliveries. Idle residents choose actionable work by priority, waiting
-time and travel distance. Each resident already working for a source reduces
-that building's priority weight, so higher priority does not monopolize the pool.
-Waiting work gains weight so Low is not starvation.
+resident deliveries. Buildings share resident-time with Low / Normal / High
+weights of 1 / 2 / 3 within each connected walkable region. Useful production
+slots, available stock and destination space cap demand; spare labor is borrowed
+by other buildings. Travel and work both count, and new reservations count
+immediately. Idle residents favor underserved buildings, then shorter trips.
+Inactive buildings do not bank credit. These are soft effort shares, not assigned
+headcounts or staffing caps.
 One farmer or woodcutter works each site at a time; full buffers and inaccessible
 jobs do not hold residents. People shows activity without assignment controls.
 Residents finish each harvest or cargo trip before choosing new work; changing
@@ -26,7 +29,7 @@ The woodcutter gathers for two seconds, then carries
 one wood unit back to the site's four-unit output buffer. Choose a depot under
 Deliver to, or connect a conveyor. Trees remain renewable obstacles. Blocking
 access or removing a site recovers interrupted cargo without loss.
-Priorities, waiting ages, gathering progress, reservations and cargo resume exactly.
+Priorities, labor credits, gathering progress, reservations and cargo resume exactly.
 Wood has no recipe or construction cost yet.
 
 Resident delivery choices and route validation share the production and
@@ -48,6 +51,7 @@ card so the player can change or stop them without resetting the settlement.
 | Machine state, recipes, capacities, production and transfers | `game/machines.ts` |
 | Authoritative state, fixed-step orchestration and inspection | `game/simulation.ts` |
 | Residents, jobs, navigation, reservations and food consumption | `game/settlement.ts` |
+| Demand-capped weighted labor targets | `game/labor.ts` |
 | Bounded grove access search | `game/gathering.ts` |
 | Save-state validation and conservation | `session/saveState.ts` |
 | Save format and IndexedDB conflict protection | `session/persistence.ts` |

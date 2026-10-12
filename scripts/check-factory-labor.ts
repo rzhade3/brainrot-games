@@ -17,12 +17,13 @@ function twoPlots() {
 }
 const distance = twoPlots();
 distance.step();
-assert.equal(tileKey(distance.residents[1].job!.source), tileKey(nearest), 'Equal priorities favor less travel');
+assert.equal(tileKey(distance.residents[0].job!.source), tileKey(nearest), 'Equal entitlements favor less travel');
 const priority = twoPlots();
 assert.equal(priority.setWorkPriority(nearest, 'low'), null);
 assert.equal(priority.setWorkPriority(far, 'high'), null);
 priority.step();
-assert.equal(tileKey(priority.residents[1].job!.source), tileKey(far), 'High priority outweighs this travel difference');
+assert.equal(priority.residents.filter(resident => resident.job?.kind === 'farm').length, 2,
+  'Both production slots are covered when labor is plentiful, irrespective of priority');
 assert.equal(priority.setWorkPriority({ c: 11, r: 12 }, 'high') !== null, true);
 assert.equal(priority.setWorkPriority({ c: 0, r: 0 }, 'low') !== null, true);
 const beforeInvalid = priority.serialize();
@@ -32,6 +33,11 @@ const invalidPriority = structuredClone(beforeInvalid);
 Object.assign(invalidPriority.machines.find(machine => tileKey(machine.building) === tileKey(nearest))!.building,
   { workPriority: 'urgent' });
 assert.throws(() => FactorySimulation.restore(invalidPriority), /invalid work priority/);
+for (const credit of [NaN, Infinity, 1e20]) {
+  const invalid = structuredClone(beforeInvalid);
+  invalid.settlement.labor[`${tileKey(nearest)}@0`] = credit;
+  assert.throws(() => FactorySimulation.restore(invalid), /invalid labor credit/);
+}
 
 const farm = FactorySimulation.create();
 while (!farm.residents.some(resident => resident.job?.kind === 'farm' && !resident.job.path.length &&
@@ -92,25 +98,25 @@ for (const lowerPriority of ['normal', 'low'] as const) {
   advanceTicks(shared, 5);
   assert.equal(shared.residents.filter(resident => resident.job &&
     tileKey(resident.job.source) === tileKey(sources[0])).length, 4,
-  'Diminishing weight is not a staffing cap when only one building has actionable work');
+  'Weighted sharing is not a staffing cap when only one building has actionable work');
 }
 let contested = FactorySimulation.restore(stock);
 const low = sources[5];
 let firstLow = 0;
-let waited = false;
+let credited = false;
 for (let tick = 0; tick < 800; tick++) {
   contested.step();
   const assignment = contested.residents.find(resident => resident.job && tileKey(resident.job.source) === tileKey(low));
-  if (tick < 4) assert.equal(assignment, undefined, 'High requests win initial delegation');
-  waited ||= (contested.serialize().settlement.waiting[`${tileKey(low)}:iron-ore`] ?? 0) > 120;
+  credited ||= Object.entries(contested.serialize().settlement.labor).some(([key, credit]) =>
+    key.startsWith(`${tileKey(low)}@`) && credit > 0);
   if (assignment && !firstLow) {
     firstLow = contested.ticks;
     assert.ok(sources.slice(0, 5).every(source => contested.getState(source)!.input['iron-ore'] > 0),
-      'Aging serves Low while High still has stock');
+      'Resident-time sharing serves Low while High still has stock');
   }
   if (tick % 17 === 0) contested = roundTrip(contested);
 }
-assert.ok(waited && firstLow > 4 && firstLow < 800, `Low must get a turn; first turn ${firstLow}`);
+assert.ok(credited && firstLow > 1 && firstLow < 800, `Low must get a turn; first turn ${firstLow}`);
 assert.ok(contested.getState(low)!.input['iron-ore'] < 64);
 
 const full = FactorySimulation.create();
@@ -130,4 +136,4 @@ advanceTicks(extractor, 100);
 advanceTicks(automatedReplica, 100);
 assert.deepEqual(extractor.getState({ c: 7, r: 10 })!.output, automatedReplica.getState({ c: 7, r: 10 })!.output);
 assert.equal(extractor.getState({ c: 7, r: 10 })!.progress, automatedReplica.getState({ c: 7, r: 10 })!.progress);
-console.log(`Automatic labor checks passed: shared High/Normal and High/Low allocation without hard staffing caps, priority/distance ordering, bounded production slots, Low aging under ongoing High demand (tick ${firstLow}), safe harvest changes, persisted queues, full release and unchanged extraction speed.`);
+console.log(`Automatic labor checks passed: weighted High/Normal and High/Low sharing, useful-work limits, Low service under ongoing High demand (tick ${firstLow}), safe harvest changes, persisted credits and unchanged extraction.`);

@@ -448,7 +448,7 @@ try {
           scene.hud.setPaused(paused);
           scene.refreshSimulationHud();
           game.step(20000, 0);
-          const resident = scene.simulation.residents.find(value => value.id === 1);
+          const resident = scene.simulation.residents.find(value => value.job?.path.length);
           if (!resident?.job?.path.length) throw new Error('Resident picking fixture must be moving');
           const next = resident.job.path[0];
           const fraction = (resident.travel + (paused || reduced ? 0 : scene.simulation.interpolation)) / WALK_TICKS;
@@ -542,7 +542,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
     const saved = await storedSave(page);
     assert.equal(saved.version, 4);
-    assert.equal(saved.simulation.ruleset, 'settlement-v4');
+    assert.equal(saved.simulation.ruleset, 'settlement-v5');
     assert.equal(saved.simulation.world.seed, 'replacement-seed');
     assert.notEqual(saved.worldId, legacy.worldId);
     assert.deepEqual(errors, []);

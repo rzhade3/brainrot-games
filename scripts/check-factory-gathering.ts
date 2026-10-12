@@ -186,7 +186,7 @@ function invalid(change: (raw: typeof valid) => void): void {
   assert.throws(() => FactorySimulation.restore(raw), /Corrupt/);
 }
 invalid(raw => { raw.settlement.producedWood++; });
-invalid(raw => { raw.settlement.waiting['99,99:gather'] = 10; });
+invalid(raw => { raw.settlement.labor['99,99@0'] = 10; });
 invalid(raw => { raw.settlement.residents[workerId].cargo = 'wood'; });
 invalid(raw => { raw.machines.find(machine => tileKey(machine.building) === tileKey(site))!.progress = GATHER_TICKS; });
 invalid(raw => {
