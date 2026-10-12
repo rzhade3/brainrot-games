@@ -6,7 +6,7 @@ Settlement is the only ruleset and starting layout. New settlement, Resume and a
 optional seed share one entry menu. Farming, hauling and industry are available
 without mission or project gates; extractor upgrades are optional. Depots
 automatically feed connected outputs and otherwise store goods. Saves use
-envelope version 4 and `settlement-v6`.
+envelope version 4, `settlement-v7`, and settlement state version 6.
 Earlier saves are rejected without migration or writes. Replacement requires
 confirmation and activates only after the new save commits.
 
@@ -22,7 +22,8 @@ immediately. Idle residents favor underserved buildings, then shorter trips.
 Inactive buildings do not bank credit. These are soft effort shares, not assigned
 headcounts or staffing caps.
 One farmer or woodcutter works each site at a time; full buffers and inaccessible
-jobs do not hold residents. People shows activity without assignment controls.
+jobs do not hold residents. Contextual resident/home inspection shows activity
+without assignment controls.
 Workers enter their plot or tree tile while working, leaving neighboring land
 free for construction. Shared resident navigation protects the last clear exit
 of an occupied work tile and walks residents out when their work ends. Only the
@@ -30,11 +31,29 @@ assigned work tile is enterable; other buildings and trees remain obstacles.
 Residents finish each harvest or cargo trip before choosing new work; changing
 priority never cancels progress or carried goods.
 The woodcutter gathers for two seconds, then carries
-one wood unit back to the site's four-unit output buffer. Choose a depot under
+one wood unit back to the site's four-unit output buffer. Choose a depot or house under
 Deliver to, or connect a conveyor. Trees remain renewable obstacles. Blocking
 access or removing a site recovers interrupted cargo without loss.
 Priorities, labor credits, gathering progress, reservations and cargo resume exactly.
-Wood has no recipe or construction cost yet.
+
+House sites accept eight physical wood units through residents or conveyors.
+The eighth delivery completes a house with one resident place. Wood stays
+installed and cannot be delivered again; removing an empty site/house returns
+only its actual wood to recovery. Occupied houses cannot be removed.
+Invite explicitly from a completed house with connected, clear arrival access.
+Readiness requires a full thirty-second simulation window without missed food,
+newly harvested food and net kitchen deliveries covering the prospective
+population, plus thirty seconds of food currently stocked in kitchens. The
+window restarts after each invitation. More kitchen space can be necessary to
+receive surplus food instead of throttling deliveries at current demand.
+
+Each resident consumes one food unit per ten simulation seconds. An integer
+resident-time accumulator preserves fractional demand, serves whole units in
+deterministic kitchen order, and records shortages without catch-up debt.
+Shortages block growth but never disable labor or kill residents. Newcomers join
+the existing shared labor pool; their stable IDs, homes, arrival ticks, demand
+remainder and bounded provisioning history resume exactly. No planks, food
+processing, specialists, or costs for other buildings are part of this slice.
 
 Resident delivery choices and route validation share the production and
 inventory acceptance rules in `game/machines.ts`, not a separate compatibility
@@ -47,6 +66,14 @@ The Deliver to card opens a searchable destination picker using the same
 paper/ink dialog and mobile bottom-sheet styles. Previously
 saved incompatible routes remain loadable and are explicitly flagged on the
 card so the player can change or stop them without resetting the settlement.
+
+Resources replaces the header's People shortcut with an on-demand stock overview.
+Totals separate depot stock, building contents, goods in transit and recovery;
+they are physical goods, not a shared spendable inventory. Resource details show
+stock locations, producers, consumers and their current machine or delivery state.
+House wood is labeled Construction or Installed, never shared spendable stock.
+Choose a location to focus its building or carrier and open the contextual
+inspector. Residents remain inspectable on the map and at the homestead.
 
 | Responsibility | Owner |
 | --- | --- |
@@ -83,7 +110,8 @@ There is no separate Factory build configuration. Independence from sibling game
 preserves future extraction without maintaining another deployment today.
 
 - `npm run check:factory`: headless boundaries, session races, inventory,
-  construction, production, machine options, saves, settlement and replay.
+  construction, housing readiness/growth, scaled provisioning, production,
+  machine options, saves, settlement and replay.
 - `npm run check:factory:ui`: native desktop/touch actions, save-resume and
   asset-only changes in both the live game and temporary preview.
 - `npm run check:factory:browser`: canvas correctness, dense scenes, long pans,

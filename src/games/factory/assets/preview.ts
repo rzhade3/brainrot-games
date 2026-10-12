@@ -48,7 +48,7 @@ class AssetPreview extends Phaser.Scene {
       const origin = { x: 100 + i % 5 * 180, y: 160 + Math.floor(i / 5) * 170 };
       drawBuilding(g, {
         kind, origin, direction, inputs: [direction, nextDirection(direction)],
-        variant: { c: i, r: 0 }, upgraded: running.checked,
+        variant: { c: i, r: 0 }, upgraded: running.checked, completed: fraction >= 1,
       });
       drawBuildingActivity(g, {
         kind, origin, direction, enteredFrom: direction, preferredOutput: nextDirection(direction),

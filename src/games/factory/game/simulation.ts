@@ -5,14 +5,14 @@ import {
   firstItem, inventory, Inventory, Item,
   itemCount, itemText,
   ITEMS,
-  MEAL_TICKS,
+  HOUSE_WOOD_COST,
   moveInventory,
   WorkPriority, WORK_PRIORITIES,
   STEP_MS, UPGRADED_EXTRACT_TICKS,
 } from './domain';
 import {
   acceptsInventoryItem, ASSEMBLER_RECIPE, canHaulBetween, depotNextItem, haulItems, inputCapacity, inputSlots,
-  machineCycleTicks,
+  machineCycleTicks, producesInventoryItem,
   MachineRecipe, machineRecipe,
   MachineState,
   outputCapacity, produceMachine, ProductionLedger,
@@ -29,7 +29,7 @@ import {
 } from './model';
 import { assertConservation, copyMachine, requireSave, restoreMachine, saveCount, saveInventory, saveObject, saveTile } from '../session/saveState';
 import { requireCompatibleSave } from '../session/saveErrors';
-import { Resident, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
+import { HousingInspection, Resident, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
 import { gatheringAccess } from './gathering';
 import { DEFAULT_WORLD, FactoryWorld, DEFAULT_SEED, restoreWorld, WorldIdentity } from './world';
 export { BELT_TICKS, EXTRACT_TICKS, inventory, inventoryText, ITEM_NAMES, itemCount, ITEMS, STEP_MS, UPGRADED_EXTRACT_TICKS } from './domain';
@@ -66,6 +66,7 @@ export interface MachineInspection {
   nextStoredItem: Item | null;
   option: { enabled: boolean } | null;
   haul: HaulInspection | null;
+  housing: HousingInspection | null;
 }
 
 export interface FactorySummary {
@@ -79,6 +80,23 @@ export interface FactorySummary {
   settlement: SettlementSave;
 }
 
+export type ResourceLocation = {
+  key: string;
+  quantity: number;
+  role: 'Stored' | 'In transit' | 'Produces and uses' | 'Produces' | 'Uses' | 'Holds' | 'Construction' | 'Installed';
+  status: string;
+} & ({ building: Readonly<Building>; residentId: null } | { building: null; residentId: number });
+
+export interface ResourceInspection {
+  item: Item;
+  total: number;
+  depots: number;
+  buildings: number;
+  inTransit: number;
+  recovered: number;
+  locations: ResourceLocation[];
+}
+
 export interface SimulationSave {
   world: WorldIdentity;
   ticks: number;
@@ -90,7 +108,7 @@ export interface SimulationSave {
   smelted: Inventory;
   assembled: Inventory;
   recipeConsumed: Inventory;
-  ruleset: 'settlement-v6';
+  ruleset: 'settlement-v7';
   settlement: SettlementSave;
 }
 
@@ -137,6 +155,8 @@ export class FactorySimulation {
         return !!destination && !!item && this.accepts(destination, machine.building, item);
       }),
       recover: (item: Item) => { this.recovered[item]++; },
+      receive: (machine: MachineState, item: Item) => this.receive(machine, item),
+      ticks: () => this.ticks,
     };
   }
 
@@ -148,14 +168,14 @@ export class FactorySimulation {
         .map(([key, source]) => [key, { ...source }]),
       recovered: { ...this.recovered }, mined: { ...this.productionLedger.mined }, smelted: { ...this.productionLedger.smelted },
       assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed },
-      ruleset: 'settlement-v6',
+      ruleset: 'settlement-v7',
       settlement: this.settlement.serialize(),
     };
   }
 
   static restore(value: unknown): FactorySimulation {
     const source = saveObject(value);
-    requireCompatibleSave(source.ruleset === 'settlement-v6', 'unsupported settlement ruleset');
+    requireCompatibleSave(source.ruleset === 'settlement-v7', 'unsupported settlement ruleset');
     requireCompatibleSave(!['scenario', 'delivered', 'stage', 'orderStarted', 'orderCompleted', 'deliveryTicks', 'projects']
       .some(field => Object.hasOwn(source, field)), 'legacy factory fields');
     const world = restoreWorld(source.world);
@@ -185,9 +205,6 @@ export class FactorySimulation {
     }
     requireSave(sim.machines.get('11,12')?.building.kind === 'home', 'missing founding home');
     sim.settlement = Settlement.restore(source.settlement, sim.settlementHost());
-    requireSave(sim.settlement.state.mealClock === sim.ticks % MEAL_TICKS &&
-      sim.settlement.state.consumedFood + sim.settlement.state.missedMeals === Math.floor(sim.ticks / MEAL_TICKS),
-      'inconsistent resident consumption clock');
     for (const machine of sim.machines.values()) if (machine.building.haulTo) {
       requireSave(sim.machines.has(tileKey(machine.building.haulTo)), 'missing hauling target');
     }
@@ -249,11 +266,12 @@ export class FactorySimulation {
       staffing: haulItems(machine.building, this.world).length ? this.staffing(machine) : null,
       population: this.residents.length,
       progress: kind === 'kitchen' ? machine.input['food-unit'] / inputCapacity(kind)
-        : kind === 'storage' ? itemCount(machine.input) / inputCapacity(kind)
+        : kind === 'storage' || kind === 'house' ? itemCount(machine.input) / inputCapacity(kind)
           : machine.progress / cycleTicks,
       nextStoredItem: kind === 'storage' ? depotNextItem(machine) : null,
       option: kind === 'miner' ? { enabled: !!machine.building.upgraded } : null,
       haul: this.inspectHauling(machine),
+      housing: kind === 'house' ? this.settlement.housing(tile) : null,
     };
   }
 
@@ -335,6 +353,9 @@ export class FactorySimulation {
     const machine = this.machines.get(key);
     if (!machine) throw new Error('Cannot remove a missing building');
     if (machine.building.kind === 'home') throw new Error('Cannot remove the fixed building');
+    const error = this.removalError(tile);
+    if (error) throw new Error(error);
+    if (machine.building.kind === 'kitchen') this.settlement.foodRemoved(machine.input['food-unit']);
     const contents = recoverContents(machine, this.recovered);
     this.placed.delete(key);
     this.machines.delete(key);
@@ -343,6 +364,18 @@ export class FactorySimulation {
     for (const other of this.machines.values()) if (other.building.haulTo && tileKey(other.building.haulTo) === key) delete other.building.haulTo;
     this.settlement.layoutChanged();
     return contents;
+  }
+
+  removalError(tile: Tile): string | null {
+    const building = this.placed.get(tileKey(tile));
+    if (building?.kind === 'home') return 'The homestead stays in place.';
+    return building?.kind === 'house' && this.residents.some(resident => tileKey(resident.home) === tileKey(tile))
+      ? 'House occupied. Residents need their home.' : null;
+  }
+
+  inviteResident(tile: Tile): string | null {
+    if (this.placed.get(tileKey(tile))?.kind !== 'house') return 'Select a house first.';
+    return this.settlement.invite(tile);
   }
 
   transferRecovered(tile: Tile): { moved: Inventory; remaining: Inventory } {
@@ -423,6 +456,7 @@ export class FactorySimulation {
 
   private receive(machine: MachineState, item: Item): void {
     machine.input[item]++;
+    if (machine.building.kind === 'kitchen' && item === 'food-unit') this.settlement.foodDelivered();
   }
 
   private destination(building: Building, direction = building.direction): MachineState | null {
@@ -467,6 +501,9 @@ export class FactorySimulation {
     if (!machine) throw new Error('Cannot inspect a missing building');
     switch (machine.building.kind) {
       case 'home': return `${this.residents.length} residents sharing the work`;
+      case 'house': return machine.input.wood < HOUSE_WOOD_COST
+        ? `Building house · ${machine.input.wood}/${HOUSE_WOOD_COST} wood`
+        : this.residents.some(resident => tileKey(resident.home) === tileKey(tile)) ? 'House occupied' : 'House ready';
       case 'food-plot': {
         const worker = this.settlement.state.residents.find(resident => resident.job?.kind === 'farm' &&
           tileKey(resident.job.source) === tileKey(tile));
@@ -521,6 +558,54 @@ export class FactorySimulation {
         return 'Assembling';
       }
     }
+  }
+
+  inspectResources(): ResourceInspection[] {
+    const resources: ResourceInspection[] = ITEMS.map(item => ({
+      item, total: 0, depots: 0, buildings: 0, inTransit: 0,
+      recovered: this.recovered[item], locations: [],
+    }));
+    for (const machine of this.machines.values()) {
+      const building = machine.building;
+      const deposit = this.world.at(building).deposit;
+      const status = this.status(building);
+      const routeError = building.haulTo ? this.haulDestinationError(building, building.haulTo) : null;
+      const haulTarget = building.haulTo ? this.machines.get(tileKey(building.haulTo)) : null;
+      for (const resource of resources) {
+        const item = resource.item;
+        const quantity = machine.input[item] + machine.output[item] + (machine.item === item ? 1 : 0);
+        const produces = producesInventoryItem(building.kind, item, deposit);
+        const consumes = building.kind !== 'storage' && acceptsInventoryItem(building.kind, item);
+        if (building.kind === 'storage') resource.depots += quantity;
+        else if (isConveyor(building.kind)) resource.inTransit += quantity;
+        else resource.buildings += quantity;
+        if (!quantity && !produces && !consumes && building.kind !== 'storage') continue;
+        resource.locations.push({
+          key: tileKey(building), building: { ...building }, residentId: null, quantity,
+          role: building.kind === 'house' ? quantity === HOUSE_WOOD_COST ? 'Installed' : 'Construction'
+            : building.kind === 'storage' ? 'Stored'
+            : isConveyor(building.kind) ? 'In transit'
+              : produces && consumes ? 'Produces and uses' : produces ? 'Produces' : consumes ? 'Uses' : 'Holds',
+          status: routeError ? `${status} · ${routeError}`
+            : haulTarget && acceptsInventoryItem(haulTarget.building.kind, item) && this.freeSlots(haulTarget, item) <= 0
+              ? `${status} · Delivery destination full` : status,
+        });
+      }
+    }
+    for (const resident of this.residents) {
+      if (!resident.cargo) continue;
+      const resource = resources.find(value => value.item === resident.cargo)!;
+      resource.inTransit++;
+      resource.locations.push({
+        key: `resident:${resident.id}`, building: null, residentId: resident.id, quantity: 1,
+        role: 'In transit', status: resident.note,
+      });
+    }
+    for (const resource of resources) {
+      resource.total = resource.depots + resource.buildings + resource.inTransit + resource.recovered;
+      resource.locations.sort((a, b) => b.quantity - a.quantity || a.key.localeCompare(b.key));
+    }
+    return resources;
   }
 
   summary(): FactorySummary {

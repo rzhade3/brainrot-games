@@ -45,7 +45,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .factory-period { color: #a48140; }
 .factory-intro { display: none; }
 .factory-settlement-button { min-height: 44px; padding: 8px 12px; margin-left: auto; border: 1px solid #b9c6b5; border-radius: 12px; background: #e9ede1e6; font-size: 11px; }
-.factory-people-button { margin-left: 0; }
+.factory-resources-button { margin-left: 0; }
 .factory-assignment-card { margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: #edf1e4; }
 .factory-assignment-identity { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
 .factory-assignment-avatar { width: 40px; flex-shrink: 0; }
@@ -95,6 +95,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .factory-picker-footer [data-command="assign-resident"], .factory-picker-footer [data-command="confirm-delivery"] { background: var(--teal); border-color: var(--teal); color: var(--paper); }
 .factory-picker-dialog .factory-picker-error { color: #884a32; }
 .factory-picker-error:empty { display: none; }
+.factory-resource-back { align-self: flex-start; }
+.factory-invite-button { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--teal); border-radius: 10px; background: var(--teal); color: var(--paper); font-size: 12px; }
 @media (max-width: 700px), (max-height: 560px) {
   .factory-picker-dialog { position: fixed; inset: auto 0 var(--factory-keyboard-inset, 0px); margin: 0; width: 100%; max-width: none; height: min(640px, calc(var(--factory-picker-viewport, 100dvh) - 12px)); max-height: calc(var(--factory-picker-viewport, 100dvh) - 12px); border-radius: 20px 20px 0 0; padding: 16px 12px max(12px, env(safe-area-inset-bottom, 0px)); gap: 10px; }
   .factory-picker-header h2 { font-size: 21px; }

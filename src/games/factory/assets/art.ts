@@ -9,6 +9,7 @@ export interface BuildingAppearance {
   inputs: readonly Direction[];
   variant: Tile;
   upgraded: boolean;
+  completed?: boolean;
 }
 
 export interface BuildingActivity {
@@ -143,7 +144,13 @@ export function drawBuilding(g: Graphics, b: BuildingAppearance): void {
     for (const dx of [-12, 0, 12]) drawParcel(g, x + dx, y - 16, 'wood');
     line(g, { x: x - 22, y: y - 8 }, { x: x - 15, y: y - 24 }, 0x77694e, 2);
     prism(g, x - 15, y - 24, 4, 2, 3, 0xb7c7bd, 0x7a9588, 0x53786d);
-  } else if (b.kind === 'home' || b.kind === 'kitchen') {
+  } else if (b.kind === 'house' && !b.completed) {
+    prism(g, x, y - 3, 27, 13.5, 4, 0xc6af83, 0x9b805b, 0x77694e);
+    for (const dx of [-23, 23]) prism(g, x + dx, y - 4, 2, 1, 28, 0xc6af83, 0x9b805b, 0x77694e);
+    line(g, { x: x - 23, y: y - 32 }, { x: x - 4, y: y - 50 }, 0x9b805b, 3);
+    line(g, { x: x - 4, y: y - 50 }, { x: x + 23, y: y - 32 }, 0x77694e, 3);
+    drawParcel(g, x, y - 9, 'wood');
+  } else if (b.kind === 'home' || b.kind === 'kitchen' || b.kind === 'house') {
     const kitchen = b.kind === 'kitchen';
     prism(g, x, y - 4, 27, 13.5, 28, 0xe2ddc9, 0xa9b09a, 0x839783);
     polygon(g, [{ x: x - 31, y: y - 32 }, { x: x - 4, y: y - 53 },
@@ -202,7 +209,7 @@ export function drawBuilding(g: Graphics, b: BuildingAppearance): void {
     }
     prism(g, x - 4, y - 36, 10, 5, 8, 0xd7b77b, 0xaa8d5c, 0x927648);
   }
-  if (b.kind === 'home' || b.kind === 'kitchen') return;
+  if (b.kind === 'home' || b.kind === 'kitchen' || b.kind === 'house') return;
   const vector = DIRECTIONS[b.direction];
   const offset = project(vector.c * 0.45, vector.r * 0.45);
   const end = { x: x + offset.x, y: y + offset.y };
@@ -344,8 +351,8 @@ export function drawResident(
   g.fillStyle(0x243c36, 0.2).fillEllipse(x + 2, y + 1, 15, 6);
   const swing = Math.sin(stride) * 2;
   const walkSwing = working ? 0 : swing;
-  const shirt = [0x829c8a, 0xbca777, 0x9bafa4, 0xc19c80][id];
-  const skin = [0xd9b997, 0xb88b6b, 0xccaa87, 0xa87b5a][id];
+  const shirt = [0x829c8a, 0xbca777, 0x9bafa4, 0xc19c80][id % 4];
+  const skin = [0xd9b997, 0xb88b6b, 0xccaa87, 0xa87b5a][id % 4];
   if (facing.x !== 0) {
     const side = Math.sign(facing.x);
     const away = facing.y < 0;

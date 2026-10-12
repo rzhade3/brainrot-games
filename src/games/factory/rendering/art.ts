@@ -1,25 +1,26 @@
 import type Phaser from 'phaser';
 import type { BuildingAppearance } from '../assets/art';
 import { drawBuilding as drawAsset, drawBuildingActivity } from '../assets/art';
-import { Building, isConveyor, project } from '../game/domain';
+import { Building, HOUSE_WOOD_COST, isConveyor, project } from '../game/domain';
 import type { MachineState } from '../game/machines';
 import { machineCycleTicks } from '../game/machines';
 import { conveyorInputs, outputDirections } from '../game/model';
 
 export { diamond, drawOre, drawParcel, drawPreview, drawResident, drawTree, PALETTE, polygon } from '../assets/art';
 
-export function buildingAppearance(building: Building, buildings?: ReadonlyMap<string, Building>): BuildingAppearance {
+export function buildingAppearance(building: Building, buildings?: ReadonlyMap<string, Building>, machine?: Readonly<MachineState>): BuildingAppearance {
   return {
     kind: building.kind, origin: project(building.c, building.r), direction: building.direction,
     inputs: buildings && building.kind === 'belt' ? conveyorInputs(building, buildings) : [],
     variant: { c: building.c, r: building.r }, upgraded: !!building.upgraded,
+    completed: building.kind === 'house' && machine?.input.wood === HOUSE_WOOD_COST,
   };
 }
 
 export function drawBuilding(
-  graphics: Phaser.GameObjects.Graphics, building: Building, buildings?: ReadonlyMap<string, Building>,
+  graphics: Phaser.GameObjects.Graphics, building: Building, buildings?: ReadonlyMap<string, Building>, machine?: Readonly<MachineState>,
 ): void {
-  drawAsset(graphics, buildingAppearance(building, buildings));
+  drawAsset(graphics, buildingAppearance(building, buildings, machine));
 }
 
 export function drawMachineActivity(

@@ -6,7 +6,7 @@ export const MAP_SIZE = WORLD_SIZE;
 
 export type Terrain = 'grass' | 'water' | 'iron' | 'copper' | 'tree';
 export function outputDirections(building: Building): readonly Direction[] {
-  if (building.kind === 'home' || building.kind === 'kitchen') return [];
+  if (building.kind === 'home' || building.kind === 'kitchen' || building.kind === 'house') return [];
   return building.kind === 'splitter' ? [building.direction, nextDirection(building.direction)] : [building.direction];
 }
 

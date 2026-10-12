@@ -10,6 +10,7 @@ const ICONS: Record<BuildingKind | 'inspect' | 'remove', string> = {
   assembler: '<path d="m3 9 9-5 9 5v10l-9 5-9-5zM3 9l9 5 9-5M12 14v10M6 2v7M18 2v7M6 2h12"/><path d="m9 17 3 2 3-2"/>',
   remove: '<path d="M5 6h14M9 6V3h6v3M7 6l1 15h8l1-15M10 10v7M14 10v7"/>',
   home: '<path d="m3 11 9-8 9 8M6 9v12h12V9M10 21v-7h4v7"/>',
+  house: '<path d="m3 11 9-8 9 8M6 9v12h12V9M10 21v-7h4v7M5 23h14"/>',
   'food-plot': '<path d="m3 13 9-5 9 5-9 5zM3 17l9 5 9-5M12 13V3M12 7C7 7 6 3 6 3s6-1 6 4m0 3c5 0 6-4 6-4s-6-1-6 4"/>',
   kitchen: '<path d="m3 11 9-8 9 8M6 9v12h12V9M9 15h6v4H9zM16 6V2h3v7"/>',
   'woodcutting-site': '<path d="M6 21V10m0-7L2 10h8zM14 21V5m0 0 7 3-3 6-4-2M10 17l9 4 3-3-9-4z"/>',

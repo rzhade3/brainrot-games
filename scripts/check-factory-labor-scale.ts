@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { Building, inventory, itemCount, Tile, tileKey } from '../src/games/factory/game/domain';
+import { Building, inventory, itemCount, Item, Tile, tileKey } from '../src/games/factory/game/domain';
 import { weightedLaborTargets } from '../src/games/factory/game/labor';
 import { MachineState } from '../src/games/factory/game/machines';
 import { Settlement, SettlementSave } from '../src/games/factory/game/settlement';
@@ -28,10 +28,11 @@ function fixture(population: number, state?: SettlementSave, machines?: Map<stri
       workPriority: (['high', 'normal', 'low'] as const)[i], haulTo: sinks[i] }));
     map.set(tileKey(sinks[i]), machine({ ...sinks[i], kind: 'storage', direction: 0 }));
   }
-  const host = { world, machines: map, automated: () => false, recover: () => { assert.fail('Unexpected cargo recovery'); } };
+  const host = { world, machines: map, automated: () => false, recover: () => { assert.fail('Unexpected cargo recovery'); },
+    ticks: () => 0, receive: (machine: MachineState, item: Item) => { machine.input[item]++; } };
   const initial = state ?? new Settlement(host).serialize();
   if (!state) initial.residents = Array.from({ length: population }, (_, id) =>
-    ({ id, tile: { c: 8, r: 8 }, siteAccess: null, exit: null, travel: 0, cargo: null, job: null, note: 'Looking for work' }));
+    ({ id, home: { c: 11, r: 12 }, joinedAt: 0, tile: { c: 8, r: 8 }, siteAccess: null, exit: null, travel: 0, cargo: null, job: null, note: 'Looking for work' }));
   const settlement = new Settlement(host, initial);
   return { settlement, map, sources, sinks };
 }

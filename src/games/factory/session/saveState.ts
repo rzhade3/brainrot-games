@@ -71,7 +71,7 @@ export function restoreMachine(value: unknown, world: FactoryWorld): MachineStat
   if (building.haulTo !== undefined) machine.building.haulTo = saveTile(building.haulTo);
   if (building.workPriority !== undefined) {
     requireSave(WORK_PRIORITIES.some(priority => priority === building.workPriority), 'invalid work priority');
-    requireSave(!isConveyor(machine.building.kind) && !['home', 'kitchen'].includes(machine.building.kind), 'priority without resident work');
+    requireSave(!isConveyor(machine.building.kind) && !['home', 'kitchen', 'house'].includes(machine.building.kind), 'priority without resident work');
     machine.building.workPriority = building.workPriority as Building['workPriority'];
   }
   const nextItem = saveCount(source.nextItem);
@@ -123,7 +123,9 @@ export function assertConservation(
     requireSave(item === 'defense-supply' || production.assembled[item] === 0, 'invalid assembly ledger');
   }
   const held = { ...recovered };
+  let kitchenFood = 0;
   for (const machine of machines) {
+    if (machine.building.kind === 'kitchen') kitchenFood += machine.input['food-unit'];
     for (const item of ITEMS) held[item] += machine.input[item] + machine.output[item];
     if (machine.item) held[machine.item]++;
   }
@@ -131,6 +133,8 @@ export function assertConservation(
   requireSave(held.wood === settlement.producedWood, 'wood accounting mismatch');
   requireSave(held['food-unit'] + settlement.consumedFood ===
     settlement.starterFood + settlement.producedFood, 'food accounting mismatch');
+  requireSave(kitchenFood + settlement.consumedFood + settlement.kitchenRemoved ===
+    settlement.starterFood + settlement.kitchenDelivered, 'kitchen replenishment accounting mismatch');
   for (const metal of ['iron', 'copper'] as const) {
     const ore = `${metal}-ore` as const;
     const recipe = SMELTER_RECIPES[ore];

@@ -61,6 +61,7 @@ its unlock condition):
 | --- | --- |
 | Food plot | Grows food for residents |
 | Communal kitchen | Keeps residents fed |
+| House | Makes room for a resident |
 | Extractor | Draws ore from deposits |
 | Smelter | Turns ore into plates |
 | Conveyor | Carries items onward |
@@ -76,6 +77,9 @@ For example: "Growing food", "Ready: 2 / 4", "Deliver to: Communal kitchen".
 Recipes and pace belong here, not on catalog cards. The homestead shows the
 resident count and individual activities, not a decorative population meter
 or routine lifetime production totals.
+Houses show delivered/installed wood, occupancy and food readiness beside Invite.
+Installed wood is not available stock. Kitchens show demand for the current
+population, not the old household-wide serving rate.
 
 **Field notes (collapsed help):** explain only non-obvious behavior or a useful
 exception in one or two short sentences. For example: "Keep a clear tile beside

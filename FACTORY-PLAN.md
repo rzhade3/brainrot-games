@@ -19,7 +19,10 @@ rejects all earlier formats without migration or overwriting them. Explicit
 replacement confirmation and a successful local save precede activation.
 Milestone 8 is the next major priority: worker assignments, resident-run mining
 and industry, then tools and combined components that earn the first automated
-extractor. Milestone 9 adds food processing and optional settlement growth;
+extractor. An implemented early housing slice brings wood-funded houses and
+population-scaled raw-food provisioning forward, before timber processing and
+the full extractor-kit chain; its implementation plan is below. Milestone 9
+retains food processing and later housing refinements;
 milestone 10 adds specialist invitations and production-based discoveries.
 Milestone 11 develops intersecting resource branches. These features are planned,
 not implemented; this roadmap update does not itself implement gameplay.
@@ -133,7 +136,9 @@ requirement of the settlement loop.
 - Basic construction remains free through milestones 8-11. Milestone 8 tests
   physical commissioning of one extractor using a produced equipment kit, not
   general building costs. Milestone 12 may test broader paid construction only
-  behind its own gate. Do not silently charge existing factories or combine
+  behind its own gate. The approved early housing slice is the sole exception:
+  new house sites require eight physically delivered wood. Do not silently
+  charge other existing buildings or combine
   costs, wood, and energy into one unmeasurable change.
 - Add simple recovery-to-depot relocation in milestone 3. Make stored/recovered
   supplies available to production before combat spending becomes important;
@@ -1039,6 +1044,7 @@ Later gates still require separate implementation authorization.
 | --- | --- | --- |
 | 1-6 | Existing factory, persistence, seeded world, visuals, and controls | Implemented foundation |
 | 7 | People and a complete raw-food supply chain | Implemented |
+| Early housing slice | Wood-funded houses, explicit invitations, population-scaled kitchen | Implemented |
 | 8 | Worker-first industry, tools, and the first earned extractor | Next major priority; planned |
 | 9 | Food processing, housing, and optional population growth | Planned |
 | 10 | Specialist invitations and production discoveries | Planned |
@@ -1340,7 +1346,232 @@ installation/removal/refunds, pause, exact save/resume, cached offline behavior,
 ruleset replacement, and native desktop/touch assignment/unlock flows. Stop here before
 adding arrivals, carts, crop types, or general paid construction.
 
-### Milestone 9: Food processing and optional settlement growth
+### Next implementation slice: Wood-funded houses and population-scaled food
+
+Status: implemented. The approved design and acceptance contract follow. This slice
+intentionally advances basic housing/growth ahead of the full milestone 8
+industry chain. It supersedes the fixed-population assumption for this slice,
+not the remaining worker-first industry or specialist roadmap.
+
+Read the canonical field-notebook guide, `src/games/factory/README.md`,
+`src/games/factory/assets/README.md`, and **Agreed visual direction** before
+implementation. Preserve the existing Resources overview and its uncommitted
+changes; do not reset or replace unrelated work. Keep all gameplay changes
+inside Factory and its existing checks.
+
+#### Approved behavior and balance
+
+| Decision | Initial value |
+| --- | --- |
+| House construction | Eight physical wood units delivered to a placed house site |
+| Housing capacity | One additional resident per completed house |
+| Population growth | Explicit Invite action; no automatic arrivals |
+| Food consumption | One food unit per resident per ten seconds of simulation time |
+| Invitation readiness | Thirty seconds of sustainable provisioning and thirty seconds of kitchen reserve, both evaluated for the prospective population |
+| Shortage behavior | Block further invitations; existing residents keep working and do not die |
+
+Opening loop: gather wood -> deliver wood to a house -> maintain sufficient food
+-> explicitly invite a resident -> gain useful labor. Basic houses require no
+planks, tools, specialist, automation, or food payment. Other existing buildings
+remain free. Do not implement timber processing, food processing, specialists,
+research, maintenance, departures, or broader construction costs in this slice.
+
+#### 1. Physical house construction and ownership
+
+- Add a `house` kind to the existing domain/catalog, names, icons, placement,
+  picking and rendering. Keep the original homestead fixed; houses are separate
+  one-tile buildings. Use the short purpose line "Makes room for a resident" and
+  show the implemented eight-wood requirement using shared constants.
+- Placing a house creates an unfinished site, not a completed free house or an
+  immediate stockpile deduction. It accepts only wood through the existing
+  resident delivery and conveyor rules, with capacity equal to its remaining
+  requirement. Reservations must prevent overdelivery.
+- Completion occurs once the eighth wood arrives. No extra worker construction
+  cycle is needed for this first experiment. The completed house accepts no
+  further materials and produces no items.
+- Represent invested wood explicitly. Prefer retaining the eight units in the
+  house inventory as installed material, with completion derived from that
+  quantity, rather than adding a second mutable completion flag or a global
+  construction currency. Those units cannot be hauled out or spent again.
+  Update inspection wording so installed wood is not presented as usable stock.
+- Canceling an unfinished site returns only its actual delivered wood to
+  recovery; interrupt its delivery jobs using existing reservation/cargo
+  recovery. Removing an empty completed house recovers its actual installed
+  wood. Never refund wood that was merely reserved or never delivered.
+- Reject removal of an occupied house explicitly. No eviction, disappearing
+  resident, or silently homeless population. The original homestead remains
+  non-removable.
+
+#### 2. Population-aware kitchen and readiness
+
+- Define shared constants for the ten-second resident food interval and
+  thirty-second observation/reserve windows. Replace the old household-wide
+  consumption clock with a deterministic integer demand accumulator: add the
+  resident count each fixed tick and consume one whole food unit for each
+  resident-interval worth of accumulated demand. Preserve the remainder in
+  saves. Four residents still consume one unit every 2.5 seconds on average.
+- Use a deterministic kitchen order and draw actual cargo from stocked kitchens.
+  Serve every whole due unit, including multiple units in a tick at larger
+  populations. Record unmet due units without accumulating starvation debt that
+  would drain every future delivery. Shortages never disable workers.
+- Measure readiness from actual simulation events, not theoretical plot output,
+  historical lifetime totals, wall time, or global stock. Maintain a bounded,
+  persisted rolling thirty-second record of newly harvested food, net kitchen
+  replenishment, and unmet food demand. Instrument both conveyor and resident
+  delivery paths through the existing rules; neither path receives special
+  readiness privileges.
+- Net kitchen replenishment must subtract food removed with a kitchen. Recovering
+  and re-delivering that stock cannot manufacture extra supply. Initial starter
+  inventory and restore operations do not count as deliveries or production.
+  Newly harvested food bounds the supply credit so starter/recovered stock alone
+  cannot establish a sustainable chain.
+- For prospective population `N`, require a complete observation window with no
+  missed due food, at least `ceil(N * 30 / 10)` newly harvested units and net
+  kitchen replenishment in that window, and at least `ceil(N * 30 / 10)` food
+  units currently in kitchen inventories. Depot stock, plot buffers, cargo,
+  recovery, and reservations are not ready-to-serve food.
+- Thus the first invitation, from four to five residents, requires fifteen
+  replenished food units over thirty seconds and fifteen units stocked in
+  kitchens. Count each stock unit once; multiple kitchens may contribute.
+  Higher populations may need more kitchen capacity and more plots/shorter routes.
+- Reset the observation window after a successful invitation so the next
+  invitation proves the enlarged settlement is actually provisioned. Do not
+  reset fractional consumption demand, food stock, work progress, or cargo.
+  Paused, hidden, suspended, and closed time does not advance readiness.
+
+#### 3. Explicit invitation and variable residents
+
+- Track each resident's home. The original four belong to the homestead; a new
+  resident belongs to the selected completed house. Housing occupancy and
+  capacity are derived from real residents, not a separately incremented counter.
+- Add direct simulation inspection/action methods for housing readiness and
+  inviting at a house. Recheck completion, vacancy, provisioning and accessible
+  arrival space inside the action, not only through a disabled UI button.
+- Spawn on a clear adjacent walkable tile connected to the settlement's
+  accessible food infrastructure. If none exists, explain the blocked arrival
+  and do not create a resident, consume food, or reserve a housing place.
+- Use stable, unique resident IDs and deterministic display names beyond the
+  four founders. Do not bound population by the founder-name array. Ensure
+  resident art safely handles new IDs, using existing palette/style variations
+  without introducing personality or preference mechanics.
+- Newcomers begin idle with no cargo, reservations or job and immediately join
+  the same demand-capped labor pool. Inviting twice at the same house must not
+  create duplicate arrivals. Freshly available labor must not cancel existing
+  harvests, gathering work, or delivery trips.
+
+#### 4. Contextual UI and artwork
+
+- Put construction progress/installed wood, occupancy, prospective food demand,
+  observed supply, reserve, arrival-access reason and Invite in the selected
+  house inspector. Use short labeled values and one relevant blocking reason.
+  A completed empty house can wait indefinitely while food supply improves.
+- Put current population-dependent consumption and stocked food in the kitchen
+  inspector. Replace the old "one food unit for the whole household" copy and
+  hard-coded household serving interval everywhere, including expanded notes.
+- Keep Resources as the header overview, not a restored People page. Resource
+  drilldowns include house construction deliveries and installed wood with clear
+  roles; carriers and new residents remain inspectable on the map and at home.
+  Keep live lists current when a resident arrives, without losing focus.
+- Show unfinished and finished houses distinctly using plain visual state
+  passed through `rendering/art.ts` to `assets/art.ts`. Assets must not inspect
+  live simulation objects. Refresh cached building art when completion changes;
+  the new silhouette must have matching convex picking bounds.
+- Preserve keyboard/touch behavior, clear accessible names, reduced motion and
+  narrow/landscape layouts. No persistent population panel, notification feed,
+  automatic arrival celebration, or unimplemented timber/plank copy.
+
+#### 5. Saves, invariants and implementation owners
+
+| Responsibility | Existing owner |
+| --- | --- |
+| House kind/catalog and shared quantities | `game/domain.ts`, `game/model.ts` |
+| Wood acceptance, bounded inventory, material recovery | `game/machines.ts` |
+| Placement/removal guards, inspection, invitation actions and transfers | `game/simulation.ts` |
+| Dynamic residents, homes, arrival access, scaled consumption and rolling readiness | `game/settlement.ts`, existing `game/labor.ts` where needed |
+| Conservation, schema validation and compatibility | `session/saveState.ts`, `session/persistence.ts` |
+| Selected-building actions, current lists and live resource details | `FactoryScene.ts`, `hud.ts`, `style.css` |
+| House appearance, icon, bounds and preview | `assets/`, state adapter `rendering/art.ts` |
+
+- Saves use envelope version 4, `settlement-v7`, settlement version 6, replacing
+  the `settlement-v6`/version 5 contract. Follow the repository's fresh-start
+  policy rather than adding an unrequested migration.
+- Reject prior saves as incompatible, without modifying or overwriting them.
+  Existing explicit replacement confirmation and commit-before-activation
+  behavior must still protect the active save.
+- Validate homes, founder/newcomer identities, population against actual
+  completed housing, input capacities, installed wood, reservations, arrival
+  tiles, demand remainder and the bounded food-history window. Reject forged
+  readiness or invalid quantities rather than clamping/falling back.
+- Keep wood conserved across buffers, residents, unfinished/finished houses and
+  recovery. Keep harvested/starter/consumed food conserved with dynamic demand.
+  Persist enough observation state for exact invite readiness after reload.
+  Duplicate invitation, save/resume, recovery, or building removal cannot
+  duplicate materials or residents.
+
+#### 6. Implementation order and acceptance
+
+1. Implement domain/machine/save foundations and population-aware food
+   accounting. Add focused tests before exposing invitations.
+2. Implement physical house completion, home ownership, readiness inspection and
+   atomic invitations, with headless conservation and replay checks.
+3. Wire house/kitchen inspectors, Resources, resident lists and house artwork.
+   Update directly dependent existing fixtures/copy, not unrelated gameplay.
+4. Validate the complete opening loop, adjust tightly coupled failures, then
+   update implemented status in this plan and the Factory README.
+
+Required checks:
+
+- Exact eight-wood threshold, one-place capacity, seventh/eighth/ninth delivery,
+  resident/conveyor competition, full buffers, empty sources, route changes,
+  inaccessible sites, cancellation, empty-house removal and occupied-house refusal.
+- Exact population-dependent consumption at four, five and larger populations;
+  fractional remainders, multiple due units, deterministic multi-kitchen serving,
+  shortage recovery, no food debt, and no starvation/labor softlock.
+- Invitation fails just below either thirty-second threshold and succeeds at
+  the exact threshold. Cover prospective rather than current population,
+  stock outside kitchens, grants/recovery/re-delivery exclusions, blocked
+  arrivals, simultaneous/repeated attempts, and reset after growth.
+- Round-trip unfinished construction, in-flight wood, installed wood, occupied
+  houses, a fifth resident, partial demand and partial/complete readiness
+  windows. Compare deterministic replay, labor reservations and conservation.
+- Native desktop and narrow/landscape touch flow: place house, choose deliveries,
+  inspect progress, explain unavailable invitation, invite, inspect newcomer,
+  see increased kitchen demand, pause, save and resume. Check Resources totals,
+  live resident lists, keyboard focus, help and accessibility.
+- Run the smallest relevant headless checks during development, then
+  `npm run check:factory`, `npm run build`, `npm run check:factory:ui`, and the
+  affected browser/art checks. Preserve other games and existing Resources work.
+- Exercise the real four-resident opening using normal farming/gathering/hauling,
+  without seeded extra wood/food or bypassing readiness. Record simulation time
+  to a completed house, a food-ready invitation, first newcomer work, kitchen
+  supply and hauling backlog. Do not claim that four residents are sufficient
+  from a synthetic threshold test alone.
+
+Stopping criterion: the player can physically build one house, explicitly add a
+fifth resident while maintaining food, and save/resume the enlarged settlement
+without loss or duplication. Deliver this slice before adding timber processing,
+specialists or the extractor-kit chain. If normal play cannot satisfy the
+approved thresholds with four residents, report measured demand/supply/travel
+constraints and request a balance decision; do not silently weaken readiness,
+grant materials, or increase the starting population.
+
+Implemented validation: `scripts/check-factory-housing.ts` covers material
+thresholds, resident/conveyor reservation competition, cancellation/removal,
+readiness boundaries, shortages, multi-kitchen serving, multiple due units,
+save validation and deterministic replay. The normal default-seed opening
+places a house at 16,12, a second kitchen at 16,10, and plots at 13,10 and 15,10;
+the latter feeds the second kitchen. A nearby woodcutting site at 21,20 delivers
+to the house. Four founders complete and invite at 96.5 simulation seconds;
+the newcomer starts work at 99.4 seconds. No extra stock is granted, no food is
+missed through 400 seconds, and gathering output remains within its four-unit
+buffer. One nearly full kitchen instead throttles deliveries to current demand;
+the house inspector explains when extra kitchen space is needed. These internal
+timings do not establish first-time-player or physical-phone pacing.
+Native desktop, narrow touch and landscape checks cover placement, wood routing,
+readiness, completion art, invitation, installed-stock inspection, occupied
+removal protection, updated kitchen demand and exact save/resume.
+
+### Milestone 9: Food processing and later settlement growth
 
 Add a food processor producing processed food units according to the shared
 nutrition contract. For this isolated proof, it is directly available; milestone
@@ -2097,9 +2328,10 @@ Largest uncertainties:
   in Settlement. Consumption supplies nutrition, shortages preserve labor, and
   automation frees workers for other assigned deliveries. Existing factories
   are not converted; depot output is basic infrastructure in the new ruleset.
-- No food processing, settlement growth, or production discoveries have been
-  implemented. No construction costs,
-  harvestable wood, underground excavation, dynamic weather, power, defenses,
+- Basic wood-funded housing and optional population growth are implemented,
+  with population-scaled raw-food demand and prospective provisioning checks.
+  No food processing or production discoveries have been implemented. No broad
+  construction costs, tree felling, underground excavation, dynamic weather, power, defenses,
   or combat have been implemented.
   Real-device performance review and first-time-player pacing
   remain outstanding.
@@ -2115,7 +2347,8 @@ Largest uncertainties:
   milestone 15 release polish. Power, defense, and excavation remain conditional.
 - Next major work: milestone 8, extending 8A automatic labor delegation to
   resident-run mining/industry, then 8B tools/components and 8C the first earned
-  extractor. Food processing and arrivals follow, not the old project or
+  extractor. Food processing and specialist arrivals follow the early housing
+  slice, not the old project or
   construction-reserve sequence. This update records the selected plan only.
   First-time pacing and physical-device performance remain unverified;
   implementation of every subsequent experiment requires separate approval.

@@ -40,7 +40,7 @@ export const BUILDING_SHAPES: Record<BuildingKind, AssetShape> = {
   belt: shape(35, 5), splitter: shape(35, 5), miner: shape(28, 44),
   furnace: shape(28, 44, [[{ x: -2, y: -67 }, { x: 12, y: -67 }, { x: 12, y: -38 }, { x: -2, y: -38 }]]),
   storage: shape(28, 42), assembler: shape(28, 44),
-  home: shape(28, 44), 'food-plot': shape(32, 8), kitchen: shape(28, 44),
+  home: shape(28, 44), house: shape(31, 53), 'food-plot': shape(32, 8), kitchen: shape(28, 44),
   'woodcutting-site': shape(32, 34),
 };
 

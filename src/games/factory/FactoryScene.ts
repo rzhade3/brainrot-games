@@ -3,7 +3,7 @@ import { drawBuilding, drawMachineActivity, drawPreview, drawResident } from './
 import { pickBuilding } from './assets/picking';
 import { BeltRoute, commitRoute, planRoute, routeStartError, undoRoute } from './game/beltRoute';
 import { inView, tileDepth, WorldView } from './rendering/chunks';
-import { CATALOG, GATHER_RADIUS } from './game/domain';
+import { CATALOG, GATHER_RADIUS, HOUSE_WOOD_COST } from './game/domain';
 import { Action, FactoryHud } from './hud';
 import {
   Building, Direction, HALF_HEIGHT, HALF_WIDTH,
@@ -87,6 +87,25 @@ export default class FactoryScene extends Phaser.Scene {
     this.ghost = this.add.graphics().setAlpha(0.55);
     this.home();
     this.hud.onAction = action => this.act(action);
+    this.hud.onResources = () => this.simulation.inspectResources();
+    this.hud.onInvite = () => {
+      if (!this.selected) return 'Select a house first.';
+      const error = this.simulation.inviteResident(this.selected);
+      this.hud.setStatus(error ?? 'A resident has moved in.', !!error);
+      if (!error) { this.refreshSimulationHud(); this.saveChange(); }
+      return error;
+    };
+    this.hud.onBuilding = tile => {
+      this.act('close');
+      const building = this.buildings.get(tileKey(tile));
+      if (!building) return;
+      this.selected = building;
+      this.hud.inspect(building);
+      this.refreshSimulationHud();
+      this.refreshTools();
+      const point = project(building.c, building.r);
+      this.cameras.main.centerOn(point.x, point.y - 15);
+    };
     this.hud.onHaulTarget = target => {
       const source = this.selected;
       if (!source) return 'Choose a source of goods first.';
@@ -220,7 +239,8 @@ export default class FactoryScene extends Phaser.Scene {
       visible.add(key);
       if (this.machineArt.has(key)) continue;
       const art = this.add.graphics().setDepth(this.depth(building));
-      drawBuilding(art, building, this.buildings);
+      drawBuilding(art, building, this.buildings, this.simulation.getState(building) ?? undefined);
+      if (building.kind === 'house') art.setData('completed', this.simulation.getState(building)?.input.wood === HOUSE_WOOD_COST);
       this.machineArt.set(key, art);
       this.motionArt.set(key, this.add.graphics().setDepth(this.depth(building) + 0.1));
     }
@@ -505,16 +525,6 @@ export default class FactoryScene extends Phaser.Scene {
       this.zoomAt(action === 'zoom-in' ? 1.2 : 1 / 1.2, { x: this.scale.width / 2, y: this.scale.height / 2 });
     } else if (action === 'home') {
       this.home();
-    } else if (action === 'focus-home') {
-      this.act('close');
-      const home = [...this.buildings.values()].find(building => building.kind === 'home');
-      if (!home) return;
-      this.selected = home;
-      this.hud.inspect(home);
-      this.refreshSimulationHud();
-      this.refreshTools();
-      const point = project(home.c, home.r);
-      this.cameras.main.centerOn(point.x, point.y - 15);
     } else if (action === 'focus-copper' || action === 'focus-iron') {
       this.act('close');
       const world = this.simulation.world;
@@ -553,8 +563,9 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshTools();
     } else if (action === 'remove') {
       if (this.tool !== 'inspect' || !this.selected) return;
-      if (this.selected.kind === 'home') {
-        this.hud.setStatus('The homestead stays in place.', true);
+      const error = this.simulation.removalError(this.selected);
+      if (error) {
+        this.hud.setStatus(error, true);
         return;
       }
       const building = this.selected;
@@ -762,8 +773,19 @@ export default class FactoryScene extends Phaser.Scene {
   }
 
   private refreshSimulationHud(): void {
+    for (const [key, art] of this.machineArt) {
+      const building = this.buildings.get(key);
+      const machine = building ? this.simulation.getState(building) : null;
+      if (machine?.building.kind !== 'house') continue;
+      const completed = machine.input.wood === HOUSE_WOOD_COST;
+      if (art.getData('completed') === completed) continue;
+      art.clear();
+      drawBuilding(art, machine.building, this.buildings, machine);
+      art.setData('completed', completed);
+    }
     this.hud.setBuildings(this.buildings);
     this.hud.setSummary(this.simulation.summary());
+    if (this.hud.resourcesOpen) this.hud.updateResources(this.paused);
     if (this.selected) {
       if (this.simulation.getState(this.selected)) {
         this.hud.setMachine(this.simulation.inspectMachine(this.selected), this.paused);

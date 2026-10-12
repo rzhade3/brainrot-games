@@ -1,4 +1,4 @@
-export const BUILDING_KINDS = ['belt', 'splitter', 'miner', 'furnace', 'storage', 'assembler', 'home', 'food-plot', 'kitchen', 'woodcutting-site'] as const;
+export const BUILDING_KINDS = ['belt', 'splitter', 'miner', 'furnace', 'storage', 'assembler', 'home', 'food-plot', 'kitchen', 'woodcutting-site', 'house'] as const;
 export type BuildingKind = typeof BUILDING_KINDS[number];
 export type BuildableKind = Exclude<BuildingKind, 'home'>;
 export type Tool = 'inspect' | BuildableKind;
@@ -47,6 +47,10 @@ export const FARM_TICKS = 20;
 export const GATHER_TICKS = 20;
 export const GATHER_RADIUS = 4;
 export const MEAL_TICKS = 25;
+export const RESIDENT_FOOD_TICKS = 100;
+export const FOOD_READINESS_TICKS = 300;
+export const HOUSE_WOOD_COST = 8;
+export const HOUSE_CAPACITY = 1;
 
 export function project(c: number, r: number): Point {
   return { x: (c - r) * HALF_WIDTH, y: (c + r) * HALF_HEIGHT };
@@ -114,6 +118,7 @@ export const NAMES: Record<BuildingKind, string> = {
   storage: 'Depot', assembler: 'Assembler', home: 'Homestead',
   'food-plot': 'Food plot', kitchen: 'Communal kitchen',
   'woodcutting-site': 'Woodcutting site',
+  house: 'House',
 };
 
 export const DESCRIPTIONS: Record<BuildingKind, string> = {
@@ -125,7 +130,8 @@ export const DESCRIPTIONS: Record<BuildingKind, string> = {
   assembler: 'Iron and copper plates become defense supplies. The arrow sends supplies to the next building.',
   home: 'Residents share farming, gathering and deliveries automatically. They keep working during food shortages.',
   'food-plot': 'The farmer works inside the plot; keep one clear exit. Farming pauses when the plot is full; a conveyor frees its carriers.',
-  kitchen: 'Each serving uses one food unit for the whole household. Shortages do not harm residents or stop their work.',
+  kitchen: `Each resident needs one food unit every ${RESIDENT_FOOD_TICKS * STEP_MS / 1000} seconds. Shortages do not harm residents or stop their work.`,
+  house: 'Deliver wood to finish the house, then invite a resident when food is reliable. Occupied houses cannot be removed; removing an empty site or house returns its wood to recovery.',
   'woodcutting-site': 'Workers gather on the tree tile, then carry wood back; keep one clear exit beside the tree. Trees remain in place, and a conveyor frees carriers, not the woodcutter.',
 };
 
@@ -133,6 +139,7 @@ export const CATALOG = [
   { kind: 'food-plot', category: 'production', note: 'Grows food for residents', shortcut: '9' },
   { kind: 'woodcutting-site', category: 'production', note: 'Gathers wood from groves', shortcut: '6' },
   { kind: 'kitchen', category: 'storage', note: 'Keeps residents fed', shortcut: '0' },
+  { kind: 'house', category: 'storage', note: 'Makes room for a resident', shortcut: '' },
   { kind: 'miner', category: 'production', note: 'Draws ore from deposits', shortcut: '3' },
   { kind: 'furnace', category: 'production', note: 'Turns ore into plates', shortcut: '4' },
   { kind: 'belt', category: 'logistics', note: 'Carries items onward', shortcut: '2' },

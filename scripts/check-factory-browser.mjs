@@ -48,7 +48,9 @@ try {
         for (let frame = 0; frame < 240; frame++) game.step(frame * 16.666, 16.666);
         samples.push((performance.now() - start) / 240);
       }
-      scene.act('focus-home');
+      const home = [...scene.simulation.buildings.values()].find(building => building.kind === 'home');
+      if (!home) throw new Error('Missing homestead fixture');
+      scene.hud.onBuilding(home);
       game.step(10000, 16.666);
       const pixels = game.canvas.getContext('2d').getImageData(0, 0, game.canvas.width, game.canvas.height).data;
       const digest = await crypto.subtle.digest('SHA-256', pixels);

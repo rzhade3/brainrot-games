@@ -3,7 +3,7 @@ import {
   Building, BuildingKind, compareTiles, Direction,
   EXTRACT_TICKS, FARM_TICKS, GATHER_TICKS,
   Inventory, inventory, isConveyor, Item, itemCount, ITEMS,
-  MEAL_TICKS,
+  RESIDENT_FOOD_TICKS, HOUSE_WOOD_COST,
   moveInventory, tileKey,
   UPGRADED_EXTRACT_TICKS,
 } from './domain';
@@ -75,7 +75,7 @@ export function machineCycleTicks(machine: Readonly<MachineState>): number {
     case 'miner': return machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS;
     case 'food-plot': return FARM_TICKS;
     case 'woodcutting-site': return GATHER_TICKS;
-    case 'kitchen': return MEAL_TICKS;
+    case 'kitchen': return RESIDENT_FOOD_TICKS;
     default: return BELT_TICKS;
   }
 }
@@ -94,6 +94,7 @@ export function acceptsInventoryItem(kind: BuildingKind, item: Item): boolean {
     case 'assembler': return ASSEMBLER_RECIPE.inputs.some(ingredient => ingredient.item === item);
     case 'storage': return true;
     case 'kitchen': return item === 'food-unit';
+    case 'house': return item === 'wood';
     default: return false;
   }
 }
@@ -105,6 +106,7 @@ export function inputCapacity(kind: BuildingKind, item: Item | null = null): num
     case 'furnace': return BUFFER_CAPACITY;
     case 'storage': return DEPOT_CAPACITY;
     case 'kitchen': return KITCHEN_CAPACITY;
+    case 'house': return HOUSE_WOOD_COST;
     default: return 0;
   }
 }

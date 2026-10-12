@@ -77,6 +77,7 @@ const machineRules: Record<BuildingKind, { input: number; output: number; items:
   'food-plot': { input: 0, output: 4, items: [] },
   kitchen: { input: 16, output: 0, items: ['food-unit'] },
   'woodcutting-site': { input: 0, output: 4, items: [] },
+  house: { input: 8, output: 0, items: ['wood'] },
 };
 for (const kind of Object.keys(machineRules) as BuildingKind[]) {
   const expected = machineRules[kind];
@@ -123,6 +124,60 @@ assert.equal(assemblyInspection.cycleTicks, 20);
 assert.equal(assemblyInspection.status, 'Needs 2 iron plates + 1 copper plate');
 assert.throws(() => ingredientFactory.inspectMachine({ c: 0, r: 0 }), /missing/);
 
+{
+  const simulation = factory(
+    building('storage', 15, 10), building('furnace', 12, 10), building('belt', 13, 10),
+    building('assembler', 16, 16),
+  );
+  const save = simulation.serialize();
+  save.machines.find(machine => machine.building.kind === 'storage')!.input['iron-ore'] = 3;
+  const smelter = save.machines.find(machine => machine.building.kind === 'furnace')!;
+  smelter.input['iron-ore'] = 2;
+  smelter.processing = 'iron-ore';
+  smelter.output['iron-plate'] = 1;
+  save.machines.find(machine => machine.building.kind === 'belt')!.item = 'iron-ore';
+  save.recovered['iron-ore'] = 4;
+  save.mined['iron-ore'] = 12;
+  save.smelted['iron-plate'] = 1;
+  const resident = save.settlement.residents[0];
+  resident.tile = { c: 12, r: 9 };
+  resident.cargo = 'iron-ore';
+  resident.job = {
+    kind: 'deliver', source: { c: 15, r: 10 }, destination: { c: 12, r: 10 },
+    path: [], item: 'iron-ore',
+  };
+  const restored = FactorySimulation.restore(save);
+  const before = restored.serialize();
+  const resources = restored.inspectResources();
+  assert.deepEqual(resources.map(resource => resource.item), ITEMS);
+  const ore = resources.find(resource => resource.item === 'iron-ore')!;
+  assert.deepEqual([ore.total, ore.depots, ore.buildings, ore.inTransit, ore.recovered], [11, 3, 2, 2, 4],
+    'Inventory includes depots, processing inputs, belt cargo, resident cargo and recovery exactly once');
+  assert.equal(ore.locations.find(location => location.key === 'resident:0')!.quantity, 1);
+  assert.equal(resources.find(resource => resource.item === 'iron-plate')!.total, 1);
+  const copper = resources.find(resource => resource.item === 'copper-plate')!;
+  assert.equal(copper.total, 0);
+  assert.match(copper.locations.find(location => location.key === '16,16')!.status, /Needs 2 iron plates \+ 1 copper plate/);
+  assert.deepEqual(restored.inspectResources(), resources, 'Repeated resource inspection is stable');
+  assert.deepEqual(restored.serialize(), before, 'Resource inspection does not change state');
+}
+
+{
+  const save = FactorySimulation.create().serialize();
+  save.machines.find(machine => machine.building.kind === 'kitchen')!.input['food-unit'] = 16;
+  save.settlement.producedFood += 8;
+  save.settlement.kitchenDelivered += 8;
+  const full = FactorySimulation.restore(save);
+  const food = full.inspectResources().find(resource => resource.item === 'food-unit')!;
+  assert.equal(food.total, 16);
+  assert.match(food.locations.find(location => location.key === '10,9')!.status, /Delivery destination full/);
+  const home = save.machines.find(machine => machine.building.kind === 'home')!.building;
+  save.machines.find(machine => tileKey(machine.building) === '10,9')!.building.haulTo = { c: home.c, r: home.r };
+  const incompatible = FactorySimulation.restore(save);
+  assert.match(incompatible.inspectResources().find(resource => resource.item === 'food-unit')!
+    .locations.find(location => location.key === '10,9')!.status, /cannot accept goods/);
+}
+
 const demo = factoryFrom(createDemo());
 run(demo, 300);
 assert.ok(demo.summary().stored['iron-plate'] > 0, 'Complete iron production chain must deliver plates');
@@ -132,6 +187,8 @@ assert.equal(demo.summary().stored['iron-plate'], DEPOT_CAPACITY);
 assert.equal(demo.summary().stored['copper-plate'], DEPOT_CAPACITY);
 assert.equal(itemCount(demo.getState({ c: 7, r: 10 })!.output), BUFFER_CAPACITY, 'Backpressure must reach the miner');
 assert.equal(demo.getState({ c: 7, r: 10 })!.running, false);
+assert.match(demo.inspectResources().find(resource => resource.item === 'iron-ore')!
+  .locations.find(location => location.key === '7,10')!.status, /Output blocked/);
 const saturated = demo.summary();
 run(demo, 100);
 assert.deepEqual(demo.summary().mined, saturated.mined, 'Full factories must not keep creating ore');

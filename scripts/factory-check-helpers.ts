@@ -62,6 +62,7 @@ export function emptyFactory(): FactorySimulation {
   const save = FactorySimulation.create().serialize();
   save.machines = save.machines.filter(machine => machine.building.kind === 'home');
   save.recovered['food-unit'] = save.settlement.starterFood;
+  save.settlement.kitchenRemoved = save.settlement.starterFood;
   for (const resident of save.settlement.residents) {
     resident.tile = { c: resident.id % 2, r: Math.floor(resident.id / 2) };
   }

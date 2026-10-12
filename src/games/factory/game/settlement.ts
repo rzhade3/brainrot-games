@@ -1,7 +1,7 @@
-import { Building, compareTiles, DIRECTIONS, FARM_TICKS, GATHER_TICKS, Item, ITEMS, MEAL_TICKS, Tile, tileKey, WALK_TICKS } from './domain';
+import { Building, compareTiles, DIRECTIONS, FARM_TICKS, GATHER_TICKS, Item, ITEMS, FOOD_READINESS_TICKS, RESIDENT_FOOD_TICKS, HOUSE_WOOD_COST, HOUSE_CAPACITY, Tile, tileKey, WALK_TICKS } from './domain';
 import { gatheringAccess, TreeAccess } from './gathering';
 import { weightedLaborTargets } from './labor';
-import { acceptsInventoryItem, inputSlots, MachineState, outputCapacity } from './machines';
+import { acceptsInventoryItem, inputSlots, KITCHEN_CAPACITY, MachineState, outputCapacity } from './machines';
 import { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
 import { requireCompatibleSave } from '../session/saveErrors';
 import { FactoryWorld } from './world';
@@ -17,6 +17,8 @@ export type ResidentJob =
 
 export interface Resident {
   id: number;
+  home: Tile;
+  joinedAt: number;
   tile: Tile;
   siteAccess: Tile | null;
   exit: Tile | null;
@@ -27,7 +29,7 @@ export interface Resident {
 }
 
 export interface SettlementSave {
-  version: 5;
+  version: 6;
   labor: Record<string, number>;
   residents: Resident[];
   starterFood: number;
@@ -36,12 +38,39 @@ export interface SettlementSave {
   consumedFood: number;
   missedMeals: number;
   mealClock: number;
+  foodObservedSince: number;
+  kitchenDelivered: number;
+  kitchenRemoved: number;
+  foodHistory: FoodEvent[];
+}
+
+export interface FoodEvent {
+  tick: number;
+  harvested: number;
+  delivered: number;
+  removed: number;
+  missed: number;
+}
+
+export interface HousingInspection {
+  complete: boolean;
+  occupied: number;
+  capacity: number;
+  population: number;
+  prospective: number;
+  requiredFood: number;
+  stockedFood: number;
+  harvestedFood: number;
+  deliveredFood: number;
+  observedTicks: number;
+  missedFood: number;
+  arrival: Tile | null;
+  reason: string | null;
 }
 
 export function residentName(id: number): string {
-  const name = RESIDENT_NAMES[id];
-  if (!name) throw new Error(`Unknown resident: ${id}`);
-  return name;
+  if (!Number.isSafeInteger(id) || id < 0) throw new Error(`Unknown resident: ${id}`);
+  return RESIDENT_NAMES[id % RESIDENT_NAMES.length] + (id < RESIDENT_NAMES.length ? '' : ` ${Math.floor(id / RESIDENT_NAMES.length) + 1}`);
 }
 
 export function residentWorkTile(job: ResidentJob | null): Tile | null {
@@ -59,6 +88,8 @@ interface Host {
   world: FactoryWorld;
   automated: (machine: MachineState) => boolean;
   recover: (item: Item) => void;
+  receive: (machine: MachineState, item: Item) => void;
+  ticks: () => number;
 }
 
 interface LaborRequest {
@@ -80,10 +111,10 @@ export class Settlement {
 
   constructor(private host: Host, state?: SettlementSave) {
     this.state = state ?? {
-      version: 5, labor: {}, starterFood: STARTER_FOOD, producedFood: 0, producedWood: 0, consumedFood: 0,
-      missedMeals: 0, mealClock: 0,
+      version: 6, labor: {}, starterFood: STARTER_FOOD, producedFood: 0, producedWood: 0, consumedFood: 0,
+      missedMeals: 0, mealClock: 0, foodObservedSince: 0, kitchenDelivered: 0, kitchenRemoved: 0, foodHistory: [],
       residents: [{ c: 11, r: 11 }, { c: 12, r: 11 }, { c: 12, r: 12 }, { c: 11, r: 13 }]
-        .map((tile, id) => ({ id, tile, siteAccess: null, exit: null, travel: 0, cargo: null, job: null, note: 'Looking for work' })),
+        .map((tile, id) => ({ id, home: { c: 11, r: 12 }, joinedAt: 0, tile, siteAccess: null, exit: null, travel: 0, cargo: null, job: null, note: 'Looking for work' })),
     };
   }
 
@@ -93,33 +124,63 @@ export class Settlement {
 
   static restore(value: unknown, host: Host): Settlement {
     const source = saveObject(value);
-    requireCompatibleSave(source.version === 5, 'unsupported settlement version');
+    requireCompatibleSave(source.version === 6, 'unsupported settlement version');
     const state: SettlementSave = {
-      version: 5, labor: {}, residents: [], starterFood: saveCount(source.starterFood), producedWood: saveCount(source.producedWood),
+      version: 6, labor: {}, residents: [], starterFood: saveCount(source.starterFood), producedWood: saveCount(source.producedWood),
       producedFood: saveCount(source.producedFood), consumedFood: saveCount(source.consumedFood),
       missedMeals: saveCount(source.missedMeals), mealClock: saveCount(source.mealClock),
+      foodObservedSince: saveCount(source.foodObservedSince), kitchenDelivered: saveCount(source.kitchenDelivered),
+      kitchenRemoved: saveCount(source.kitchenRemoved), foodHistory: [],
     };
+    requireSave(Array.isArray(source.residents) && source.residents.length >= RESIDENT_NAMES.length &&
+      source.residents.length <= RESIDENT_NAMES.length + host.machines.size, 'invalid resident population');
+    const population = source.residents.length;
+    requireSave(state.foodObservedSince <= host.ticks(), 'invalid food observation start');
+    requireSave(Array.isArray(source.foodHistory) && source.foodHistory.length <= FOOD_READINESS_TICKS + 1, 'invalid food history');
+    for (const raw of source.foodHistory) {
+      const entry = saveObject(raw);
+      const event = { tick: saveCount(entry.tick), harvested: saveCount(entry.harvested), delivered: saveCount(entry.delivered),
+        removed: saveCount(entry.removed), missed: saveCount(entry.missed) };
+      requireSave(event.tick > Math.max(state.foodObservedSince, host.ticks() - FOOD_READINESS_TICKS) &&
+        event.tick <= host.ticks() && (!state.foodHistory.length || event.tick > state.foodHistory[state.foodHistory.length - 1].tick),
+      'invalid food history tick');
+      requireSave(event.harvested + event.delivered + event.removed + event.missed > 0 &&
+        event.harvested <= population && event.delivered <= host.world.size ** 2 + population &&
+        event.removed <= (host.world.size ** 2) * KITCHEN_CAPACITY &&
+        event.missed <= Math.ceil(population / RESIDENT_FOOD_TICKS), 'invalid food history quantities');
+      state.foodHistory.push(event);
+    }
+    for (const [field, total] of [['harvested', state.producedFood], ['delivered', state.kitchenDelivered],
+      ['removed', state.kitchenRemoved], ['missed', state.missedMeals]] as const) {
+      requireSave(state.foodHistory.reduce((sum, event) => sum + event[field], 0) <= total, 'food history exceeds accounting');
+    }
     const labor = saveObject(source.labor);
-    requireSave(Object.keys(labor).length <= host.machines.size * RESIDENT_NAMES.length, 'invalid labor accounts');
+    requireSave(Object.keys(labor).length <= host.machines.size * population, 'invalid labor accounts');
     for (const [key, credit] of Object.entries(labor)) {
       const parts = /^(\d+,\d+)@(\d+)$/.exec(key);
       requireSave(parts && host.machines.has(parts[1]) && Number(parts[2]) < host.world.size ** 2,
         'invalid labor request');
       requireSave(typeof credit === 'number' && Number.isFinite(credit) &&
-        Math.abs(credit) <= RESIDENT_NAMES.length * (2 * host.world.size ** 2 * WALK_TICKS + Math.max(FARM_TICKS, GATHER_TICKS)),
+        Math.abs(credit) <= population * (2 * host.world.size ** 2 * WALK_TICKS + Math.max(FARM_TICKS, GATHER_TICKS)),
       'invalid labor credit');
       state.labor[key] = credit;
     }
-    requireSave(state.starterFood === STARTER_FOOD && state.mealClock < MEAL_TICKS, 'invalid settlement food clock or grant');
-    requireSave(Array.isArray(source.residents) && source.residents.length === RESIDENT_NAMES.length, 'invalid resident population');
+    requireSave(state.starterFood === STARTER_FOOD && state.mealClock < RESIDENT_FOOD_TICKS, 'invalid settlement food clock or grant');
     for (let i = 0; i < source.residents.length; i++) {
       const entry = saveObject(source.residents[i]);
       requireSave(entry.id === i, 'invalid resident identity');
       const resident: Resident = {
-        id: i, tile: saveTile(entry.tile), siteAccess: entry.siteAccess === null ? null : saveTile(entry.siteAccess),
+        id: i, home: saveTile(entry.home), joinedAt: saveCount(entry.joinedAt), tile: saveTile(entry.tile), siteAccess: entry.siteAccess === null ? null : saveTile(entry.siteAccess),
         exit: entry.exit === null ? null : saveTile(entry.exit),
         travel: saveCount(entry.travel), cargo: null, job: null, note: '',
       };
+      const home = host.machines.get(tileKey(resident.home));
+      requireSave(resident.joinedAt <= host.ticks() && (i < RESIDENT_NAMES.length
+        ? home?.building.kind === 'home' && resident.joinedAt === 0
+        : home?.building.kind === 'house' && home.input.wood === HOUSE_WOOD_COST &&
+          resident.joinedAt >= state.residents[i - 1].joinedAt + FOOD_READINESS_TICKS), 'invalid resident home or arrival');
+      requireSave(i < RESIDENT_NAMES.length || !state.residents.some(other => tileKey(other.home) === tileKey(resident.home)),
+        'housing over capacity');
       requireSave(entry.cargo === null || ITEMS.includes(entry.cargo as Item), 'invalid resident cargo');
       resident.cargo = entry.cargo as Item | null;
       requireSave(typeof entry.note === 'string' && entry.note.length <= 160, 'invalid resident status');
@@ -177,6 +238,12 @@ export class Settlement {
       state.residents.push(resident);
     }
     const settlement = new Settlement(host, state);
+    const residentTicks = state.residents.reduce((sum, resident) => sum + host.ticks() - resident.joinedAt, 0);
+    requireSave(state.mealClock === residentTicks % RESIDENT_FOOD_TICKS &&
+      state.consumedFood + state.missedMeals === Math.floor(residentTicks / RESIDENT_FOOD_TICKS),
+    'inconsistent resident consumption clock');
+    requireSave(state.foodObservedSince === state.residents[state.residents.length - 1].joinedAt,
+      'inconsistent food observation start');
     requireSave(state.residents.every(resident => {
       const workTile = residentWorkTile(resident.job);
       const inside = resident.siteAccess && settlement.canInhabit(resident.tile) &&
@@ -228,6 +295,72 @@ export class Settlement {
   reservedSource(tile: Tile, item: Item): number {
     return this.state.residents.filter(resident => resident.job?.kind === 'collect' &&
       tileKey(resident.job.source) === tileKey(tile) && resident.job.item === item).length;
+  }
+
+  private foodEvent(field: 'harvested' | 'delivered' | 'removed' | 'missed', quantity = 1): void {
+    const tick = this.host.ticks();
+    this.state.foodHistory = this.state.foodHistory.filter(event => event.tick > tick - FOOD_READINESS_TICKS);
+    if (tick <= this.state.foodObservedSince || !quantity) return;
+    let event = this.state.foodHistory[this.state.foodHistory.length - 1];
+    if (!event || event.tick !== tick) {
+      event = { tick, harvested: 0, delivered: 0, removed: 0, missed: 0 };
+      this.state.foodHistory.push(event);
+    }
+    event[field] += quantity;
+  }
+
+  foodDelivered(): void {
+    this.state.kitchenDelivered++;
+    this.foodEvent('delivered');
+  }
+
+  foodRemoved(quantity: number): void {
+    this.state.kitchenRemoved += quantity;
+    this.foodEvent('removed', quantity);
+  }
+
+  housing(tile: Tile): HousingInspection {
+    const machine = this.host.machines.get(tileKey(tile));
+    const complete = machine?.building.kind === 'house' && machine.input.wood === HOUSE_WOOD_COST;
+    const occupied = this.state.residents.filter(resident => tileKey(resident.home) === tileKey(tile)).length;
+    const population = this.state.residents.length;
+    const prospective = population + 1;
+    const requiredFood = Math.ceil(prospective * FOOD_READINESS_TICKS / RESIDENT_FOOD_TICKS);
+    const kitchens = [...this.host.machines.values()].filter(value => value.building.kind === 'kitchen').sort((a, b) => compareTiles(a.building, b.building));
+    const stockedFood = kitchens.reduce((sum, value) => sum + value.input['food-unit'], 0);
+    const history = this.state.foodHistory.filter(event => event.tick > this.host.ticks() - FOOD_READINESS_TICKS);
+    const harvestedFood = history.reduce((sum, event) => sum + event.harvested, 0);
+    const deliveredFood = Math.max(0, history.reduce((sum, event) => sum + event.delivered - event.removed, 0));
+    const missedFood = history.reduce((sum, event) => sum + event.missed, 0);
+    const observedTicks = Math.min(FOOD_READINESS_TICKS, this.host.ticks() - this.state.foodObservedSince);
+    const arrival = complete ? DIRECTIONS.map(vector => ({ c: tile.c + vector.c, r: tile.r + vector.r }))
+      .find(value => this.walkable(value) && !this.occupied(value) &&
+        kitchens.some(kitchen => this.regionsFor(kitchen.building).includes(this.region(value)))) ?? null : null;
+    const reason = !complete ? `Waiting for wood. Deliver ${HOUSE_WOOD_COST} wood to finish the house.`
+      : occupied >= HOUSE_CAPACITY ? 'House occupied.'
+        : !arrival ? 'No clear arrival path. Leave access beside the house and a connected kitchen.'
+          : observedTicks < FOOD_READINESS_TICKS ? 'Watching food supply. Keep food arriving for the full observation period.'
+            : missedFood ? 'Food ran short recently. Keep the kitchen supplied before inviting.'
+              : harvestedFood < requiredFood || deliveredFood < requiredFood
+                ? stockedFood >= requiredFood && kitchens.every(value => this.capacity(value) - this.reservedDestination(value.building, 'food-unit') <= 1)
+                  ? 'Kitchens are nearly full. Add kitchen space so extra food can arrive before inviting.'
+                  : 'Food supply is too slow for another resident. Grow and deliver more food.'
+                : stockedFood < requiredFood ? 'Kitchen reserve is too low. Stock more food before inviting.' : null;
+    return { complete: !!complete, occupied, capacity: HOUSE_CAPACITY, population, prospective, requiredFood,
+      stockedFood, harvestedFood, deliveredFood, observedTicks, missedFood, arrival, reason };
+  }
+
+  invite(tile: Tile): string | null {
+    const inspection = this.housing(tile);
+    if (inspection.reason) return inspection.reason;
+    if (!inspection.arrival) throw new Error('Ready house has no arrival tile');
+    this.state.residents.push({
+      id: this.state.residents.length, home: { c: tile.c, r: tile.r }, joinedAt: this.host.ticks(),
+      tile: { ...inspection.arrival }, siteAccess: null, exit: null, travel: 0, cargo: null, job: null, note: 'Looking for work',
+    });
+    this.state.foodObservedSince = this.host.ticks();
+    this.state.foodHistory = [];
+    return null;
   }
 
   reservedDestination(tile: Tile, item: Item | null): number {
@@ -622,6 +755,7 @@ export class Settlement {
   }
 
   step(): void {
+    this.state.foodHistory = this.state.foodHistory.filter(event => event.tick > this.host.ticks() - FOOD_READINESS_TICKS);
     this.prepareLabor();
     const worked = new Map<string, number>();
     const charge = (resident: Resident) => {
@@ -657,6 +791,7 @@ export class Settlement {
           source.progress = 0;
           source.output['food-unit']++;
           this.state.producedFood++;
+          this.foodEvent('harvested');
           this.clearJob(resident);
         }
       } else if (job.kind === 'gather') {
@@ -691,7 +826,7 @@ export class Settlement {
         resident.note = 'Carrying goods';
       } else {
         const destination = this.host.machines.get(tileKey(job.destination!))!;
-        destination.input[resident.cargo!]++;
+        this.host.receive(destination, resident.cargo!);
         resident.cargo = null;
         this.clearJob(resident);
         resident.note = 'Delivery complete';
@@ -702,14 +837,20 @@ export class Settlement {
     for (const [key, target] of this.targets) {
       this.state.labor[key] = Math.max(-bound, Math.min(bound, this.state.labor[key] + target - (worked.get(key) ?? 0)));
     }
-    if (++this.state.mealClock >= MEAL_TICKS) {
-      this.state.mealClock = 0;
-      const kitchen = [...this.host.machines.values()].filter(machine => machine.building.kind === 'kitchen' &&
-        machine.input['food-unit'] > 0).sort((a, b) => compareTiles(a.building, b.building))[0];
+    this.state.mealClock += this.state.residents.length;
+    if (this.state.mealClock < RESIDENT_FOOD_TICKS) return;
+    const kitchens = [...this.host.machines.values()].filter(machine => machine.building.kind === 'kitchen')
+      .sort((a, b) => compareTiles(a.building, b.building));
+    while (this.state.mealClock >= RESIDENT_FOOD_TICKS) {
+      this.state.mealClock -= RESIDENT_FOOD_TICKS;
+      const kitchen = kitchens.find(value => value.input['food-unit'] > 0);
       if (kitchen) {
         kitchen.input['food-unit']--;
         this.state.consumedFood++;
-      } else this.state.missedMeals++;
+      } else {
+        this.state.missedMeals++;
+        this.foodEvent('missed');
+      }
     }
   }
 

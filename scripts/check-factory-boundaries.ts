@@ -69,10 +69,10 @@ assert.equal(SMELTER_RECIPES['iron-ore'].inputs[0].item, 'iron-ore');
 assert.equal(ASSEMBLER_RECIPE.inputs.length, 2);
 
 const destinations: Record<BuildingKind, readonly BuildingKind[]> = {
-  belt: [], splitter: [], home: [], kitchen: [],
+  belt: [], splitter: [], home: [], kitchen: [], house: [],
   miner: ['furnace', 'storage'], furnace: ['assembler', 'storage'],
-  assembler: ['storage'], storage: ['furnace', 'assembler', 'storage', 'kitchen'],
-  'food-plot': ['storage', 'kitchen'], 'woodcutting-site': ['storage'],
+  assembler: ['storage'], storage: ['furnace', 'assembler', 'storage', 'kitchen', 'house'],
+  'food-plot': ['storage', 'kitchen'], 'woodcutting-site': ['storage', 'house'],
 };
 for (const kind of BUILDING_KINDS) for (const targetKind of BUILDING_KINDS) {
   const from = { kind, c: 7, r: 10, direction: 0 as const };
@@ -119,6 +119,7 @@ const kitchen = fullSave.machines.find(machine => machine.building.kind === 'kit
 const addedFood = inputCapacity('kitchen') - kitchen.input['food-unit'];
 kitchen.input['food-unit'] += addedFood;
 fullSave.settlement.producedFood += addedFood;
+fullSave.settlement.kitchenDelivered += addedFood;
 const full = FactorySimulation.restore(fullSave);
 const foodSource = full.buildings.get('10,9')!;
 assert.equal(full.getState(foodSource)!.output['food-unit'], 0);

@@ -83,6 +83,54 @@ try {
     await page.locator('[data-command="new-settlement"]').click();
     await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
     await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
+    const resourceBefore = await gameState(page);
+    assert.equal(await page.getByRole('button', { name: 'People', exact: true }).count(), 0);
+    await page.getByRole('button', { name: 'Resources', exact: true }).click();
+    assert.equal(await page.locator('.factory-resources-dialog').evaluate(dialog => dialog.open), true);
+    assert.equal(await page.locator('.factory-resources-dialog [data-resource]').count(), 7);
+    assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Food units · 8/);
+    assert.match(await page.locator('[data-resource="wood"]').innerText(), /Wood · 0/);
+    assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Buildings: 8.*In transit: 0.*Recovery: 0/);
+    await page.locator('[data-resource="food-unit"]').click();
+    assert.equal(await page.locator('#factory-resources-title').innerText(), 'Food units');
+    assert.match(await page.locator('[data-location="14,12"]').innerText(), /Kitchen stocked/);
+    assert.match(await page.locator('[data-location="14,12"]').innerText(), /Paused/);
+    assert.match(await page.locator('[data-location="10,9"]').innerText(), /Produces/);
+    await page.keyboard.press('9');
+    await page.keyboard.press('r');
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      game.scene.getScene('FactoryScene').refreshSimulationHud();
+    });
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.command), 'resource-back',
+      'Live updates must preserve keyboard focus');
+    const resourceBounds = await page.locator('.factory-resources-dialog').evaluate(dialog => {
+      const rect = dialog.getBoundingClientRect();
+      return {
+        left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+        width: dialog.clientWidth, scrollWidth: dialog.scrollWidth,
+        targets: [...dialog.querySelectorAll('button')].every(button => button.getBoundingClientRect().height >= 44),
+      };
+    });
+    assert.ok(resourceBounds.left >= 0 && resourceBounds.right <= viewport.width &&
+      resourceBounds.top >= 0 && resourceBounds.bottom <= viewport.height);
+    assert.ok(resourceBounds.scrollWidth <= resourceBounds.width + 1);
+    assert.ok(resourceBounds.targets);
+    await page.locator('[data-command="resource-back"]').click();
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.resource), 'food-unit');
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.factory-resources-dialog').evaluate(dialog => dialog.open), false);
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.command), 'resources');
+    assert.deepEqual(await gameState(page), resourceBefore, 'Browsing resources must not change the settlement');
+    await page.getByRole('button', { name: 'Resources', exact: true }).click();
+    await page.locator('[data-resource="food-unit"]').click();
+    await page.locator('[data-location="14,12"]').click();
+    assert.equal(await page.locator('.factory-resources-dialog').evaluate(dialog => dialog.open), false);
+    assert.equal(await page.locator('.factory-inspector h2').innerText(), 'Communal kitchen');
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.action), 'close');
+    await page.keyboard.press('Escape');
+    console.log('Resources overview passed:', `${viewport.width}x${viewport.height}`,
+      'inventory, locations, navigation, keyboard focus and unchanged simulation');
     await page.getByRole('button', { name: 'Build', exact: true }).click();
     await page.getByRole('button', { name: 'Woodcutting site', exact: true }).first().click();
     const site = await page.evaluate(async () => {
@@ -162,16 +210,163 @@ try {
     if (process.env.FACTORY_SCREENSHOT_DIR) await page.screenshot({
       path: `${process.env.FACTORY_SCREENSHOT_DIR}/automatic-labor-${viewport.width}.png`,
     });
-    await page.getByRole('button', { name: 'People', exact: true }).click();
-    await page.locator(`[data-resident="${carrier.id}"]`).click();
+    await page.getByRole('button', { name: 'Resources', exact: true }).click();
+    await page.locator('[data-resource="wood"]').click();
+    assert.match(await page.locator('#factory-resource-stock').innerText(), /In transit: 1/);
+    await page.locator(`[data-location="resident:${carrier.id}"]`).click();
     assert.match(await page.locator('#factory-resident-destination').innerText(), /^Woodcutting site/);
     assert.equal(await page.locator('#factory-resident-cargo').innerText(), '1 wood');
     assert.equal(await page.locator('[data-action="unassign-worker"]').count(), 0);
     assert.deepEqual(errors, []);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     console.log('Native wood gathering interaction passed:', `${viewport.width}x${viewport.height}`,
-      'catalog, placement, automatic staffing, priority controls, uninterrupted cargo, exact resume and read-only People');
+      'catalog, placement, automatic staffing, priority controls, uninterrupted cargo, exact resume and resource carrier inspection');
     await context.close();
+  }
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
+    const touch = viewport.width < 700 || viewport.height < 560;
+    const context = await browser.newContext({ viewport, isMobile: touch, hasTouch: touch, reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(url);
+    await page.locator('[data-command="new-settlement"]:not(:disabled)').click();
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+    await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
+    await page.getByRole('button', { name: 'Build', exact: true }).click();
+    assert.match(await page.getByRole('button', { name: 'House', exact: true }).first().innerText(), /Construction: 8 wood/);
+    await page.getByRole('button', { name: 'House', exact: true }).first().click();
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const { project } = await import('/src/games/factory/game/domain.ts');
+      const scene = game.scene.getScene('FactoryScene');
+      const point = project(16, 12);
+      scene.cameras.main.centerOn(point.x, point.y - 30);
+      game.step(10000, 0);
+    });
+    const point = await coordinates(page, 'inspect', { c: 16, r: 12 });
+    if (touch) await page.touchscreen.tap(point.x, point.y);
+    else await page.mouse.click(point.x, point.y);
+    await page.keyboard.press('Escape');
+    const setup = await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const scene = game.scene.getScene('FactoryScene');
+      const simulation = scene.simulation;
+      if (simulation.getState({ c: 16, r: 12 })?.building.kind !== 'house') throw new Error('House placement failed');
+      for (const [kind, c, r] of [['kitchen', 16, 10], ['food-plot', 13, 10], ['food-plot', 15, 10]]) {
+        const error = simulation.place({ kind, c, r, direction: 0 });
+        if (error) throw new Error(error);
+      }
+      const error = simulation.setHaulTarget({ c: 15, r: 10 }, { c: 16, r: 10 });
+      if (error) throw new Error(error);
+      const sites = [];
+      for (let c = 2; c < 32; c++) for (let r = 2; r < 32; r++) {
+        if (!simulation.placementError({ c, r }, 'woodcutting-site')) sites.push({ c, r });
+      }
+      sites.sort((a, b) => Math.abs(a.c - 16) + Math.abs(a.r - 12) - Math.abs(b.c - 16) - Math.abs(b.r - 12) || a.c - b.c || a.r - b.r);
+      const site = sites[0];
+      if (!site) throw new Error('No accessible grove');
+      const placement = simulation.place({ ...site, kind: 'woodcutting-site', direction: 0 });
+      if (placement) throw new Error(placement);
+      scene.redrawMachines();
+      scene.hud.onBuilding({ c: 16, r: 12 });
+      return { site };
+    });
+    assert.match(await page.locator('#factory-machine-input').innerText(), /0\/8 wood delivered/);
+    assert.equal(await page.locator('[data-command="invite-resident"]').isDisabled(), true);
+    assert.match(await page.locator('#factory-house-reason').innerText(), /Waiting for wood/);
+    await page.evaluate(async site => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      game.scene.getScene('FactoryScene').hud.onBuilding(site);
+    }, setup.site);
+    await page.locator('[data-command="choose-delivery"]').click();
+    await page.locator('[data-delivery-target="16,12"]').click();
+    await page.locator('[data-command="confirm-delivery"]').click();
+    const readyAt = await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const scene = game.scene.getScene('FactoryScene');
+      game.loop.stop();
+      for (let tick = 0; tick < 4000; tick++) {
+        scene.simulation.step();
+        if (!scene.simulation.inspectMachine({ c: 16, r: 12 }).housing.reason) break;
+      }
+      scene.refreshSimulationHud();
+      scene.hud.onBuilding({ c: 16, r: 12 });
+      game.step(10001, 0);
+      return scene.simulation.ticks;
+    });
+    assert.ok(readyAt <= 1200, 'Four founders should be able to prepare the first arrival without material grants');
+    assert.match(await page.locator('#factory-machine-input').innerText(), /8\/8 wood.*Installed/);
+    assert.equal(await page.locator('[data-command="invite-resident"]').isDisabled(), false);
+    assert.match(await page.locator('#factory-house-demand').innerText(), /5 residents.*5 food units \/ 10s/);
+    assert.equal(await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      return game.scene.getScene('FactoryScene').machineArt.get('16,12').getData('completed');
+    }), true, 'House completion refreshes its cached artwork');
+    await page.locator('[data-command="invite-resident"]').click();
+    assert.equal((await gameState(page)).settlement.residents.length, 5);
+    assert.equal(await page.locator('[data-command="invite-resident"]').isDisabled(), true);
+    assert.equal(await page.locator('[data-action="remove"]').isDisabled(), true);
+    assert.equal(await page.locator('.factory-resident-list [data-resident="4"]').count(), 1);
+    await page.locator('[data-resident="4"]').click();
+    assert.equal(await page.locator('.factory-inspector h2').innerText(), 'Ada 2');
+    await page.getByRole('button', { name: 'Resources', exact: true }).click();
+    await page.locator('[data-resource="wood"]').click();
+    assert.match(await page.locator('[data-location="16,12"]').innerText(), /Installed.*Not available for delivery/);
+    await page.locator('[data-location="16,12"]').click();
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      game.scene.getScene('FactoryScene').act('remove');
+    });
+    assert.equal((await gameState(page)).settlement.residents.length, 5);
+    assert.match(await page.locator('#factory-status').innerText(), /occupied/);
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const scene = game.scene.getScene('FactoryScene');
+      scene.hud.onBuilding({ c: 14, r: 12 });
+      await scene.session.save();
+    });
+    assert.match(await page.locator('#factory-machine-pace').innerText(), /5 residents.*5 food units \/ 10s/);
+    const saved = await gameState(page);
+    await page.reload();
+    await page.locator('[data-command="resume-save"]').click();
+    await page.getByRole('button', { name: 'Resume factory', exact: true }).waitFor();
+    assert.deepEqual(await gameState(page), saved, 'The expanded household and installed materials resume exactly');
+    assert.deepEqual(errors, []);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    console.log('Native housing progression passed:', `${viewport.width}x${viewport.height}`,
+      'placement, wood routing, real readiness, cached art, invitation, Resources, protected home, scaled kitchen and exact resume');
+    await context.close();
+  }
+  {
+    const context = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(url);
+    await page.locator('[data-command="new-settlement"]:not(:disabled)').click();
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+    await page.getByRole('button', { name: 'Resources', exact: true }).click();
+    await page.locator('[data-resource="food-unit"]').click();
+    await page.waitForFunction(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const resource = game.scene.getScene('FactoryScene').simulation.inspectResources()
+        .find(resource => resource.item === 'food-unit');
+      return resource.total !== 8 && document.querySelector('#factory-resource-stock').textContent.startsWith(`Total: ${resource.total} ·`);
+    });
+    assert.equal(await page.evaluate(() => document.activeElement.dataset.command), 'resource-back');
+    const bounds = await page.locator('.factory-resources-dialog').evaluate(dialog => {
+      const rect = dialog.getBoundingClientRect();
+      const body = dialog.querySelector('.factory-picker-body');
+      const results = dialog.querySelector('.factory-picker-results');
+      return rect.top >= 0 && rect.bottom <= innerHeight && dialog.scrollWidth <= dialog.clientWidth + 1 &&
+        body.clientHeight > 0 && (body.scrollHeight > body.clientHeight || results.scrollHeight > results.clientHeight);
+    });
+    assert.ok(bounds, 'Landscape Resources must fit the viewport with scrollable contents');
+    await page.getByRole('button', { name: 'Close resources', exact: true }).click();
+    assert.deepEqual(errors, []);
+    await context.close();
+    console.log('Live Resources passed: landscape touch, changing stock, stable focus and scrollable bounds');
   }
   for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport, reducedMotion: 'reduce' });
@@ -217,11 +412,11 @@ try {
           expectedStatus: building.kind === 'home' ? null : inspection.status,
           progress: document.getElementById('factory-progress-label')?.textContent ?? null,
           expectedProgress: building.kind === 'home' ? null
-            : ['storage', 'kitchen'].includes(building.kind) ? 'Capacity used' : 'Progress',
+            : building.kind === 'house' ? 'Construction' : ['storage', 'kitchen'].includes(building.kind) ? 'Capacity used' : 'Progress',
           progressName: document.querySelector('.factory-progress')?.getAttribute('aria-label') ?? null,
           cycle: document.getElementById('factory-machine-pace')?.textContent ?? null,
-          expectedCycle: building.kind === 'home' ? null
-            : building.kind === 'kitchen' ? `1 food unit every ${inspection.cycleTicks * STEP_MS / 1000}s`
+          expectedCycle: building.kind === 'home' || building.kind === 'house' ? null
+            : building.kind === 'kitchen' ? `${inspection.population} residents · ${inspection.population} food units / ${inspection.cycleTicks * STEP_MS / 1000}s`
               : `${inspection.cycleTicks * STEP_MS / 1000}s`,
         });
       }
@@ -244,6 +439,7 @@ try {
       const raw = sim.serialize();
       const kitchen = raw.machines.find(machine => machine.building.kind === 'kitchen');
       raw.recovered['food-unit'] += kitchen.input['food-unit'];
+      raw.settlement.kitchenRemoved += kitchen.input['food-unit'];
       kitchen.input['food-unit'] = 0;
       const hungry = FactorySimulation.restore(raw);
       const shortage = hungry.inspectMachine(kitchen.building);
@@ -322,6 +518,7 @@ try {
       const save = scene.simulation.serialize();
       save.machines.find(machine => machine.building.kind === 'kitchen').input['food-unit'] += 8;
       save.settlement.producedFood += 8;
+      save.settlement.kitchenDelivered += 8;
       scene.simulation = FactorySimulation.restore(save);
       scene.selected = scene.simulation.buildings.get('10,9');
       scene.hud.inspect(scene.selected);
@@ -670,7 +867,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
     const saved = await storedSave(page);
     assert.equal(saved.version, 4);
-    assert.equal(saved.simulation.ruleset, 'settlement-v6');
+    assert.equal(saved.simulation.ruleset, 'settlement-v7');
     assert.equal(saved.simulation.world.seed, 'replacement-seed');
     assert.notEqual(saved.worldId, legacy.worldId);
     assert.deepEqual(errors, []);
