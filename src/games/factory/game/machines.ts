@@ -1,7 +1,7 @@
 import {
   BELT_TICKS,
   Building, BuildingKind, compareTiles, Direction,
-  EXTRACT_TICKS, FARM_TICKS,
+  EXTRACT_TICKS, FARM_TICKS, GATHER_TICKS,
   Inventory, inventory, isConveyor, Item, itemCount, ITEMS,
   MEAL_TICKS,
   moveInventory, tileKey,
@@ -74,6 +74,7 @@ export function machineCycleTicks(machine: Readonly<MachineState>): number {
   switch (machine.building.kind) {
     case 'miner': return machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS;
     case 'food-plot': return FARM_TICKS;
+    case 'woodcutting-site': return GATHER_TICKS;
     case 'kitchen': return MEAL_TICKS;
     default: return BELT_TICKS;
   }
@@ -117,7 +118,7 @@ export function inputSlots(machine: Readonly<MachineState>, item: Item | null = 
 }
 
 export function outputCapacity(kind: BuildingKind): number {
-  return kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' ? BUFFER_CAPACITY : 0;
+  return kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' || kind === 'woodcutting-site' ? BUFFER_CAPACITY : 0;
 }
 
 export function producesInventoryItem(kind: BuildingKind, item: Item, deposit: Deposit): boolean {
@@ -126,8 +127,20 @@ export function producesInventoryItem(kind: BuildingKind, item: Item, deposit: D
     case 'furnace': return Object.values(SMELTER_RECIPES).some(recipe => recipe.output.item === item);
     case 'assembler': return item === ASSEMBLER_RECIPE.output.item;
     case 'food-plot': return item === 'food-unit';
+    case 'woodcutting-site': return item === 'wood';
     default: return false;
   }
+}
+
+export function haulItems(source: Readonly<Building>, world: FactoryWorld): readonly Item[] {
+  // Depot routes can wait for future stock; actual jobs reserve only matching items.
+  return source.kind === 'storage' ? ITEMS
+    : ITEMS.filter(item => producesInventoryItem(source.kind, item, world.at(source).deposit));
+}
+
+export function canHaulBetween(source: Readonly<Building>, target: Readonly<Building>, world: FactoryWorld): boolean {
+  return tileKey(source) !== tileKey(target) &&
+    haulItems(source, world).some(item => acceptsInventoryItem(target.kind, item));
 }
 
 export interface ProductionLedger {
@@ -179,7 +192,7 @@ export function produceMachine(machine: MachineState, world: FactoryWorld, ledge
     }
   } else if (kind === 'assembler') {
     advanceRecipe(machine, ASSEMBLER_RECIPE, ledger.assembled, ledger.recipeConsumed);
-  } else if (kind === 'storage' && machine.building.outputEnabled) {
+  } else if (kind === 'storage') {
     if (!depotNextItem(machine)) { machine.progress = 0; return; }
     machine.progress = Math.min(BELT_TICKS, machine.progress + 1);
     machine.running = machine.progress < BELT_TICKS;

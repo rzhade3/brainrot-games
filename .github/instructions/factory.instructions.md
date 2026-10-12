@@ -80,7 +80,7 @@ or routine lifetime production totals.
 **Field notes (collapsed help):** explain only non-obvious behavior or a useful
 exception in one or two short sentences. For example: "Keep a clear tile beside
 the plot. Connect a conveyor to free its carriers." Splitter fallback behavior,
-depot output modes, and scenario-specific rules belong here, not on every card.
+depot stock routing, and scenario-specific rules belong here, not on every card.
 Do not delete necessary help just to meet a word count; move detail to its
 relevant control or context.
 

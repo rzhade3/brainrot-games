@@ -12,7 +12,7 @@ export function buildingAppearance(building: Building, buildings?: ReadonlyMap<s
   return {
     kind: building.kind, origin: project(building.c, building.r), direction: building.direction,
     inputs: buildings && building.kind === 'belt' ? conveyorInputs(building, buildings) : [],
-    variant: { c: building.c, r: building.r }, upgraded: !!building.upgraded, outputEnabled: !!building.outputEnabled,
+    variant: { c: building.c, r: building.r }, upgraded: !!building.upgraded,
   };
 }
 

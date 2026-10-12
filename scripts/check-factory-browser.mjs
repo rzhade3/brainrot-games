@@ -20,19 +20,19 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(url);
-    const start = page.locator('[data-scenario="settlement"]');
+    const start = page.locator('[data-command="new-settlement"]');
     await start.waitFor();
-    await page.waitForFunction(() => !document.querySelector('[data-scenario="settlement"]').disabled);
+    await page.waitForFunction(() => !document.querySelector('[data-command="new-settlement"]').disabled);
     await page.locator('#factory-world-seed').fill('north-bank');
     await start.click();
-    await page.waitForFunction(() => !document.querySelector('.factory-scenario-dialog').open);
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
     await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
     await page.evaluate(async () => {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
       game.loop.stop();
       const scene = game.scene.getScene('FactoryScene');
       const { FactorySimulation } = await import('/src/games/factory/game/simulation.ts');
-      scene.startScenario(FactorySimulation.forScenario('settlement'));
+      scene.startSettlement(FactorySimulation.create());
       scene.paused = true;
       for (let tick = 0; tick < 200; tick++) scene.simulation.step();
       scene.refreshSimulationHud();
@@ -99,12 +99,12 @@ try {
         peakTextureBytes = Math.max(peakTextureBytes, scene.terrain.stats.textureBytes);
       }
       if (JSON.stringify(scene.simulation.serialize()) !== before) throw new Error('Panning changed the simulation');
-      const dense = FactorySimulation.forScenario('settlement');
+      const dense = FactorySimulation.create();
       for (let c = 5; c < 22; c++) for (let r = 5; r < 22; r++) {
         if (!dense.placementError({ c, r }, 'food-plot')) dense.place({ c, r, kind: 'food-plot', direction: 0 });
       }
       for (let tick = 0; tick < 200; tick++) dense.step();
-      scene.startScenario(dense);
+      scene.startSettlement(dense);
       scene.paused = true;
       scene.zoom = 0.45;
       const position = project(13, 13);

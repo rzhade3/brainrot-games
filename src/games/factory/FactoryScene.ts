@@ -3,7 +3,7 @@ import { drawBuilding, drawMachineActivity, drawPreview, drawResident } from './
 import { pickBuilding } from './assets/picking';
 import { BeltRoute, commitRoute, planRoute, routeStartError, undoRoute } from './game/beltRoute';
 import { inView, tileDepth, WorldView } from './rendering/chunks';
-import { CATALOG } from './game/domain';
+import { CATALOG, GATHER_RADIUS } from './game/domain';
 import { Action, FactoryHud } from './hud';
 import {
   Building, Direction, HALF_HEIGHT, HALF_WIDTH,
@@ -13,7 +13,7 @@ import {
 import { getRenderScale, reducedMotionPreference } from './rendering/platform';
 import { FactorySession } from './session/session';
 import { Resident, WALK_TICKS } from './game/settlement';
-import { FactorySimulation, inventoryText, itemCount, PROJECTS } from './game/simulation';
+import { FactorySimulation, inventoryText, itemCount } from './game/simulation';
 import WorldRenderer from './rendering/WorldRenderer';
 
 interface Contact extends Point {
@@ -51,7 +51,7 @@ export default class FactoryScene extends Phaser.Scene {
   private dpr = 1;
   private zoom = 1;
   private cameraSize: Point = { x: 0, y: 0 };
-  private choosingScenario = false;
+  private choosingSettlement = false;
   private reducedMotion = reducedMotionPreference();
   private motionPaused = this.reducedMotion.matches;
   private resetElapsed = false;
@@ -59,7 +59,7 @@ export default class FactoryScene extends Phaser.Scene {
   constructor(private hud: FactoryHud) {
     super('FactoryScene');
     this.session = new FactorySession(hud, (simulation, paused, resumed) => {
-      this.startScenario(simulation);
+      this.startSettlement(simulation);
       this.paused = paused;
       this.hud.setPaused(paused);
       this.refreshSimulationHud();
@@ -88,11 +88,12 @@ export default class FactoryScene extends Phaser.Scene {
     this.home();
     this.hud.onAction = action => this.act(action);
     this.hud.onHaulTarget = target => {
-      if (!this.selected) return;
+      if (!this.selected) return 'Choose a source of goods first.';
       const error = this.simulation.setHaulTarget(this.selected, target);
       this.hud.setStatus(error ?? (target ? 'Resident destination updated. Any interrupted cargo is safe in recovery.'
         : 'Resident hauling disabled. Any interrupted cargo is safe in recovery.'), !!error);
       if (!error) { this.refreshSimulationHud(); this.saveChange(); }
+      return error;
     };
     this.hud.onResident = id => {
       const resident = this.simulation.residents.find(resident => resident.id === id);
@@ -105,12 +106,26 @@ export default class FactoryScene extends Phaser.Scene {
       this.hud.inspectResident(resident);
       this.refreshTools();
     };
-    this.hud.onScenario = (scenario, seed) => this.session.replace(scenario, seed);
+    this.hud.onWorkPriority = priority => {
+      if (!this.selected) return 'Choose a building first.';
+      const error = this.simulation.setWorkPriority(this.selected, priority);
+      this.hud.setStatus(error ?? 'Work priority updated. Residents finish their current trip or harvest.', !!error);
+      if (!error) { this.refreshSimulationHud(); this.saveChange(); }
+      return error;
+    };
+    this.hud.onAssignmentDialog = () => {
+      this.cancelRoute();
+      this.contacts.clear();
+      this.multiGesture = false;
+      this.hover = null;
+      this.renderPreview();
+    };
+    this.hud.onNewSettlement = seed => this.session.replace(seed);
     this.hud.onResume = () => this.session.resume();
     this.hud.onRetrySave = () => { void this.session.save(true); };
     this.hud.onRetryLoad = () => { void this.session.load(); };
-    this.hud.onScenarioDialog = open => {
-      this.choosingScenario = open;
+    this.hud.onSettlementDialog = open => {
+      this.choosingSettlement = open;
       this.cancelRoute();
       this.contacts.clear();
       this.multiGesture = false;
@@ -123,7 +138,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.refreshSimulationHud();
     this.refreshTools();
     this.bindInput();
-    this.hud.openScenarios();
+    this.hud.openSettlements();
     void this.session.load();
     this.scale.on('resize', this.onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -140,7 +155,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.session.changed();
   }
 
-  private startScenario(simulation: FactorySimulation): void {
+  private startSettlement(simulation: FactorySimulation): void {
     this.simulation = simulation;
     this.lastTrail = [];
     this.cancelRoute();
@@ -159,7 +174,7 @@ export default class FactoryScene extends Phaser.Scene {
     this.home();
     this.refreshSimulationHud();
     this.hud.setStatus('');
-    if (simulation.scenario === 'settlement') this.hud.setStatus('Welcome. People grow and carry food automatically. Inspect the plot to choose deliveries; People shows their work.');
+    this.hud.setStatus('Welcome. People grow and carry food automatically. Inspect the plot to choose deliveries; People shows their work.');
   }
 
   private replaceTerrain(): void {
@@ -298,7 +313,7 @@ export default class FactoryScene extends Phaser.Scene {
     const options = { signal: this.abort.signal };
     canvas.style.touchAction = 'none';
     canvas.addEventListener('pointerdown', event => {
-      if (event.button !== 0 || this.choosingScenario) return;
+      if (event.button !== 0 || this.choosingSettlement || this.hud.choosingAssignment) return;
       event.preventDefault();
       const point = this.screenPoint(event);
       canvas.setPointerCapture(event.pointerId);
@@ -407,7 +422,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.zoomAt(Math.exp(-event.deltaY * 0.001), this.screenPoint(event));
     }, { ...options, passive: false });
     window.addEventListener('keydown', event => {
-      if (this.hud.choosingScenario || event.ctrlKey || event.metaKey || event.altKey ||
+      if (this.hud.choosingSettlement || this.hud.choosingAssignment || event.ctrlKey || event.metaKey || event.altKey ||
           event.target instanceof HTMLElement && event.target.matches('input, textarea, select, [contenteditable]')) return;
       const shortcuts: Record<string, Action> = {
         '1': 'inspect', ...Object.fromEntries(CATALOG.map(entry => [entry.shortcut, entry.kind])),
@@ -450,7 +465,7 @@ export default class FactoryScene extends Phaser.Scene {
   }
 
   private act(action: Action): void {
-    if (this.choosingScenario) return;
+    if (this.choosingSettlement || this.hud.choosingAssignment) return;
     if (action === 'swap-bend') {
       this.horizontalFirst = !this.horizontalFirst;
       this.renderPreview();
@@ -497,23 +512,12 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshTools();
       const point = project(home.c, home.r);
       this.cameras.main.centerOn(point.x, point.y - 15);
-    } else if (action === 'focus-copper' || action === 'focus-iron' || action === 'focus-outpost') {
+    } else if (action === 'focus-copper' || action === 'focus-iron') {
       this.act('close');
       const world = this.simulation.world;
-      const tile = action === 'focus-copper' ? world.copper : action === 'focus-iron' ? world.iron : this.simulation.receiver ?? world.outpost;
+      const tile = action === 'focus-copper' ? world.copper : world.iron;
       const point = project(tile.c, tile.r);
       this.cameras.main.centerOn(point.x, point.y - 15);
-    } else if (action === 'project-extraction' || action === 'project-buffering' || action === 'project-pause') {
-      const id = action === 'project-extraction' ? 'extraction' : action === 'project-buffering' ? 'buffering' : null;
-      const error = this.simulation.selectProject(id);
-      this.hud.setStatus(error ?? (id ? 'Project active. Route its items to the outpost; accepted deliveries are preserved when switching.'
-        : 'Project deliveries paused. Accepted materials are preserved.'), !!error);
-      if (!error) {
-        this.redrawMachines();
-        this.refreshSimulationHud();
-        this.saveChange();
-        if (id) this.act('focus-outpost');
-      }
     } else if (action === 'machine-option') {
       if (!this.selected || this.tool !== 'inspect') return;
       const error = this.simulation.setMachineOption(this.selected);
@@ -533,7 +537,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.saveChange();
     } else if (action === 'rotate') {
       if (this.tool === 'inspect' && this.selected) {
-        if (this.selected.kind === 'home' || this.selected.kind === 'outpost') {
+        if (this.selected.kind === 'home') {
           this.hud.setStatus('This founding building stays in place.', true);
           return;
         }
@@ -546,7 +550,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshTools();
     } else if (action === 'remove') {
       if (this.tool !== 'inspect' || !this.selected) return;
-      if (this.selected.kind === 'home' || this.selected.kind === 'outpost') {
+      if (this.selected.kind === 'home') {
         this.hud.setStatus('This founding building stays in place.', true);
         return;
       }
@@ -568,7 +572,7 @@ export default class FactoryScene extends Phaser.Scene {
       this.refreshSimulationHud();
       if (itemCount(result.moved)) this.saveChange();
       this.hud.setStatus(itemCount(result.moved)
-        ? `Stored ${inventoryText(result.moved)}. Tray: ${inventoryText(result.remaining)}. Items count only when accepted at the outpost.`
+        ? `Stored ${inventoryText(result.moved)}. Tray: ${inventoryText(result.remaining)}.`
         : itemCount(result.remaining) ? 'Depot full; recovered items remain in the tray.' : 'Recovery tray empty.', !itemCount(result.moved));
     } else if (action === 'close') {
       this.tool = 'inspect';
@@ -578,10 +582,6 @@ export default class FactoryScene extends Phaser.Scene {
       this.hover = null;
       this.refreshTools();
     } else {
-      if (action === 'assembler' && !this.simulation.assemblerUnlocked) {
-        this.hud.setStatus('Assembler locked. Deliver 16 copper plates to the outpost first.', true);
-        return;
-      }
       this.tool = action;
       this.selected = null;
       this.selectedResident = null;
@@ -668,6 +668,15 @@ export default class FactoryScene extends Phaser.Scene {
     if (this.selected) drawPreview(this.preview, this.selected.c, this.selected.r, 0x347875);
     if (!this.hover || !inBounds(this.hover) || !isBuildingKind(this.tool)) return;
     const { c, r } = this.hover;
+    if (this.tool === 'woodcutting-site') {
+      for (let dc = -GATHER_RADIUS; dc <= GATHER_RADIUS; dc++) {
+        for (let dr = -GATHER_RADIUS; dr <= GATHER_RADIUS; dr++) {
+          if (Math.abs(dc) + Math.abs(dr) > GATHER_RADIUS || !this.simulation.world.contains({ c: c + dc, r: r + dr })) continue;
+          drawPreview(this.preview, c + dc, r + dr, this.simulation.world.terrainAt({ c: c + dc, r: r + dr }) === 'tree'
+            ? 0xd8a653 : 0x347875);
+        }
+      }
+    }
     for (let dc = -2; dc <= 2; dc++) {
       for (let dr = -2; dr <= 2; dr++) {
         if (inBounds({ c: c + dc, r: r + dr })) {
@@ -763,23 +772,16 @@ export default class FactoryScene extends Phaser.Scene {
     const view = this.view();
     this.terrain.update(view);
     this.syncVisibleMachines(view);
-    if (!this.paused && !this.choosingScenario && !document.hidden) {
+    if (!this.paused && !this.choosingSettlement && !document.hidden) {
       if (this.resetElapsed) this.resetElapsed = false;
       else {
-        const stage = this.simulation.objective()?.stage;
-        const activeProject = this.simulation.summary().projects.active;
         if (this.simulation.advance(delta)) {
           this.session.changed(false);
           this.refreshSimulationHud();
-          if (activeProject && activeProject !== this.simulation.summary().projects.active) {
-            const project = PROJECTS.find(project => project.id === activeProject)!;
-            this.hud.setStatus(`${project.title} complete. ${project.reward}. Enable it in the machine inspector.`);
-          }
-          if (stage !== this.simulation.objective()?.stage || activeProject !== this.simulation.summary().projects.active) void this.session.save();
         }
       }
     } else this.simulation.resetClock();
-    this.session.update(delta, document.hidden || this.choosingScenario);
+    this.session.update(delta, document.hidden || this.choosingSettlement);
     const interpolation = this.renderInterpolation;
     for (const resident of this.simulation.residents) {
       let art = this.residentArt.get(resident.id);
@@ -793,7 +795,7 @@ export default class FactoryScene extends Phaser.Scene {
         r: resident.tile.r + (next.r - resident.tile.r) * t }) + 0.2);
       const moving = !!resident.job?.path.length;
       if (moving) this.residentFacing.set(resident.id, project(next.c - resident.tile.c, next.r - resident.tile.r));
-      const farming = resident.job?.kind === 'farm' && !moving;
+      const farming = (resident.job?.kind === 'farm' || resident.job?.kind === 'gather') && !moving;
       drawResident(art, position.x, position.y, resident.id,
         this.paused || this.motionPaused || !moving && !farming ? 0 : (this.simulation.ticks + interpolation) * 0.7,
         resident.cargo, farming, this.residentFacing.get(resident.id) ?? { x: 0, y: 1 });

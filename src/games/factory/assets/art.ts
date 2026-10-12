@@ -9,7 +9,6 @@ export interface BuildingAppearance {
   inputs: readonly Direction[];
   variant: Tile;
   upgraded: boolean;
-  outputEnabled: boolean;
 }
 
 export interface BuildingActivity {
@@ -137,6 +136,13 @@ export function drawBuilding(g: Graphics, b: BuildingAppearance): void {
         g.fillStyle(0xa3b67c).fillEllipse(px - 1, py - height - 2, 4, 3);
       }
     }
+  } else if (b.kind === 'woodcutting-site') {
+    for (const dx of [-22, 22]) prism(g, x + dx, y - 4, 2, 1, 29, 0xc6af83, 0x9b805b, 0x77694e);
+    prism(g, x, y - 31, 30, 15, 3, 0x9caa8c, 0x77876d, 0x5c745d);
+    prism(g, x, y - 4, 19, 9.5, 10, 0xc6af83, 0x9b805b, 0x77694e);
+    for (const dx of [-12, 0, 12]) drawParcel(g, x + dx, y - 16, 'wood');
+    line(g, { x: x - 22, y: y - 8 }, { x: x - 15, y: y - 24 }, 0x77694e, 2);
+    prism(g, x - 15, y - 24, 4, 2, 3, 0xb7c7bd, 0x7a9588, 0x53786d);
   } else if (b.kind === 'home' || b.kind === 'kitchen') {
     const kitchen = b.kind === 'kitchen';
     prism(g, x, y - 4, 27, 13.5, 28, 0xe2ddc9, 0xa9b09a, 0x839783);
@@ -185,16 +191,6 @@ export function drawBuilding(g: Graphics, b: BuildingAppearance): void {
     line(g, { x: x - 20, y: y - 35 }, { x: x - 20, y: y - 13 }, 0x9b8050, 4);
     line(g, { x: x + 20, y: y - 35 }, { x: x + 20, y: y - 13 }, 0x806941, 4);
     g.fillStyle(0xe8ce8b).fillCircle(x + 14, y - 20, 2);
-  } else if (b.kind === 'outpost') {
-    prism(g, x, y - 3, 29, 14.5, 30, 0xc7c9af, 0x999f7e, 0x717e61);
-    prism(g, x, y - 33, 30, 15, 6, 0xece5cf, 0xb8b08c, 0x9d9b76);
-    diamond(g, x, y - 40, 20, 10, 0x517c6a);
-    g.lineStyle(2, 0xf1e6bd);
-    g.strokePoints([{ x: x - 9, y: y - 40 }, { x: x - 2, y: y - 36 }, { x: x + 10, y: y - 43 }], false);
-    polygon(g, [{ x: x - 21, y: y - 22 }, { x: x - 5, y: y - 14 },
-      { x: x - 5, y: y + 2 }, { x: x - 21, y: y - 6 }], 0x3f5b47);
-    line(g, { x: x + 18, y: y - 36 }, { x: x + 18, y: y - 62 }, 0x65795b, 2);
-    polygon(g, [{ x: x + 19, y: y - 61 }, { x: x + 31, y: y - 55 }, { x: x + 19, y: y - 50 }], 0xd8b66f);
   } else {
     prism(g, x, y - 3, 28, 14, 27, 0xb4c2b6, 0x7d9488, 0x5d7d71);
     prism(g, x, y - 30, 29, 14.5, 4, 0xe0dfce, 0xa6b2a2, 0x8eaa9a);
@@ -206,11 +202,11 @@ export function drawBuilding(g: Graphics, b: BuildingAppearance): void {
     }
     prism(g, x - 4, y - 36, 10, 5, 8, 0xd7b77b, 0xaa8d5c, 0x927648);
   }
-  if (b.kind === 'outpost' || b.kind === 'home' || b.kind === 'kitchen') return;
+  if (b.kind === 'home' || b.kind === 'kitchen') return;
   const vector = DIRECTIONS[b.direction];
   const offset = project(vector.c * 0.45, vector.r * 0.45);
   const end = { x: x + offset.x, y: y + offset.y };
-  if (b.kind === 'storage' && b.outputEnabled) drawArrow(g, end.x, end.y + 1, b.direction, 0x3f8c76, 0.75);
+  if (b.kind === 'storage') drawArrow(g, end.x, end.y + 1, b.direction, 0x3f8c76, 0.75);
   else diamond(g, end.x, end.y - 4, 4, 2, 0xd8bd7d);
 }
 
@@ -275,6 +271,12 @@ function drawSplitter(g: Graphics, x: number, y: number, direction: Direction): 
 }
 
 export function drawParcel(g: Graphics, x: number, y: number, item: Item): void {
+  if (item === 'wood') {
+    prism(g, x, y, 8, 4, 5, 0xc5a477, 0x99774e, 0x795c3e);
+    line(g, { x: x - 5, y: y - 5 }, { x: x + 4, y: y - 1 }, 0xe0c69a, 1.5);
+    line(g, { x: x - 1, y: y - 7 }, { x: x + 7, y: y - 3 }, 0x795c3e, 1);
+    return;
+  }
   if (item === 'food-unit') {
     prism(g, x, y, 7, 3.5, 5, 0xb9be82, 0x92975b, 0x727c4d);
     line(g, { x: x - 4, y: y - 5 }, { x: x + 3, y: y - 2 }, 0xe0d7a4, 1.5);

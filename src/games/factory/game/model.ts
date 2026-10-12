@@ -5,10 +5,8 @@ export * from './domain';
 export const MAP_SIZE = WORLD_SIZE;
 
 export type Terrain = 'grass' | 'water' | 'iron' | 'copper' | 'tree';
-export const OUTPOST: Tile = { c: 16, r: 12 };
 export function outputDirections(building: Building): readonly Direction[] {
-  if (building.kind === 'storage' && !building.outputEnabled || building.kind === 'outpost' ||
-      building.kind === 'home' || building.kind === 'kitchen') return [];
+  if (building.kind === 'home' || building.kind === 'kitchen') return [];
   return building.kind === 'splitter' ? [building.direction, nextDirection(building.direction)] : [building.direction];
 }
 
@@ -53,29 +51,10 @@ export function placementError(
   return null;
 }
 
-export function createDemo(): Map<string, Building> {
-  const buildings = new Map<string, Building>();
-  const add = (kind: BuildingKind, c: number, r: number, direction: Direction = 0) => {
-    const building = { kind, c, r, direction };
-    buildings.set(tileKey(building), building);
-  };
-  add('miner', 7, 10);
-  for (let c = 8; c <= 11; c++) add('belt', c, 10);
-  add('furnace', 12, 10);
-  add('belt', 13, 10);
-  add('belt', 14, 10, 1);
-  add('belt', 14, 11, 1);
-  add('storage', 14, 12, 1);
-  add('miner', 9, 14);
-  for (let c = 10; c <= 12; c++) add('belt', c, 14);
-  add('furnace', 13, 14);
-  add('belt', 14, 14);
-  add('storage', 15, 14);
-  return buildings;
-}
-
-export function createGuided(): Map<string, Building> {
-  const buildings = new Map([...createDemo()].filter(([, building]) => building.r <= 12));
-  buildings.set(tileKey(OUTPOST), { ...OUTPOST, kind: 'outpost', direction: 0 });
-  return buildings;
+export function createSettlement(): Map<string, Building> {
+  return new Map([
+    ['11,12', { kind: 'home', c: 11, r: 12, direction: 0 }],
+    ['14,12', { kind: 'kitchen', c: 14, r: 12, direction: 0 }],
+    ['10,9', { kind: 'food-plot', c: 10, r: 9, direction: 0, haulTo: { c: 14, r: 12 } }],
+  ]);
 }

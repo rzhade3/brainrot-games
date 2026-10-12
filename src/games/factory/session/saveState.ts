@@ -1,4 +1,4 @@
-import { BELT_TICKS, Building, inventory, Inventory, isBuildingKind, isConveyor, Item, itemCount, ITEMS, Tile } from '../game/domain';
+import { BELT_TICKS, Building, inventory, Inventory, isBuildingKind, isConveyor, Item, itemCount, ITEMS, Tile, WORK_PRIORITIES } from '../game/domain';
 import {
   acceptsInventoryItem, ASSEMBLER_RECIPE, hasRecipeInputs, inputSlots, isOre, machineCycleTicks, MachineState, Ore,
   outputCapacity, producesInventoryItem,
@@ -6,7 +6,6 @@ import {
   SMELTER_RECIPES,
 } from '../game/machines';
 import { inBounds } from '../game/model';
-import type { LegacyProgression } from '../game/progression';
 import type { SettlementSave } from '../game/settlement';
 import type { FactoryWorld } from '../game/world';
 
@@ -24,12 +23,11 @@ export function saveCount(value: unknown): number {
   return value;
 }
 
-export function saveInventory(value: unknown, legacy = false): Inventory {
+export function saveInventory(value: unknown): Inventory {
   const source = saveObject(value);
   const result = inventory();
-  const old = legacy && !Object.hasOwn(source, 'food-unit');
-  requireSave(Object.keys(source).length === ITEMS.length - (old ? 1 : 0), 'invalid inventory fields');
-  for (const item of ITEMS) result[item] = old && item === 'food-unit' ? 0 : saveCount(source[item]);
+  requireSave(Object.keys(source).length === ITEMS.length, 'invalid inventory fields');
+  for (const item of ITEMS) result[item] = saveCount(source[item]);
   requireSave(Number.isSafeInteger(itemCount(result)), 'inventory overflow');
   return result;
 }
@@ -51,24 +49,31 @@ function saveOre(value: unknown): Ore | null {
   return value;
 }
 
-export function restoreMachine(value: unknown, world: FactoryWorld, legacy = false): MachineState {
+export function restoreMachine(value: unknown, world: FactoryWorld): MachineState {
   const source = saveObject(value);
   const building = saveObject(source.building);
-  requireSave(typeof building.kind === 'string' && (isBuildingKind(building.kind) || building.kind === 'outpost' || building.kind === 'home'), 'unknown machine');
+  requireSave(typeof building.kind === 'string' && (isBuildingKind(building.kind) || building.kind === 'home'), 'unknown machine');
   const machine: MachineState = {
     building: { ...saveTile(building), kind: building.kind, direction: saveDirection(building.direction) },
-    input: saveInventory(source.input, legacy), output: saveInventory(source.output, legacy),
+    input: saveInventory(source.input), output: saveInventory(source.output),
     progress: saveCount(source.progress), processing: saveOre(source.processing), lastProcessed: saveOre(source.lastProcessed),
     item: null, enteredFrom: saveDirection(source.enteredFrom), nextOutput: 0, nextItem: 0, running: false,
   };
-  for (const [field, kind] of [['outputEnabled', 'storage'], ['upgraded', 'miner']] as const) {
-    if (building[field] !== undefined) {
-      requireSave(machine.building.kind === kind && typeof building[field] === 'boolean', 'invalid machine option');
-      machine.building[field] = building[field];
-    }
+  // Older saves contain this setting; validate it, but depot output is now automatic.
+  if (building.outputEnabled !== undefined) {
+    requireSave(machine.building.kind === 'storage' && typeof building.outputEnabled === 'boolean', 'invalid machine option');
+  }
+  if (building.upgraded !== undefined) {
+    requireSave(machine.building.kind === 'miner' && typeof building.upgraded === 'boolean', 'invalid machine option');
+    machine.building.upgraded = building.upgraded;
   }
   if (building.haulTo !== undefined) machine.building.haulTo = saveTile(building.haulTo);
-  const nextItem = source.nextItem === undefined ? 0 : saveCount(source.nextItem);
+  if (building.workPriority !== undefined) {
+    requireSave(WORK_PRIORITIES.some(priority => priority === building.workPriority), 'invalid work priority');
+    requireSave(!isConveyor(machine.building.kind) && !['home', 'kitchen'].includes(machine.building.kind), 'priority without resident work');
+    machine.building.workPriority = building.workPriority as Building['workPriority'];
+  }
+  const nextItem = saveCount(source.nextItem);
   requireSave(nextItem < ITEMS.length && (machine.building.kind === 'storage' || nextItem === 0), 'invalid depot routing');
   machine.nextItem = nextItem;
   requireSave(source.item === null || typeof source.item === 'string' && ITEMS.some(item => item === source.item), 'unknown cargo');
@@ -76,7 +81,7 @@ export function restoreMachine(value: unknown, world: FactoryWorld, legacy = fal
   requireSave(typeof source.running === 'boolean', 'invalid machine activity');
   machine.running = source.running;
   const { kind } = machine.building;
-  const nextOutput = source.nextOutput === undefined && kind !== 'splitter' ? 0 : source.nextOutput;
+  const nextOutput = source.nextOutput;
   requireSave(nextOutput === 0 || kind === 'splitter' && nextOutput === 1, 'invalid splitter routing state');
   machine.nextOutput = nextOutput;
   for (const item of ITEMS) {
@@ -90,8 +95,8 @@ export function restoreMachine(value: unknown, world: FactoryWorld, legacy = fal
   requireSave(isConveyor(kind) || machine.item === null, 'cargo outside a conveyor');
   requireSave(kind === 'furnace' || machine.processing === null && machine.lastProcessed === null, 'recipe outside a smelter');
   requireSave(!machine.processing || hasRecipeInputs(machine.input, SMELTER_RECIPES[machine.processing]), 'smelter recipe missing its input');
-  const max = isConveyor(kind) || kind === 'storage' && machine.building.outputEnabled ? BELT_TICKS + 1
-    : kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' ? machineCycleTicks(machine) : 1;
+  const max = isConveyor(kind) || kind === 'storage' ? BELT_TICKS + 1
+    : kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' || kind === 'woodcutting-site' ? machineCycleTicks(machine) : 1;
   requireSave(machine.progress < max, 'invalid machine progress');
   requireSave(!isConveyor(kind) || machine.item !== null || machine.progress === 0, 'empty conveyor in progress');
   requireSave(kind !== 'furnace' || machine.processing !== null || machine.progress === 0, 'smelter missing its recipe');
@@ -109,32 +114,32 @@ export function copyMachine(machine: Readonly<MachineState>): MachineState {
 
 export function assertConservation(
   machines: Iterable<MachineState>, recovered: Inventory, production: ProductionLedger,
-  progression: LegacyProgression, settlement: SettlementSave | null,
+  settlement: SettlementSave,
 ): void {
   for (const item of ITEMS) {
     requireSave(item.endsWith('-ore') || production.mined[item] === 0, 'invalid extraction ledger');
     requireSave(item.endsWith('-plate') || production.smelted[item] === 0 && production.recipeConsumed[item] === 0, 'invalid recipe ledger');
     requireSave(item === 'defense-supply' || production.assembled[item] === 0, 'invalid assembly ledger');
-    requireSave(item === 'copper-plate' || item === 'defense-supply' || progression.delivered[item] === 0, 'invalid delivery ledger');
   }
   const held = { ...recovered };
   for (const machine of machines) {
     for (const item of ITEMS) held[item] += machine.input[item] + machine.output[item];
     if (machine.item) held[machine.item]++;
   }
-  for (const resident of settlement?.residents ?? []) if (resident.cargo) held[resident.cargo]++;
-  requireSave(settlement ? held['food-unit'] + settlement.consumedFood ===
-    settlement.starterFood + settlement.producedFood : held['food-unit'] === 0, 'food accounting mismatch');
+  for (const resident of settlement.residents) if (resident.cargo) held[resident.cargo]++;
+  requireSave(held.wood === settlement.producedWood, 'wood accounting mismatch');
+  requireSave(held['food-unit'] + settlement.consumedFood ===
+    settlement.starterFood + settlement.producedFood, 'food accounting mismatch');
   for (const metal of ['iron', 'copper'] as const) {
     const ore = `${metal}-ore` as const;
     const recipe = SMELTER_RECIPES[ore];
     const plate = recipe.output.item;
     requireSave(held[ore] + production.smelted[plate] / recipe.output.quantity * recipe.inputs[0].quantity === production.mined[ore] &&
-      held[plate] + progression.delivered[plate] + progression.projectConsumed(plate) + production.recipeConsumed[plate] === production.smelted[plate],
+      held[plate] + production.recipeConsumed[plate] === production.smelted[plate],
     'material accounting mismatch');
   }
   const supply = ASSEMBLER_RECIPE.output;
-  requireSave(held[supply.item] + progression.delivered[supply.item] + progression.projectConsumed(supply.item) === production.assembled[supply.item] &&
+  requireSave(held[supply.item] === production.assembled[supply.item] &&
     ASSEMBLER_RECIPE.inputs.every(ingredient => production.recipeConsumed[ingredient.item] ===
       production.assembled[supply.item] / supply.quantity * ingredient.quantity), 'assembly accounting mismatch');
 }

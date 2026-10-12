@@ -1,4 +1,5 @@
-import { Building, compareTiles, DIRECTIONS, FARM_TICKS, Item, ITEMS, MEAL_TICKS, Tile, tileKey, WALK_TICKS } from './domain';
+import { Building, compareTiles, DIRECTIONS, FARM_TICKS, GATHER_TICKS, Item, ITEMS, MEAL_TICKS, Tile, tileKey, WALK_TICKS } from './domain';
+import { gatheringAccess, TreeAccess } from './gathering';
 import { acceptsInventoryItem, inputSlots, MachineState, outputCapacity } from './machines';
 import { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
 import { FactoryWorld } from './world';
@@ -9,6 +10,7 @@ export const STARTER_FOOD = 8;
 export const RESIDENT_NAMES = ['Ada', 'Emil', 'Mira', 'Owen'] as const;
 export type ResidentJob =
   | { kind: 'farm'; source: Tile; destination: null; item: null; path: Tile[] }
+  | { kind: 'gather' | 'return-wood'; source: Tile; destination: null; item: 'wood'; tree: Tile; access: Tile; path: Tile[] }
   | { kind: 'collect' | 'deliver'; source: Tile; destination: Tile; item: Item; path: Tile[] };
 
 export interface Resident {
@@ -21,10 +23,12 @@ export interface Resident {
 }
 
 export interface SettlementSave {
-  version: 1;
+  version: 3;
+  waiting: Record<string, number>;
   residents: Resident[];
   starterFood: number;
   producedFood: number;
+  producedWood: number;
   consumedFood: number;
   missedMeals: number;
   mealClock: number;
@@ -47,10 +51,11 @@ export class Settlement {
   readonly state: SettlementSave;
   private unreachable = new Set<string>();
   private assignmentSources: MachineState[] | null = null;
+  private treeAccess = new Map<string, TreeAccess[]>();
 
   constructor(private host: Host, state?: SettlementSave) {
     this.state = state ?? {
-      version: 1, starterFood: STARTER_FOOD, producedFood: 0, consumedFood: 0,
+      version: 3, waiting: {}, starterFood: STARTER_FOOD, producedFood: 0, producedWood: 0, consumedFood: 0,
       missedMeals: 0, mealClock: 0,
       residents: [{ c: 11, r: 11 }, { c: 12, r: 11 }, { c: 12, r: 12 }, { c: 11, r: 13 }]
         .map((tile, id) => ({ id, tile, travel: 0, cargo: null, job: null, note: 'Looking for work' })),
@@ -63,12 +68,19 @@ export class Settlement {
 
   static restore(value: unknown, host: Host): Settlement {
     const source = saveObject(value);
-    requireSave(source.version === 1, 'unsupported settlement version');
+    requireSave(source.version === 3, 'unsupported settlement version');
     const state: SettlementSave = {
-      version: 1, residents: [], starterFood: saveCount(source.starterFood),
+      version: 3, waiting: {}, residents: [], starterFood: saveCount(source.starterFood), producedWood: saveCount(source.producedWood),
       producedFood: saveCount(source.producedFood), consumedFood: saveCount(source.consumedFood),
       missedMeals: saveCount(source.missedMeals), mealClock: saveCount(source.mealClock),
     };
+    const waiting = saveObject(source.waiting);
+    requireSave(Object.keys(waiting).length <= host.machines.size * (ITEMS.length + 1), 'invalid labor queue');
+    for (const [key, age] of Object.entries(waiting)) {
+      requireSave(/^\d+,\d+:(farm|gather|iron-ore|copper-ore|iron-plate|copper-plate|defense-supply|food-unit|wood)$/.test(key) &&
+        host.machines.has(key.split(':')[0]), 'invalid labor request');
+      state.waiting[key] = saveCount(age);
+    }
     requireSave(state.starterFood === STARTER_FOOD && state.mealClock < MEAL_TICKS, 'invalid settlement food clock or grant');
     requireSave(Array.isArray(source.residents) && source.residents.length === RESIDENT_NAMES.length, 'invalid resident population');
     for (let i = 0; i < source.residents.length; i++) {
@@ -84,7 +96,8 @@ export class Settlement {
       requireSave(resident.travel < WALK_TICKS, 'invalid resident movement');
       if (entry.job !== null) {
         const job = saveObject(entry.job);
-        requireSave(job.kind === 'farm' || job.kind === 'collect' || job.kind === 'deliver', 'invalid resident job');
+        requireSave(job.kind === 'farm' || job.kind === 'collect' || job.kind === 'deliver' ||
+          job.kind === 'gather' || job.kind === 'return-wood', 'invalid resident job');
         requireSave(job.item === null || ITEMS.includes(job.item as Item), 'invalid reserved cargo');
         requireSave(Array.isArray(job.path) && job.path.length <= host.world.size * host.world.size, 'invalid resident route');
         const source = saveTile(job.source);
@@ -92,6 +105,15 @@ export class Settlement {
         if (job.kind === 'farm') {
           requireSave(job.destination === null && job.item === null, 'invalid farming assignment');
           resident.job = { kind: job.kind, source, destination: null, item: null, path };
+        } else if (job.kind === 'gather' || job.kind === 'return-wood') {
+          requireSave(job.destination === null && job.item === 'wood' &&
+            host.machines.get(tileKey(source))?.building.kind === 'woodcutting-site', 'invalid woodcutting assignment');
+          const gatheringJob: Extract<ResidentJob, { tree: Tile }> = { kind: job.kind, source, destination: null, item: 'wood',
+            tree: saveTile(job.tree), access: saveTile(job.access), path };
+          resident.job = gatheringJob;
+          requireSave(gatheringAccess(source, host.machines, host.world).some(candidate =>
+            tileKey(candidate.tree) === tileKey(gatheringJob.tree) && tileKey(candidate.access) === tileKey(gatheringJob.access)),
+          'inaccessible gathering tree');
         } else {
           requireSave(job.destination !== null && job.item !== null, 'invalid hauling assignment');
           resident.job = { kind: job.kind, source, destination: saveTile(job.destination), item: job.item as Item, path };
@@ -101,15 +123,19 @@ export class Settlement {
           Math.abs(tile.c - route[n - 1].c) + Math.abs(tile.r - route[n - 1].r) === 1), 'nonadjacent resident route');
         const machine = host.machines.get(tileKey(resident.job.source));
         requireSave(machine && (job.kind !== 'farm' || machine.building.kind === 'food-plot'), 'missing resident source');
-        requireSave(job.kind === 'farm' ? resident.cargo === null && job.item === null && job.destination === null
+        requireSave(job.kind === 'gather' ? resident.cargo === null
+          : job.kind === 'return-wood' ? resident.cargo === 'wood'
+          : job.kind === 'farm' ? resident.cargo === null && job.item === null && job.destination === null
           : job.kind === 'collect' ? resident.cargo === null && job.item !== null && job.destination !== null
             : resident.cargo === job.item && job.item !== null && job.destination !== null, 'inconsistent resident job cargo');
         const target = job.kind === 'deliver' ? resident.job.destination! : resident.job.source;
         const end = route[route.length - 1];
-        requireSave(Math.abs(end.c - target.c) + Math.abs(end.r - target.r) === 1, 'invalid resident access point');
+        requireSave(resident.job.kind === 'gather' ? tileKey(end) === tileKey(resident.job.access)
+          : Math.abs(end.c - target.c) + Math.abs(end.r - target.r) === 1, 'invalid resident access point');
       }
       requireSave(resident.job?.path.length || resident.travel === 0, 'movement without a route');
-      requireSave(resident.cargo === null || resident.job?.kind === 'deliver', 'carried cargo without a delivery job');
+      requireSave(resident.cargo === null || resident.job?.kind === 'deliver' || resident.job?.kind === 'return-wood',
+        'carried cargo without a delivery job');
       state.residents.push(resident);
     }
     const settlement = new Settlement(host, state);
@@ -129,7 +155,18 @@ export class Settlement {
       }
       requireSave(state.residents.filter(resident => resident.job?.kind === 'farm' &&
         tileKey(resident.job.source) === tileKey(machine.building)).length <= 1, 'duplicate farmer assignment');
+      requireSave(state.residents.filter(resident => (resident.job?.kind === 'gather' || resident.job?.kind === 'return-wood') &&
+        tileKey(resident.job.source) === tileKey(machine.building)).length <= 1, 'duplicate gathering assignment');
+      if (machine.building.kind === 'woodcutting-site') {
+        requireSave(machine.output.wood + settlement.returningWood(machine.building) <= outputCapacity(machine.building.kind),
+          'overreserved gathering output');
+        requireSave(machine.progress === 0 || state.residents.some(resident => resident.job?.kind === 'gather' &&
+          !resident.job.path.length && tileKey(resident.job.source) === tileKey(machine.building)),
+        'gathering progress without a worker');
+      }
     }
+    const trees = state.residents.flatMap(resident => resident.job?.kind === 'gather' ? [tileKey(resident.job.tree)] : []);
+    requireSave(new Set(trees).size === trees.length, 'duplicate gathering tree reservation');
     requireSave(state.residents.every(resident => !resident.job?.destination ||
       host.machines.has(tileKey(resident.job.destination))), 'missing resident destination');
     return settlement;
@@ -154,10 +191,26 @@ export class Settlement {
   layoutChanged(): void {
     this.unreachable.clear();
     this.assignmentSources = null;
+    this.treeAccess.clear();
+    for (const key of Object.keys(this.state.waiting)) {
+      if (!this.host.machines.has(key.split(':')[0])) delete this.state.waiting[key];
+    }
     for (const resident of this.state.residents) {
       resident.travel = 0;
       const job = resident.job;
       if (!job) continue;
+      if (job.kind === 'gather' || job.kind === 'return-wood') {
+        const source = this.host.machines.get(tileKey(job.source));
+        const valid = source && this.accessFor(job.source).some(candidate =>
+          tileKey(candidate.tree) === tileKey(job.tree) && tileKey(candidate.access) === tileKey(job.access));
+        const path = valid ? this.route(resident.tile, job.kind === 'gather' ? job.access : job.source, job.kind === 'gather') : null;
+        if (!path) { this.cancel(resident); resident.note = 'Grove access blocked; waiting'; }
+        else {
+          job.path = path;
+          if (job.kind === 'gather' && path.length && source) source.progress = 0;
+        }
+        continue;
+      }
       const target = job.kind === 'deliver' ? job.destination : job.source;
       const source = this.host.machines.get(tileKey(job.source));
       const destination = job.destination && this.host.machines.get(tileKey(job.destination));
@@ -174,15 +227,32 @@ export class Settlement {
 
   assignmentChanged(tile: Tile): void {
     for (const resident of this.state.residents) {
-      if (resident.job?.kind !== 'farm' && resident.job && tileKey(resident.job.source) === tileKey(tile)) this.cancel(resident);
+      if ((resident.job?.kind === 'collect' || resident.job?.kind === 'deliver') &&
+        tileKey(resident.job.source) === tileKey(tile)) this.cancel(resident);
     }
     this.layoutChanged();
   }
 
   private cancel(resident: Resident): void {
+    if (resident.job?.kind === 'gather') {
+      const source = this.host.machines.get(tileKey(resident.job.source));
+      if (source) source.progress = 0;
+    }
     if (resident.cargo) { this.host.recover(resident.cargo); resident.cargo = null; }
     resident.job = null;
     resident.travel = 0;
+  }
+
+  private accessFor(tile: Tile): TreeAccess[] {
+    const key = tileKey(tile);
+    let access = this.treeAccess.get(key);
+    if (!access) { access = gatheringAccess(tile, this.host.machines, this.host.world); this.treeAccess.set(key, access); }
+    return access;
+  }
+
+  private returningWood(tile: Tile): number {
+    return this.state.residents.filter(resident => resident.job?.kind === 'return-wood' &&
+      tileKey(resident.job.source) === tileKey(tile)).length;
   }
 
   private stock(machine: MachineState) {
@@ -202,8 +272,8 @@ export class Settlement {
       this.host.world.terrainAt(tile) !== 'water' && this.host.world.terrainAt(tile) !== 'tree';
   }
 
-  private route(start: Tile, target: Tile): Tile[] | null {
-    const cache = `${tileKey(start)}>${tileKey(target)}`;
+  private route(start: Tile, target: Tile, exact = false): Tile[] | null {
+    const cache = `${tileKey(start)}>${tileKey(target)}:${exact}`;
     if (this.unreachable.has(cache)) return null;
     const size = this.host.world.size;
     const initial = start.r * size + start.c;
@@ -216,7 +286,7 @@ export class Settlement {
     while (read < write) {
       const index = queue[read++];
       const tile = { c: index % size, r: Math.floor(index / size) };
-      if (Math.abs(tile.c - target.c) + Math.abs(tile.r - target.r) === 1) {
+      if (exact ? tileKey(tile) === tileKey(target) : Math.abs(tile.c - target.c) + Math.abs(tile.r - target.r) === 1) {
         const path: Tile[] = [];
         for (let at = index; previous[at] !== -1; at = previous[at]) path.push({ c: at % size, r: Math.floor(at / size) });
         return path.reverse();
@@ -235,43 +305,85 @@ export class Settlement {
   }
 
   private assign(resident: Resident): void {
-    const priority = (machine: MachineState) => machine.building.haulTo &&
-      this.host.machines.get(tileKey(machine.building.haulTo))?.building.kind === 'kitchen' ? 0 : 1;
-    const machines = this.assignmentSources ??= [...this.host.machines.values()].sort((a, b) => priority(a) - priority(b) ||
-      a.building.c - b.building.c || a.building.r - b.building.r);
-    for (const machine of machines) {
-      if (machine.building.kind !== 'food-plot' || this.state.residents.some(worker =>
-        worker.job?.kind === 'farm' && tileKey(worker.job.source) === tileKey(machine.building))) continue;
-      const path = this.route(resident.tile, machine.building);
-      if (!path) continue;
-      resident.job = { kind: 'farm', source: { c: machine.building.c, r: machine.building.r }, destination: null, item: null, path };
-      resident.note = 'Walking to farm';
-      return;
-    }
+    const candidates: { key: string; job: ResidentJob; score: number }[] = [];
     let blocked = false;
-    for (const machine of machines) {
-      const target = machine.building.haulTo;
-      if (!target || this.host.automated(machine)) continue;
-      const destination = this.host.machines.get(tileKey(target));
-      if (!destination) { blocked = true; continue; }
-      for (const item of ITEMS) {
-        if (this.stock(machine)[item] <= this.reservedSource(machine.building, item)) continue;
-        if (!this.compatible(destination, item) ||
-            this.capacity(destination, item) <= this.reservedDestination(target, item)) { blocked = true; continue; }
-        const path = this.route(resident.tile, machine.building);
-        const delivery = path && this.route(path[path.length - 1] ?? resident.tile, target);
-        if (!path || !delivery) { blocked = true; continue; }
-        resident.job = { kind: 'collect', source: { c: machine.building.c, r: machine.building.r },
-          destination: { ...target }, item, path };
-        resident.note = 'Walking to collect';
-        return;
+    for (const { machine, key, task } of this.requests()) {
+      const source = { c: machine.building.c, r: machine.building.r };
+      const workers = this.state.residents.filter(worker => worker.job &&
+        tileKey(worker.job.source) === tileKey(source)).length;
+      const add = (job: ResidentJob, distance: number) => candidates.push({ key, job,
+        score: ({ low: 120, normal: 240, high: 360 }[machine.building.workPriority ?? 'normal']) / (workers + 1) +
+          (this.state.waiting[key] ?? 0) - distance * WALK_TICKS });
+      if (task === 'farm') {
+        const path = this.route(resident.tile, source);
+        if (path) add({ kind: 'farm', source, destination: null, item: null, path }, path.length);
+        else blocked = true;
+        continue;
       }
+      if (task === 'gather') {
+        let found = false;
+        for (const access of this.accessFor(source)) {
+          if (this.state.residents.some(worker => worker.job?.kind === 'gather' &&
+            tileKey(worker.job.tree) === tileKey(access.tree))) continue;
+          const path = this.route(resident.tile, access.access, true);
+          const returning = path && this.route(access.access, source);
+          if (!path || !returning) continue;
+          add({ kind: 'gather', source, destination: null, item: 'wood',
+            tree: { ...access.tree }, access: { ...access.access }, path }, path.length + returning.length);
+          found = true;
+          break;
+        }
+        blocked ||= !found;
+        continue;
+      }
+      const target = machine.building.haulTo;
+      if (!target) continue;
+      const path = this.route(resident.tile, source);
+      const delivery = path && this.route(path[path.length - 1] ?? resident.tile, target);
+      if (!path || !delivery) { blocked = true; continue; }
+      add({ kind: 'collect', source, destination: { ...target }, item: task, path }, path.length + delivery.length);
     }
-    resident.note = blocked ? 'Hauling blocked: check destination or access' : 'Available for work';
+    candidates.sort((a, b) => b.score - a.score || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    const selected = candidates[0];
+    if (selected) {
+      resident.job = selected.job;
+      delete this.state.waiting[selected.key];
+      resident.note = selected.job.kind === 'farm' ? 'Walking to farm'
+        : selected.job.kind === 'gather' ? 'Walking to grove' : 'Walking to collect';
+    } else resident.note = blocked ? 'Work blocked: check destination or access' : 'Available for work';
+  }
+
+  private requests(): { machine: MachineState; key: string; task: 'farm' | 'gather' | Item }[] {
+    const requests: { machine: MachineState; key: string; task: 'farm' | 'gather' | Item }[] = [];
+    const machines = this.assignmentSources ??= [...this.host.machines.values()].sort((a, b) => compareTiles(a.building, b.building));
+    for (const machine of machines) {
+      const source = tileKey(machine.building);
+      const { kind } = machine.building;
+      const add = (task: 'farm' | 'gather' | Item) => requests.push({ machine, key: `${source}:${task}`, task });
+      if (kind === 'food-plot' || kind === 'woodcutting-site') {
+        const occupied = this.state.residents.some(resident => resident.job &&
+          (resident.job.kind === 'farm' || resident.job.kind === 'gather' || resident.job.kind === 'return-wood') &&
+          tileKey(resident.job.source) === source);
+        const item = kind === 'food-plot' ? 'food-unit' : 'wood';
+        if (!occupied && machine.output[item] + this.returningWood(machine.building) < outputCapacity(kind)) {
+          add(kind === 'food-plot' ? 'farm' : 'gather');
+        }
+      }
+      const target = machine.building.haulTo;
+      const destination = target && this.host.machines.get(tileKey(target));
+      if (!target || !destination || this.host.automated(machine)) continue;
+      for (const item of ITEMS) if (this.stock(machine)[item] > this.reservedSource(machine.building, item) &&
+        this.compatible(destination, item) && this.capacity(destination, item) > this.reservedDestination(target, item)) add(item);
+    }
+    return requests;
   }
 
   step(tick: number): void {
-    for (const machine of this.host.machines.values()) if (machine.building.kind === 'food-plot') machine.running = false;
+    const pending = new Set(this.requests().map(request => request.key));
+    for (const key of Object.keys(this.state.waiting)) if (!pending.has(key)) delete this.state.waiting[key];
+    for (const key of pending) this.state.waiting[key] = (this.state.waiting[key] ?? 0) + 1;
+    for (const machine of this.host.machines.values()) if (machine.building.kind === 'food-plot' ||
+      machine.building.kind === 'woodcutting-site') machine.running = false;
     for (let index = 0; index < this.state.residents.length; index++) {
       const resident = this.state.residents[index];
       if (!resident.job) {
@@ -280,7 +392,8 @@ export class Settlement {
       }
       const job = resident.job;
       if (job.path.length) {
-        resident.note = job.kind === 'deliver' ? 'Carrying cargo' : job.kind === 'farm' ? 'Walking to farm' : 'Walking to collect';
+        resident.note = job.kind === 'return-wood' ? 'Taking wood to the site' : job.kind === 'gather' ? 'Walking to grove'
+          : job.kind === 'deliver' ? 'Carrying cargo' : job.kind === 'farm' ? 'Walking to farm' : 'Walking to collect';
         if (++resident.travel >= WALK_TICKS) {
           resident.tile = job.path.shift()!;
           resident.travel = 0;
@@ -290,13 +403,32 @@ export class Settlement {
       const source = this.host.machines.get(tileKey(job.source))!;
       if (job.kind === 'farm') {
         resident.note = source.output['food-unit'] >= outputCapacity(source.building.kind) ? 'Plot full; waiting for transport' : 'Farming';
-        if (source.output['food-unit'] >= outputCapacity(source.building.kind)) continue;
+        if (source.output['food-unit'] >= outputCapacity(source.building.kind)) { resident.job = null; continue; }
         source.running = true;
         if (++source.progress >= FARM_TICKS) {
           source.progress = 0;
           source.output['food-unit']++;
           this.state.producedFood++;
+          resident.job = null;
         }
+      } else if (job.kind === 'gather') {
+        resident.note = 'Gathering wood';
+        source.running = true;
+        if (++source.progress >= GATHER_TICKS) {
+          source.progress = 0;
+          const path = this.route(resident.tile, job.source);
+          if (!path) { this.cancel(resident); resident.note = 'Grove access blocked; waiting'; continue; }
+          resident.cargo = 'wood';
+          this.state.producedWood++;
+          job.kind = 'return-wood';
+          job.path = path;
+          resident.note = 'Taking wood to the site';
+        }
+      } else if (job.kind === 'return-wood') {
+        source.output.wood++;
+        resident.cargo = null;
+        resident.job = null;
+        resident.note = 'Wood delivered to site';
       } else if (job.kind === 'collect') {
         const path = this.route(resident.tile, job.destination);
         if (!path || this.stock(source)[job.item!] <= 0) { this.cancel(resident); resident.note = 'Route blocked; cargo retained'; continue; }
@@ -312,6 +444,7 @@ export class Settlement {
         resident.job = null;
         resident.note = 'Delivery complete';
       }
+      if (!resident.job) this.assign(resident);
     }
     if (++this.state.mealClock >= MEAL_TICKS) {
       this.state.mealClock = 0;

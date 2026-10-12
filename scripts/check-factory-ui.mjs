@@ -13,6 +13,19 @@ async function gameState(page) {
     return scene.simulation.serialize();
   });
 }
+async function storedSave(page) {
+  return page.evaluate(() => new Promise((resolve, reject) => {
+    const request = indexedDB.open('brainrot-pocket-factory', 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const transaction = db.transaction('worlds', 'readonly');
+      const read = transaction.objectStore('worlds').get('active');
+      transaction.oncomplete = () => { db.close(); resolve(read.result); };
+      transaction.onabort = () => { db.close(); reject(transaction.error); };
+    };
+  }));
+}
 async function coordinates(page, mode, tile) {
   return page.evaluate(async ({ mode, tile }) => {
     const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
@@ -59,6 +72,295 @@ async function coordinates(page, mode, tile) {
   }, { mode, tile });
 }
 try {
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
+    const touch = viewport.width < 700;
+    const context = await browser.newContext({ viewport, isMobile: touch, hasTouch: touch, reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(url);
+    await page.locator('[data-command="new-settlement"]:not(:disabled)').waitFor();
+    await page.locator('[data-command="new-settlement"]').click();
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+    await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
+    await page.getByRole('button', { name: 'Build', exact: true }).click();
+    await page.getByRole('button', { name: 'Woodcutting site', exact: true }).first().click();
+    const site = await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const { project } = await import('/src/games/factory/game/domain.ts');
+      const scene = game.scene.getScene('FactoryScene');
+      const candidates = [];
+      for (let c = 2; c < 32; c++) for (let r = 2; r < 32; r++) {
+        if (!scene.simulation.placementError({ c, r }, 'woodcutting-site')) candidates.push({ c, r });
+      }
+      candidates.sort((a, b) => Math.abs(a.c - 12) + Math.abs(a.r - 12) -
+        Math.abs(b.c - 12) - Math.abs(b.r - 12) || a.c - b.c || a.r - b.r);
+      if (!candidates.length) throw new Error('No reachable grove fixture');
+      const tile = candidates[0];
+      const origin = project(tile.c, tile.r);
+      scene.cameras.main.centerOn(origin.x, origin.y - 30);
+      game.step(30000, 0);
+      return tile;
+    });
+    const tap = point => touch ? page.touchscreen.tap(point.x, point.y) : page.mouse.click(point.x, point.y);
+    await tap(await coordinates(page, 'inspect', site));
+    assert.ok((await gameState(page)).machines.some(machine => machine.building.kind === 'woodcutting-site'));
+    await page.keyboard.press('Escape');
+    await tap(await coordinates(page, 'inspect', site));
+    assert.equal(await page.locator('[data-command="choose-worker"]').count(), 0);
+    assert.equal(await page.locator('[data-priority="normal"]').getAttribute('aria-pressed'), 'true');
+    await page.locator('[data-priority="high"]').click();
+    assert.equal(await page.locator('[data-priority="high"]').getAttribute('aria-pressed'), 'true');
+    assert.equal((await gameState(page)).machines.find(machine => machine.building.kind === 'woodcutting-site').building.workPriority, 'high');
+    const priorityBounds = await page.locator('.factory-work-priorities').evaluate(element => ({
+      width: element.clientWidth, scroll: element.scrollWidth,
+      targets: [...element.querySelectorAll('button')].map(button => button.getBoundingClientRect().height),
+    }));
+    assert.ok(priorityBounds.scroll <= priorityBounds.width && priorityBounds.targets.every(height => height >= 44));
+    assert.match(await page.locator('#factory-machine-state').innerText(), /Paused/);
+    const carrying = await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const scene = game.scene.getScene('FactoryScene');
+      for (let i = 0; i < 2000 && !scene.simulation.residents.some(resident => resident.cargo === 'wood'); i++) scene.simulation.step();
+      if (!scene.simulation.residents.some(resident => resident.cargo === 'wood')) throw new Error('Automatic gathering did not start');
+      scene.refreshSimulationHud();
+      scene.session.changed(false);
+      await scene.session.save();
+      return scene.simulation.serialize();
+    });
+    const carrier = carrying.settlement.residents.find(resident => resident.cargo === 'wood');
+    assert.equal(carrier.job.kind, 'return-wood');
+    assert.match(await page.locator('#factory-staffing').innerText(), /Working/);
+    await page.locator('[data-priority="low"]').click();
+    const reprioritized = await gameState(page);
+    assert.deepEqual(reprioritized.settlement, carrying.settlement, 'Priority controls must not cancel work or reset cargo');
+    await page.locator('[data-priority="high"]').click();
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      await game.scene.getScene('FactoryScene').session.save();
+    });
+    assert.deepEqual((await storedSave(page)).simulation, carrying);
+    await page.reload();
+    await page.locator('[data-command="resume-save"]').click();
+    await page.getByRole('button', { name: 'Resume factory', exact: true }).waitFor();
+    assert.deepEqual(await gameState(page), carrying, 'Priority and cargo resume exactly during a return trip');
+    await page.evaluate(async site => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const { project } = await import('/src/games/factory/game/domain.ts');
+      const scene = game.scene.getScene('FactoryScene');
+      const origin = project(site.c, site.r);
+      scene.cameras.main.centerOn(origin.x, origin.y - 30);
+      game.step(30001, 0);
+    }, site);
+    await tap(await coordinates(page, 'inspect', site));
+    assert.equal(await page.locator('[data-priority="high"]').getAttribute('aria-pressed'), 'true');
+    if (process.env.FACTORY_SCREENSHOT_DIR) await page.screenshot({
+      path: `${process.env.FACTORY_SCREENSHOT_DIR}/automatic-labor-${viewport.width}.png`,
+    });
+    await page.getByRole('button', { name: 'People', exact: true }).click();
+    await page.locator(`[data-resident="${carrier.id}"]`).click();
+    assert.match(await page.locator('#factory-resident-destination').innerText(), /^Woodcutting site/);
+    assert.match(await page.locator('#factory-resident-cargo').innerText(), /Wood/);
+    assert.equal(await page.locator('[data-action="unassign-worker"]').count(), 0);
+    assert.deepEqual(errors, []);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+    console.log('Native wood gathering interaction passed:', `${viewport.width}x${viewport.height}`,
+      'catalog, placement, automatic staffing, priority controls, uninterrupted cargo, exact resume and read-only People');
+    await context.close();
+  }
+  for (const viewport of [{ width: 1280, height: 800 }, { width: 390, height: 844 },
+    { width: 320, height: 568 }, { width: 844, height: 390 }]) {
+    const touch = viewport.width < 700 || viewport.height < 560;
+    const context = await browser.newContext({ viewport, isMobile: touch, hasTouch: touch, reducedMotion: 'reduce' });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(url);
+    await page.locator('[data-command="new-settlement"]:not(:disabled)').click();
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+    await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const { FactorySimulation } = await import('/src/games/factory/game/simulation.ts');
+      const scene = game.scene.getScene('FactoryScene');
+      for (const building of [
+        { kind: 'furnace', c: 16, r: 16, direction: 0 }, { kind: 'assembler', c: 18, r: 16, direction: 0 },
+        { kind: 'storage', c: 15, r: 10, direction: 0 },
+      ]) {
+        const error = scene.simulation.place(building);
+        if (error) throw new Error(error);
+      }
+      let woodsite = null;
+      for (let c = 2; c < 32 && !woodsite; c++) for (let r = 2; r < 32 && !woodsite; r++) {
+        const tile = { c, r };
+        if (!scene.simulation.placementError(tile, 'woodcutting-site')) {
+          const error = scene.simulation.place({ ...tile, kind: 'woodcutting-site', direction: 0 });
+          if (error) throw new Error(error);
+          woodsite = tile;
+        }
+      }
+      if (!woodsite) throw new Error('No woodcutting fixture site');
+      for (let c = 20, added = 0; c < 40 && added < 30; c++) for (let r = 16; r < 40 && added < 30; r++) {
+        if (!scene.simulation.placementError({ c, r }, 'storage')) {
+          const error = scene.simulation.place({ kind: 'storage', c, r, direction: 0 });
+          if (error) throw new Error(error);
+          added++;
+        }
+      }
+      const save = scene.simulation.serialize();
+      save.machines.find(machine => machine.building.kind === 'kitchen').input['food-unit'] += 8;
+      save.settlement.producedFood += 8;
+      scene.simulation = FactorySimulation.restore(save);
+      scene.selected = scene.simulation.buildings.get('10,9');
+      scene.hud.inspect(scene.selected);
+      scene.redrawMachines();
+      scene.refreshSimulationHud();
+      window.factoryDeliveryScene = scene;
+    });
+    assert.equal(await page.locator('#factory-haul-target').count(), 0);
+    assert.match(await page.locator('#factory-delivery-name').innerText(), /Communal kitchen/);
+    assert.match(await page.locator('#factory-delivery-state').innerText(), /Full/);
+    await page.getByRole('button', { name: 'Resume factory', exact: true }).click();
+    await page.locator('[data-command="choose-delivery"]').click();
+    assert.equal(await page.evaluate(() => document.activeElement.id === 'factory-delivery-search'), !touch);
+    assert.equal(await page.locator('[data-delivery-target="16,16"]').count(), 0);
+    assert.equal(await page.locator('[data-delivery-target="18,16"]').count(), 0);
+    assert.equal(await page.locator('[data-delivery-target="14,12"]').isDisabled(), false,
+      'Full compatible destinations must stay selectable');
+    assert.match(await page.locator('[data-delivery-target="14,12"]').innerText(), /Full/);
+    assert.ok(await page.locator('[data-delivery-target]').count() >= 31);
+    const scroll = await page.locator('.factory-delivery-dialog .factory-picker-results').evaluate(element => ({
+      height: element.clientHeight, content: element.scrollHeight,
+    }));
+    assert.ok(scroll.height >= 72 && scroll.content > scroll.height, JSON.stringify({ viewport, scroll }));
+    await page.keyboard.press('r');
+    assert.equal((await gameState(page)).machines.find(machine => machine.building.kind === 'food-plot').building.direction, 0,
+      'Picker keyboard input must not rotate the source');
+    await page.locator('#factory-delivery-search').fill('15, 10');
+    assert.equal(await page.locator('[data-delivery-target]:visible').count(), 1);
+    await page.locator('[data-delivery-target="15,10"]').click();
+    assert.match(await page.locator('#factory-delivery-preview').innerText(), /food unit.*Depot · 15, 10/);
+    assert.deepEqual((await gameState(page)).machines.find(machine => machine.building.kind === 'food-plot').building.haulTo, { c: 14, r: 12 });
+    await page.evaluate(() => {
+      window.factoryDeliveryRows = [...document.querySelectorAll('[data-delivery-target]')];
+      window.factoryDeliveryCommit = document.querySelector('[data-command="confirm-delivery"]');
+      window.factoryDeliveryTick = window.factoryDeliveryScene.simulation.ticks;
+    });
+    await page.waitForFunction(() => window.factoryDeliveryScene.simulation.ticks >= window.factoryDeliveryTick + 12);
+    assert.equal(await page.evaluate(() => window.factoryDeliveryRows.every((row, index) =>
+      row === document.querySelectorAll('[data-delivery-target]')[index]) &&
+      window.factoryDeliveryCommit === document.querySelector('[data-command="confirm-delivery"]')), true);
+    assert.equal(await page.locator('[data-delivery-target="15,10"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('#factory-delivery-search').inputValue(), '15, 10');
+    await page.evaluate(() => {
+      window.factoryDeliveryCallback = window.factoryDeliveryScene.hud.onHaulTarget;
+      window.factoryDeliveryScene.hud.onHaulTarget = () => 'Destination changed. Choose another destination.';
+    });
+    await page.locator('[data-command="confirm-delivery"]').click();
+    assert.equal(await page.locator('.factory-delivery-dialog').evaluate(dialog => dialog.open), true);
+    assert.match(await page.locator('#factory-delivery-error').innerText(), /Destination changed/);
+    await page.evaluate(() => { window.factoryDeliveryScene.hud.onHaulTarget = window.factoryDeliveryCallback; });
+    await page.locator('#factory-delivery-search').fill('nothing matches');
+    assert.equal(await page.locator('.factory-delivery-dialog .factory-picker-empty').isVisible(), true);
+    assert.equal(await page.locator('[data-command="confirm-delivery"]').isDisabled(), false, 'Search must preserve a draft destination');
+    const bounds = await page.locator('.factory-delivery-dialog').evaluate(dialog => {
+      const rect = dialog.getBoundingClientRect();
+      const footer = dialog.querySelector('.factory-picker-footer').getBoundingClientRect();
+      return {
+        x: rect.x, y: rect.y, right: rect.right, bottom: rect.bottom, footerBottom: footer.bottom,
+        width: dialog.clientWidth, scrollWidth: dialog.scrollWidth,
+        targets: [...dialog.querySelectorAll('.factory-picker-header button, .factory-picker-footer button')]
+          .map(button => button.getBoundingClientRect().height),
+      };
+    });
+    assert.ok(bounds.x >= 0 && bounds.y >= 0 && bounds.right <= viewport.width && bounds.bottom <= viewport.height &&
+      bounds.footerBottom <= bounds.bottom && bounds.scrollWidth <= bounds.width, JSON.stringify({ viewport, bounds }));
+    assert.ok(bounds.targets.every(height => height >= 44));
+    if (viewport.width < 700) {
+      await page.evaluate(() => {
+        const root = document.querySelector('.factory-ui');
+        root.classList.add('factory-picker-compact');
+        root.style.setProperty('--factory-picker-viewport', '260px');
+        root.style.setProperty('--factory-keyboard-inset', `${innerHeight - 260}px`);
+      });
+      assert.ok(await page.locator('.factory-delivery-dialog').evaluate(dialog => {
+        const body = dialog.querySelector('.factory-picker-body');
+        body.scrollTop = body.scrollHeight;
+        return dialog.querySelector('.factory-picker-footer').getBoundingClientRect().bottom <= 260 &&
+          body.clientHeight >= 44 && body.scrollTop > 0;
+      }), 'Software keyboard must not cover delivery controls or prevent scrolling');
+      await page.evaluate(() => {
+        const root = document.querySelector('.factory-ui');
+        root.classList.remove('factory-picker-compact');
+        root.style.setProperty('--factory-picker-viewport', `${innerHeight}px`);
+        root.style.setProperty('--factory-keyboard-inset', '0px');
+      });
+    }
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('[data-command="choose-delivery"]').evaluate(button => button === document.activeElement), true);
+    assert.deepEqual((await gameState(page)).machines.find(machine => machine.building.kind === 'food-plot').building.haulTo, { c: 14, r: 12 });
+    await page.locator('[data-command="choose-delivery"]').click();
+    assert.equal(await page.locator('#factory-delivery-search').inputValue(), '');
+    assert.equal(await page.locator('[data-command="confirm-delivery"]').isDisabled(), true);
+    await page.locator('#factory-delivery-search').fill('15,10');
+    await page.locator('[data-delivery-target="15,10"]').click();
+    await page.locator('[data-command="confirm-delivery"]').click();
+    await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
+    assert.match(await page.locator('#factory-delivery-name').innerText(), /Depot · 15, 10/);
+    const saved = await gameState(page);
+    assert.deepEqual(saved.machines.find(machine => machine.building.kind === 'food-plot').building.haulTo, { c: 15, r: 10 });
+    await page.evaluate(() => window.factoryDeliveryScene.session.save());
+    assert.deepEqual((await storedSave(page)).simulation, saved);
+    await page.reload();
+    await page.locator('[data-command="resume-save"]').click();
+    await page.getByRole('button', { name: 'Resume factory', exact: true }).waitFor();
+    assert.deepEqual(await gameState(page), saved);
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const scene = game.scene.getScene('FactoryScene');
+      scene.selected = scene.simulation.buildings.get('10,9');
+      scene.hud.inspect(scene.selected);
+      scene.refreshSimulationHud();
+      window.factoryDeliveryScene = scene;
+    });
+    await page.locator('[data-command="clear-delivery"]').click();
+    assert.equal(Object.hasOwn((await gameState(page)).machines.find(machine => machine.building.kind === 'food-plot').building, 'haulTo'), false);
+    assert.equal(await page.locator('#factory-delivery-name').innerText(), 'No destination chosen');
+    await page.evaluate(() => {
+      const scene = window.factoryDeliveryScene;
+      scene.selected = [...scene.simulation.buildings.values()].find(building => building.kind === 'woodcutting-site');
+      scene.hud.inspect(scene.selected);
+      scene.refreshSimulationHud();
+    });
+    await page.locator('[data-command="choose-delivery"]').click();
+    assert.equal(await page.locator('[data-delivery-target="14,12"]').count(), 0, 'Wood must never offer the kitchen');
+    assert.ok((await page.locator('[data-delivery-target] strong').allTextContents()).every(label => label.startsWith('Depot')));
+    await page.locator('.factory-delivery-dialog .factory-picker-footer [data-command="close-delivery-picker"]').click();
+    await page.evaluate(async () => {
+      const { FactorySimulation } = await import('/src/games/factory/game/simulation.ts');
+      const scene = window.factoryDeliveryScene;
+      for (const building of [...scene.simulation.buildings.values()]) if (building.kind === 'storage') scene.simulation.remove(building);
+      const save = scene.simulation.serialize();
+      save.machines.find(machine => machine.building.kind === 'woodcutting-site').building.haulTo = { c: 14, r: 12 };
+      scene.simulation = FactorySimulation.restore(save);
+      scene.selected = [...scene.simulation.buildings.values()].find(building => building.kind === 'woodcutting-site');
+      scene.hud.inspect(scene.selected);
+      scene.redrawMachines();
+      scene.refreshSimulationHud();
+    });
+    assert.match(await page.locator('#factory-delivery-state').innerText(), /cannot accept/);
+    await page.locator('[data-command="choose-delivery"]').click();
+    assert.equal(await page.locator('[data-delivery-target]').count(), 0);
+    assert.match(await page.locator('.factory-delivery-dialog .factory-picker-empty').innerText(), /No compatible destinations/);
+    assert.equal(await page.locator('[data-command="confirm-delivery"]').isDisabled(), true);
+    await page.locator('.factory-delivery-dialog .factory-picker-footer [data-command="close-delivery-picker"]').click();
+    await page.locator('[data-command="clear-delivery"]').click();
+    assert.equal(await page.locator('#factory-delivery-state').innerText(), 'Choose where residents carry goods.');
+    assert.deepEqual(errors, []);
+    console.log('Native delivery picker passed:', `${viewport.width}x${viewport.height}`,
+      'compatibility, full targets, search, stable live draft, errors, bounds, cancel/commit/clear, exact save and repairable routes');
+    await context.close();
+  }
   for (const touch of [false, true]) {
     const context = await browser.newContext({
       viewport: touch ? { width: 390, height: 844 } : { width: 1280, height: 800 },
@@ -68,10 +370,10 @@ try {
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(url);
-    await page.waitForFunction(() => !document.querySelector('[data-scenario="settlement"]')?.disabled);
+    await page.waitForFunction(() => !document.querySelector('[data-command="new-settlement"]')?.disabled);
     await page.locator('#factory-world-seed').fill('north-bank');
-    await page.locator('[data-scenario="settlement"]').click();
-    await page.waitForFunction(() => !document.querySelector('.factory-scenario-dialog').open);
+    await page.locator('[data-command="new-settlement"]').click();
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
     await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
     const tap = point => touch ? page.touchscreen.tap(point.x, point.y) : page.mouse.click(point.x, point.y);
     await page.getByRole('button', { name: 'Build', exact: true }).click();
@@ -85,6 +387,10 @@ try {
       machine.building.c === placement.tile.c && machine.building.r === placement.tile.r));
     await page.keyboard.press('Escape');
     await tap(await coordinates(page, 'inspect', placement.tile));
+    assert.equal(await page.locator('.factory-inspector [data-action="machine-option"]').count(), 0,
+      'Depots must not expose an output toggle');
+    assert.equal(Object.hasOwn((await gameState(page)).machines.find(machine =>
+      machine.building.c === placement.tile.c && machine.building.r === placement.tile.r).building, 'outputEnabled'), false);
     await page.getByRole('button', { name: 'Remove selected building', exact: true }).click();
     assert.equal((await gameState(page)).machines.length, before.machines.length);
     await page.getByRole('button', { name: 'Build', exact: true }).click();
@@ -123,10 +429,11 @@ try {
     assert.deepEqual(await gameState(page), saved, 'Native interactions must persist and resume exactly');
     for (const reducedMotion of ['reduce', 'no-preference']) {
       await page.emulateMedia({ reducedMotion });
-      await page.waitForFunction(async reduced => {
+      await page.evaluate(async () => {
         const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
-        return game.scene.getScene('FactoryScene').motionPaused === reduced;
-      }, reducedMotion === 'reduce');
+        window.factoryMotionScene = game.scene.getScene('FactoryScene');
+      });
+      await page.waitForFunction(reduced => window.factoryMotionScene.motionPaused === reduced, reducedMotion === 'reduce');
       for (const paused of [false, true]) {
         const resident = await page.evaluate(async ({ paused, reduced }) => {
           const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
@@ -134,7 +441,7 @@ try {
           const { project, WALK_TICKS } = await import('/src/games/factory/game/domain.ts');
           game.loop.stop();
           const scene = game.scene.getScene('FactoryScene');
-          scene.startScenario(FactorySimulation.forScenario('settlement'));
+          scene.startSettlement(FactorySimulation.create());
           scene.simulation.step();
           scene.simulation.advance(90);
           scene.paused = paused;
@@ -171,13 +478,84 @@ try {
     console.log('Native factory interaction passed:', touch ? 'touch/pinch' : 'desktop/zoom', 'placement, picking, route, undo, save, reload and resident motion policies');
     await context.close();
   }
+  for (const touch of [false, true]) {
+    const context = await browser.newContext({
+      viewport: touch ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+      isMobile: touch, hasTouch: touch, reducedMotion: 'reduce',
+    });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(url);
+    await page.locator('[data-command="new-settlement"]:not(:disabled)').waitFor();
+    const legacy = await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const { createSave } = await import('/src/games/factory/session/persistence.ts');
+      const save = createSave(game.scene.getScene('FactoryScene').simulation, true, 'legacy-do-not-overwrite');
+      save.version = 2;
+      save.simulation.ruleset = 'settlement-v1';
+      save.simulation.scenario = 'settlement';
+      await new Promise((resolve, reject) => {
+        const request = indexedDB.open('brainrot-pocket-factory', 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const transaction = db.transaction('worlds', 'readwrite');
+          transaction.objectStore('worlds').put(save, 'active');
+          transaction.oncomplete = () => { db.close(); resolve(); };
+          transaction.onabort = () => { db.close(); reject(transaction.error); };
+        };
+      });
+      return save;
+    });
+    await page.reload();
+    await page.locator('[data-command="new-settlement"]:not(:disabled)').waitFor();
+    assert.match(await page.locator('.factory-load-message').innerText(), /Start a new settlement/);
+    assert.equal(await page.locator('[data-command="resume-save"]').count(), 0);
+    assert.equal(await page.locator('[data-scenario], [data-command="projects"], .factory-objective').count(), 0);
+    assert.deepEqual(await storedSave(page), legacy, 'Loading an incompatible save must not write');
+    await page.locator('#factory-world-seed').fill('replacement-seed');
+    await page.locator('[data-command="new-settlement"]').click();
+    await page.locator('[data-command="cancel-settlement"]').click();
+    assert.deepEqual(await storedSave(page), legacy, 'Cancelling replacement must not write');
+    await page.locator('[data-command="new-settlement"]').click();
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const store = game.scene.getScene('FactoryScene').session.store;
+      store.originalWrite = store.write;
+      store.write = async () => { throw new Error('Replacement quota test'); };
+    });
+    await page.locator('[data-command="confirm-settlement"]').click();
+    await page.waitForFunction(() => document.querySelector('.factory-load-message').textContent.includes('Replacement quota test'));
+    assert.deepEqual(await storedSave(page), legacy, 'Failed replacement must preserve the old save');
+    assert.equal(await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      return game.scene.getScene('FactoryScene').session.worldId;
+    }), null, 'Failed replacement must not activate a new world');
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const store = game.scene.getScene('FactoryScene').session.store;
+      store.write = store.originalWrite;
+      delete store.originalWrite;
+    });
+    await page.locator('[data-command="confirm-settlement"]').click();
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+    const saved = await storedSave(page);
+    assert.equal(saved.version, 4);
+    assert.equal(saved.simulation.ruleset, 'settlement-v4');
+    assert.equal(saved.simulation.world.seed, 'replacement-seed');
+    assert.notEqual(saved.worldId, legacy.worldId);
+    assert.deepEqual(errors, []);
+    console.log('Incompatible save protection passed:', touch ? 'touch' : 'desktop', 'no migration, cancellation, failed write and confirmed replacement');
+    await context.close();
+  }
   {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(url);
-    await page.waitForFunction(() => !document.querySelector('[data-scenario="free-play"]')?.disabled);
+    await page.waitForFunction(() => !document.querySelector('[data-command="new-settlement"]')?.disabled);
     const before = await page.evaluate(async () => {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
       const { project } = await import('/src/games/factory/game/domain.ts');
@@ -226,9 +604,9 @@ try {
     const page = await context.newPage();
     await page.goto(preview ? new URL('../../src/games/factory/assets/preview.html', url).href : url);
     if (!preview) {
-      await page.waitForFunction(() => !document.querySelector('[data-scenario="settlement"]')?.disabled);
-      await page.locator('[data-scenario="settlement"]').click();
-      await page.waitForFunction(() => !document.querySelector('.factory-scenario-dialog').open);
+      await page.waitForFunction(() => !document.querySelector('[data-command="new-settlement"]')?.disabled);
+      await page.locator('[data-command="new-settlement"]').click();
+      await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
       await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
     }
     await page.locator('canvas').waitFor();

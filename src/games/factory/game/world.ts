@@ -3,7 +3,7 @@ import type { Tile } from './domain';
 export const WORLD_SIZE = 256;
 export const CHUNK_SIZE = 32;
 export const GENERATOR_VERSION = 1;
-export const GUIDED_SEED = 'north-bank';
+export const DEFAULT_SEED = 'north-bank';
 export const BIOMES = ['meadow', 'riverbank', 'upland'] as const;
 export type Biome = typeof BIOMES[number];
 export type Ground = 'land' | 'water';
@@ -62,11 +62,10 @@ export class FactoryWorld {
   readonly start: Readonly<Tile> = Object.freeze({ c: 11, r: 11 });
   readonly iron: Readonly<Tile> = Object.freeze({ c: 7, r: 10 });
   readonly copper: Readonly<Tile> = Object.freeze({ c: 9, r: 14 });
-  readonly outpost: Readonly<Tile> = Object.freeze({ c: 16, r: 12 });
   private cells = new Uint8Array(WORLD_SIZE * WORLD_SIZE);
   private seedHash: number;
 
-  constructor(seed = GUIDED_SEED) {
+  constructor(seed = DEFAULT_SEED) {
     this.seed = normalizeSeed(seed);
     this.seedHash = hashSeed(this.seed);
     const riverBase = 76 + randomAt(this.seedHash, 1, 2) * 56;
@@ -154,13 +153,13 @@ export function restoreWorld(value: unknown): FactoryWorld {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Corrupt factory save: missing world identity');
   const source = value as Record<string, unknown>;
   if (source.id !== 'seeded-world' || source.generatorVersion !== GENERATOR_VERSION || source.size !== WORLD_SIZE) {
-    throw new Error('Unsupported factory map version. Start a new factory for this prototype revision.');
+    throw new Error('Unsupported factory map version. Start a new settlement for this prototype revision.');
   }
   if (typeof source.seed !== 'string' || source.seed !== source.seed.trim() || !source.seed || source.seed.length > 64 ||
       !Array.isArray(source.terrainChanges) || source.terrainChanges.length !== 0) {
     throw new Error('Corrupt factory save: invalid generated world identity');
   }
-  if (source.seed === GUIDED_SEED) return DEFAULT_WORLD;
+  if (source.seed === DEFAULT_SEED) return DEFAULT_WORLD;
   if (restoredWorld?.seed !== source.seed) restoredWorld = new FactoryWorld(source.seed);
   return restoredWorld;
 }

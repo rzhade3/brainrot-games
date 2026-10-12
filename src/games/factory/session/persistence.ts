@@ -2,7 +2,7 @@ import { requireSave, saveObject } from './saveState';
 import { FactorySimulation, SimulationSave } from '../game/simulation';
 import { GENERATOR_VERSION, WORLD_SIZE, WorldIdentity } from '../game/world';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 4;
 export const CONTRACT_VERSION = 1;
 
 export interface FactorySave {
@@ -25,11 +25,11 @@ export function createSave(simulation: FactorySimulation, paused: boolean, world
 export function restoreSave(value: unknown): { save: FactorySave; simulation: FactorySimulation } {
   const source = saveObject(value);
   if (source.version !== SAVE_VERSION || source.contractVersion !== CONTRACT_VERSION) {
-    throw new Error('Unsupported factory save version. Start a new factory for this prototype revision.');
+    throw new Error('Unsupported factory save version. Start a new settlement; older saves cannot be resumed.');
   }
   const map = saveObject(source.map);
   if (map.id !== 'seeded-world' || map.generatorVersion !== GENERATOR_VERSION || map.size !== WORLD_SIZE) {
-    throw new Error('Unsupported factory map version. Start a new factory for this prototype revision.');
+    throw new Error('Unsupported factory map version. Start a new settlement for this prototype revision.');
   }
   requireSave(typeof source.worldId === 'string' && source.worldId.length > 0 && source.worldId.length <= 100, 'invalid world identity');
   requireSave(typeof source.savedAt === 'number' && Number.isSafeInteger(source.savedAt) && source.savedAt >= 0, 'invalid save date');

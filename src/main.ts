@@ -17,7 +17,7 @@ const games: GameEntry[] = [
   {
     title: 'Pocket Factory',
     emoji: '🏭',
-    description: 'Build an isometric factory. Complete a Guided Run or explore Free Play, with local autosave and offline resume.',
+    description: 'Build a small settlement. Farm, carry goods, and automate supply chains, with local autosave and offline resume.',
     href: './games/factory/',
     ready: true,
   },

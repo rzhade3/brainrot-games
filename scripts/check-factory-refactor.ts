@@ -6,11 +6,20 @@ import { FactorySimulation } from '../src/games/factory/game/simulation';
 import { advanceTicks, assertInvariants, roundTrip } from './factory-check-helpers';
 
 const factories = [
-  () => FactorySimulation.forScenario('guided'),
-  () => FactorySimulation.forScenario('settlement'),
-  () => FactorySimulation.forScenario('settlement', 'architecture-check'),
   () => {
-    const sim = FactorySimulation.forScenario('settlement');
+    const sim = FactorySimulation.create();
+    for (const building of [
+      { kind: 'miner', c: 7, r: 10, direction: 0 },
+      { kind: 'belt', c: 8, r: 10, direction: 0 },
+      { kind: 'furnace', c: 9, r: 10, direction: 0 },
+      { kind: 'storage', c: 10, r: 10, direction: 0 },
+    ] as const) assert.equal(sim.place(building), null);
+    return sim;
+  },
+  () => FactorySimulation.create(),
+  () => FactorySimulation.create('architecture-check'),
+  () => {
+    const sim = FactorySimulation.create();
     for (let c = 5; c < 22; c++) for (let r = 5; r < 22; r++) {
       if (!sim.placementError({ c, r }, 'food-plot')) {
         assert.equal(sim.place({ c, r, kind: 'food-plot', direction: 0 }), null);

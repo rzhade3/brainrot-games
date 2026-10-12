@@ -1,6 +1,5 @@
 import {
   BELT_TICKS,
-  canHaulFrom, canHaulTo,
   compareTiles,
   EXTRACT_TICKS,
   firstItem, inventory, Inventory, Item,
@@ -9,10 +8,11 @@ import {
   ITEMS,
   MEAL_TICKS,
   moveInventory,
-  RATE_WINDOW_TICKS, STEP_MS, UPGRADED_EXTRACT_TICKS,
+  WorkPriority, WORK_PRIORITIES,
+  STEP_MS, UPGRADED_EXTRACT_TICKS,
 } from './domain';
 import {
-  acceptsInventoryItem, ASSEMBLER_RECIPE, depotNextItem, inputCapacity, inputSlots,
+  acceptsInventoryItem, ASSEMBLER_RECIPE, canHaulBetween, depotNextItem, haulItems, inputCapacity, inputSlots,
   machineCycleTicks,
   MachineRecipe, machineRecipe,
   MachineState,
@@ -20,24 +20,35 @@ import {
   recoverContents, transferMachines, TransportHost,
 } from './machines';
 import {
-  acceptsConveyorInput, Building, BuildingKind, createGuided,
-  Direction, DIRECTION_NAMES,
+  acceptsConveyorInput, Building, BuildingKind, createSettlement,
+  DIRECTION_NAMES,
   DIRECTIONS,
   isConveyor,
-  nextDirection, OUTPOST,
-  outputDirections, placementError, Scenario, Tile, tileKey,
+  nextDirection,
+  NAMES,
+  outputDirections, placementError, Tile, tileKey,
 } from './model';
-import { LegacyProgression, ObjectiveSummary, ORDERS, ProjectId, PROJECTS, ProjectState, ProjectSummary } from './progression';
 import { assertConservation, copyMachine, requireSave, restoreMachine, saveCount, saveInventory, saveObject, saveTile } from '../session/saveState';
-import { Resident, residentName, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
-import { DEFAULT_WORLD, FactoryWorld, GUIDED_SEED, restoreWorld, WorldIdentity } from './world';
-export { BELT_TICKS, EXTRACT_TICKS, inventory, inventoryText, ITEM_NAMES, itemCount, ITEMS, RATE_WINDOW_TICKS, STEP_MS, UPGRADED_EXTRACT_TICKS } from './domain';
+import { Resident, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
+import { gatheringAccess } from './gathering';
+import { DEFAULT_WORLD, FactoryWorld, DEFAULT_SEED, restoreWorld, WorldIdentity } from './world';
+export { BELT_TICKS, EXTRACT_TICKS, inventory, inventoryText, ITEM_NAMES, itemCount, ITEMS, STEP_MS, UPGRADED_EXTRACT_TICKS } from './domain';
 export type { Inventory, Item } from './domain';
 export { ASSEMBLE_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, depotNextItem, SMELT_TICKS } from './machines';
 export type { MachineState } from './machines';
-export { ORDERS, PROJECTS } from './progression';
-export type { ObjectiveSummary, ProjectId, ProjectState, ProjectSummary } from './progression';
 export { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
+
+export interface HaulDestination {
+  building: Readonly<Building>;
+  items: readonly Item[];
+  full: boolean;
+}
+
+export interface HaulInspection {
+  items: readonly Item[];
+  destinations: readonly HaulDestination[];
+  error: string | null;
+}
 
 export interface MachineInspection {
   machine: Readonly<MachineState>;
@@ -49,12 +60,12 @@ export interface MachineInspection {
   cycleTicks: number;
   inputLimits: readonly { item: Item; capacity: number }[];
   deposit: 'iron' | 'copper' | null;
-  farmerName: string | null;
+  staffing: string | null;
   population: number;
-  delivery: { item: Item; quantity: number; accepted: number } | null;
   progress: number;
   nextStoredItem: Item | null;
-  option: { unlocked: boolean; enabled: boolean; project: typeof PROJECTS[number] } | null;
+  option: { enabled: boolean } | null;
+  haul: HaulInspection | null;
 }
 
 export interface FactorySummary {
@@ -64,17 +75,12 @@ export interface FactorySummary {
   smelted: Inventory;
   assembled: Inventory;
   recipeConsumed: Inventory;
-  delivered: Inventory;
-  objective: ObjectiveSummary | null;
-  projects: ProjectSummary;
-  scenario: Scenario;
   ticks: number;
-  settlement: SettlementSave | null;
+  settlement: SettlementSave;
 }
 
 export interface SimulationSave {
   world: WorldIdentity;
-  scenario: Scenario;
   ticks: number;
   accumulator: number;
   machines: MachineState[];
@@ -84,14 +90,8 @@ export interface SimulationSave {
   smelted: Inventory;
   assembled: Inventory;
   recipeConsumed: Inventory;
-  delivered: Inventory;
-  stage: number;
-  orderStarted: number;
-  orderCompleted: number | null;
-  deliveryTicks: number[];
-  projects: ProjectState;
-  ruleset: 'factory-v1' | 'settlement-v1';
-  settlement: SettlementSave | null;
+  ruleset: 'settlement-v4';
+  settlement: SettlementSave;
 }
 
 export class FactorySimulation {
@@ -99,9 +99,8 @@ export class FactorySimulation {
   private machines = new Map<string, MachineState>();
   private lastSource = new Map<string, Tile>();
   private recovered = inventory();
-  private progression = new LegacyProgression();
   private accumulator = 0;
-  private settlement: Settlement | null = null;
+  private settlement: Settlement;
   private orderedMachines: MachineState[] | null = null;
   private readonly productionLedger: ProductionLedger = {
     mined: inventory(), smelted: inventory(), assembled: inventory(), recipeConsumed: inventory(),
@@ -115,28 +114,18 @@ export class FactorySimulation {
   };
   ticks = 0;
 
-  constructor(buildings: ReadonlyMap<string, Building> = new Map(), readonly scenario: Scenario = 'free-play',
-    readonly world: FactoryWorld = DEFAULT_WORLD) {
-    for (const building of [...buildings.values()].sort(compareTiles)) {
-      if (building.outputEnabled !== undefined || building.upgraded !== undefined) throw new Error('Initial machines must use default settings');
-      const error = building.kind === 'outpost' && scenario === 'guided' && tileKey(building) === tileKey(OUTPOST)
-        ? placementError(building, building.kind, this.placed, this.world) : this.placementError(building, building.kind);
+  constructor(readonly world: FactoryWorld = DEFAULT_WORLD) {
+    for (const building of [...createSettlement().values()].sort(compareTiles)) {
+      const error = placementError(building, building.kind, this.placed, this.world);
       if (error) throw new Error(`Invalid initial factory at ${tileKey(building)}: ${error}`);
       this.addMachine(building);
     }
+    this.machines.get('14,12')!.input['food-unit'] = STARTER_FOOD;
+    this.settlement = new Settlement(this.settlementHost());
   }
 
-  static forScenario(scenario: Scenario, seed = GUIDED_SEED): FactorySimulation {
-    const world = seed === GUIDED_SEED || scenario === 'guided' ? DEFAULT_WORLD : new FactoryWorld(seed);
-    const sim = new FactorySimulation(scenario === 'guided' ? createGuided() : new Map(), scenario, world);
-    if (scenario === 'settlement') {
-      sim.addMachine({ kind: 'home', c: 11, r: 12, direction: 0 });
-      sim.addMachine({ kind: 'kitchen', c: 14, r: 12, direction: 0 });
-      sim.addMachine({ kind: 'food-plot', c: 10, r: 9, direction: 0, haulTo: { c: 14, r: 12 } });
-      sim.machines.get('14,12')!.input['food-unit'] = STARTER_FOOD;
-      sim.settlement = new Settlement(sim.settlementHost());
-    }
-    return sim;
+  static create(seed = DEFAULT_SEED): FactorySimulation {
+    return new FactorySimulation(seed === DEFAULT_SEED ? DEFAULT_WORLD : new FactoryWorld(seed));
   }
 
   private settlementHost() {
@@ -153,91 +142,55 @@ export class FactorySimulation {
 
   serialize(): SimulationSave {
     return {
-      world: this.world.identity(), scenario: this.scenario, ticks: this.ticks, accumulator: this.accumulator,
+      world: this.world.identity(), ticks: this.ticks, accumulator: this.accumulator,
       machines: [...this.machines.values()].sort((a, b) => compareTiles(a.building, b.building)).map(copyMachine),
       lastSource: [...this.lastSource.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
         .map(([key, source]) => [key, { ...source }]),
       recovered: { ...this.recovered }, mined: { ...this.productionLedger.mined }, smelted: { ...this.productionLedger.smelted },
-      assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed }, delivered: { ...this.progression.delivered },
-      stage: this.progression.stage, orderStarted: this.progression.orderStarted, orderCompleted: this.progression.orderCompleted,
-      deliveryTicks: [...this.progression.deliveryTicks],
-      projects: { active: this.progression.projects.active, accepted: { ...this.progression.projects.accepted } },
-      ruleset: this.scenario === 'settlement' ? 'settlement-v1' : 'factory-v1',
-      settlement: this.settlement?.serialize() ?? null,
+      assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed },
+      ruleset: 'settlement-v4',
+      settlement: this.settlement.serialize(),
     };
   }
 
   static restore(value: unknown): FactorySimulation {
     const source = saveObject(value);
-    requireSave(source.scenario === 'guided' || source.scenario === 'free-play' || source.scenario === 'settlement', 'unknown scenario');
-    const legacy = source.ruleset === undefined && source.scenario !== 'settlement';
-    requireSave(legacy || source.ruleset === (source.scenario === 'settlement' ? 'settlement-v1' : 'factory-v1'), 'invalid factory ruleset');
+    requireSave(source.ruleset === 'settlement-v4', 'unsupported settlement ruleset; start a new settlement');
+    requireSave(!['scenario', 'delivered', 'stage', 'orderStarted', 'orderCompleted', 'deliveryTicks', 'projects']
+      .some(field => Object.hasOwn(source, field)), 'legacy factory fields; start a new settlement');
     const world = restoreWorld(source.world);
-    requireSave(source.scenario !== 'guided' || world.seed === GUIDED_SEED, 'invalid guided world seed');
-    const sim = new FactorySimulation(new Map(), source.scenario, world);
+    const sim = new FactorySimulation(world);
+    sim.placed.clear();
+    sim.machines.clear();
     sim.ticks = saveCount(source.ticks);
     requireSave(typeof source.accumulator === 'number' && Number.isFinite(source.accumulator) &&
       source.accumulator >= 0 && source.accumulator < STEP_MS, 'invalid clock remainder');
     sim.accumulator = source.accumulator;
-    sim.progression.stage = saveCount(source.stage);
-    sim.progression.orderStarted = saveCount(source.orderStarted);
-    sim.progression.orderCompleted = source.orderCompleted === null ? null : saveCount(source.orderCompleted);
-    requireSave(sim.progression.stage <= ORDERS.length && sim.progression.orderStarted <= (sim.progression.orderCompleted ?? sim.ticks) &&
-      (sim.progression.orderCompleted === null || sim.progression.orderCompleted <= sim.ticks), 'invalid objective timing');
-    sim.recovered = saveInventory(source.recovered, legacy);
-    sim.productionLedger.mined = saveInventory(source.mined, legacy);
-    sim.productionLedger.smelted = saveInventory(source.smelted, legacy);
-    sim.productionLedger.assembled = saveInventory(source.assembled, legacy);
-    sim.productionLedger.recipeConsumed = saveInventory(source.recipeConsumed, legacy);
-    sim.progression.delivered = saveInventory(source.delivered, legacy);
-    if (source.projects !== undefined) {
-      const projects = saveObject(source.projects);
-      requireSave(projects.active === null || PROJECTS.some(project => project.id === projects.active), 'unknown project');
-      const accepted = saveObject(projects.accepted);
-      requireSave(Object.keys(accepted).length === PROJECTS.length, 'invalid project fields');
-      for (const project of PROJECTS) {
-        const count = saveCount(accepted[project.id]);
-        requireSave(count <= project.quantity, 'project over quota');
-        sim.progression.projects.accepted[project.id] = count;
-      }
-      sim.progression.projects.active = projects.active as ProjectId | null;
-      requireSave(sim.progression.projects.active === null || !sim.projectComplete(sim.progression.projects.active), 'completed active project');
-      requireSave(sim.projectsAvailable || sim.progression.projects.active === null && Object.values(sim.progression.projects.accepted).every(count => count === 0),
-        'projects before commissioning');
-    }
+    sim.recovered = saveInventory(source.recovered);
+    sim.productionLedger.mined = saveInventory(source.mined);
+    sim.productionLedger.smelted = saveInventory(source.smelted);
+    sim.productionLedger.assembled = saveInventory(source.assembled);
+    sim.productionLedger.recipeConsumed = saveInventory(source.recipeConsumed);
     requireSave(Array.isArray(source.machines) && source.machines.length <= world.size * world.size, 'invalid machine list');
     for (const entry of source.machines) {
-      const machine = restoreMachine(entry, world, legacy);
+      const machine = restoreMachine(entry, world);
       const { building } = machine;
-      const fixedOutpost = building.kind === 'outpost' && building.direction === 0 &&
-        (sim.scenario === 'guided' ? tileKey(building) === tileKey(OUTPOST)
-          : source.projects !== undefined && !sim.receiver);
-      requireSave(building.kind !== 'outpost' || fixedOutpost, 'invalid fixed outpost');
-      requireSave(!building.upgraded || sim.projectComplete('extraction'), 'locked extractor upgrade');
-      requireSave(!building.outputEnabled || sim.scenario === 'settlement' || sim.projectComplete('buffering'), 'locked depot output');
-      requireSave(!building.haulTo || sim.scenario === 'settlement' && canHaulFrom(building.kind), 'invalid hauling source');
-      const fixedHome = building.kind === 'home' && sim.scenario === 'settlement' && building.c === 11 && building.r === 12 && building.direction === 0;
+      requireSave(!building.haulTo || haulItems(building, world).length > 0, 'invalid hauling source');
+      const fixedHome = building.kind === 'home' && building.c === 11 && building.r === 12 && building.direction === 0;
       requireSave(building.kind !== 'home' || fixedHome, 'invalid founding home');
-      requireSave(!(fixedOutpost ? placementError(building, building.kind, sim.placed, world)
-        : fixedHome ? placementError(building, building.kind, sim.placed, world)
-          : sim.placementError(building, building.kind)), 'invalid machine placement or locked building');
+      requireSave(!placementError(building, building.kind, sim.placed, world), 'invalid machine placement');
       const key = tileKey(building);
       sim.placed.set(key, building);
       sim.machines.set(key, machine);
     }
-    requireSave(sim.scenario !== 'guided' || sim.placed.get(tileKey(OUTPOST))?.kind === 'outpost', 'missing outpost');
-    if (sim.scenario === 'settlement') {
-      requireSave(sim.machines.get('11,12')?.building.kind === 'home', 'missing founding home');
-      sim.settlement = Settlement.restore(source.settlement, sim.settlementHost());
-      requireSave(sim.settlement.state.mealClock === sim.ticks % MEAL_TICKS &&
-        sim.settlement.state.consumedFood + sim.settlement.state.missedMeals === Math.floor(sim.ticks / MEAL_TICKS),
-        'inconsistent resident consumption clock');
-      for (const machine of sim.machines.values()) if (machine.building.haulTo) {
-        requireSave(sim.machines.has(tileKey(machine.building.haulTo)), 'missing hauling target');
-      }
-    } else requireSave(source.settlement === undefined || source.settlement === null, 'residents in legacy factory');
-    requireSave(sim.progression.projects.active === null && Object.values(sim.progression.projects.accepted).every(count => count === 0) || sim.receiver,
-      'missing project receiver');
+    requireSave(sim.machines.get('11,12')?.building.kind === 'home', 'missing founding home');
+    sim.settlement = Settlement.restore(source.settlement, sim.settlementHost());
+    requireSave(sim.settlement.state.mealClock === sim.ticks % MEAL_TICKS &&
+      sim.settlement.state.consumedFood + sim.settlement.state.missedMeals === Math.floor(sim.ticks / MEAL_TICKS),
+      'inconsistent resident consumption clock');
+    for (const machine of sim.machines.values()) if (machine.building.haulTo) {
+      requireSave(sim.machines.has(tileKey(machine.building.haulTo)), 'missing hauling target');
+    }
     requireSave(Array.isArray(source.lastSource) && source.lastSource.length <= sim.machines.size, 'invalid transfer history');
     for (const entry of source.lastSource) {
       requireSave(Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' &&
@@ -247,91 +200,17 @@ export class FactorySimulation {
       requireSave(Math.abs(tile.c - destination.c) + Math.abs(tile.r - destination.r) === 1, 'nonadjacent transfer history');
       sim.lastSource.set(entry[0], tile);
     }
-    requireSave(Array.isArray(source.deliveryTicks) && source.deliveryTicks.length <= 16, 'invalid delivery history');
-    sim.progression.deliveryTicks = source.deliveryTicks.map(saveCount);
-    const end = sim.progression.orderCompleted ?? sim.ticks;
-    requireSave(sim.progression.deliveryTicks.every((tick, i) => tick > sim.progression.orderStarted && tick <= end &&
-      tick > end - RATE_WINDOW_TICKS && (i === 0 || tick >= sim.progression.deliveryTicks[i - 1])), 'invalid delivery rate window');
-    requireSave((sim.progression.stage === ORDERS.length) === (sim.progression.orderCompleted !== null), 'inconsistent completion');
-    if (sim.scenario !== 'guided') {
-      requireSave(sim.progression.stage === 0 && sim.progression.orderStarted === 0 && itemCount(sim.progression.delivered) === 0 &&
-        sim.progression.deliveryTicks.length === 0, 'objectives in Free Play');
-    } else {
-      const copper = sim.progression.delivered['copper-plate'];
-      const supplies = sim.progression.delivered['defense-supply'];
-      requireSave(sim.progression.stage === 0 ? copper < 16 && supplies === 0 && sim.progression.orderStarted === 0
-        : copper === 16 && (sim.progression.stage === 1 ? supplies < 12 : supplies === 12), 'inconsistent order or unlock');
-      requireSave(sim.progression.deliveryTicks.length <= sim.progression.delivered[ORDERS[Math.min(sim.progression.stage, 1)].item], 'excess delivery history');
-    }
-    assertConservation(sim.machines.values(), sim.recovered, sim.productionLedger, sim.progression, sim.settlement?.state ?? null);
+    assertConservation(sim.machines.values(), sim.recovered, sim.productionLedger, sim.settlement.state);
     return sim;
-  }
-
-  get assemblerUnlocked(): boolean {
-    return this.progression.assemblerUnlocked(this.scenario);
-  }
-
-  get projectsAvailable(): boolean {
-    return this.progression.available(this.scenario);
-  }
-
-  get receiver(): Tile | null {
-    const building = [...this.placed.values()].find(building => building.kind === 'outpost');
-    return building ? { c: building.c, r: building.r } : null;
-  }
-
-  projectComplete(id: ProjectId): boolean {
-    return this.progression.projectComplete(id);
-  }
-
-  projectConsumed(item: Item): number {
-    return this.progression.projectConsumed(item);
-  }
-
-  selectProject(id: ProjectId | null): string | null {
-    if (!this.projectsAvailable) return 'Finish guided commissioning first';
-    if (id !== null && (!PROJECTS.some(project => project.id === id) || this.projectComplete(id))) return 'Project already complete or unavailable';
-    if (id !== null && !this.receiver) {
-      let tile: Tile | null = null;
-      for (let radius = 0; radius < this.world.size && !tile; radius++) {
-        for (let c = Math.max(0, OUTPOST.c - radius); c <= Math.min(this.world.size - 1, OUTPOST.c + radius) && !tile; c++) {
-          for (let r = Math.max(0, OUTPOST.r - radius); r <= Math.min(this.world.size - 1, OUTPOST.r + radius); r++) {
-            if (Math.max(Math.abs(c - OUTPOST.c), Math.abs(r - OUTPOST.r)) !== radius) continue;
-            const accessible = DIRECTIONS.some((vector, direction) => {
-              const neighbor = { c: c - vector.c, r: r - vector.r };
-              const source = this.placed.get(tileKey(neighbor));
-              return source ? outputDirections(source).includes(direction as Direction)
-                : !placementError(neighbor, 'belt', this.placed, this.world);
-            });
-            if (accessible && !placementError({ c, r }, 'outpost', this.placed, this.world)) { tile = { c, r }; break; }
-          }
-        }
-      }
-      if (!tile) return 'No clear tile available for a project receiver';
-      this.addMachine({ ...tile, kind: 'outpost', direction: 0 });
-    }
-    this.progression.projects.active = id;
-    return null;
   }
 
   setMachineOption(tile: Tile): string | null {
     const machine = this.machines.get(tileKey(tile));
-    if (!machine) return 'Select an extractor or depot';
+    if (!machine || machine.building.kind !== 'miner') return 'Select an extractor';
     const { building } = machine;
-    if (building.kind === 'miner') {
-      if (!this.projectComplete('extraction')) return 'Complete the extraction commission first';
-      building.upgraded = !building.upgraded;
-      machine.progress = Math.min(machine.progress, (building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS) - 1);
-    } else if (building.kind === 'storage') {
-      if (this.scenario !== 'settlement' && !this.projectComplete('buffering')) return 'Complete the buffering commission first';
-      building.outputEnabled = !building.outputEnabled;
-      machine.progress = 0;
-    } else return 'Select an extractor or depot';
+    building.upgraded = !building.upgraded;
+    machine.progress = Math.min(machine.progress, (building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS) - 1);
     return null;
-  }
-
-  private activeDelivery(): { item: Item; quantity: number; accepted: number } | null {
-    return this.progression.activeDelivery(this.scenario);
   }
 
   get buildings(): ReadonlyMap<string, Building> {
@@ -339,7 +218,7 @@ export class FactorySimulation {
   }
 
   get residents(): readonly Resident[] {
-    return this.settlement?.state.residents ?? [];
+    return this.settlement.state.residents;
   }
 
   get interpolation(): number {
@@ -356,10 +235,6 @@ export class FactorySimulation {
     const { kind } = machine.building;
     const recipe = machineRecipe(machine);
     const cycleTicks = machineCycleTicks(machine);
-    const delivery = this.activeDelivery();
-    const farmer = kind === 'food-plot' ? this.residents.find(resident =>
-      resident.job?.kind === 'farm' && tileKey(resident.job.source) === tileKey(tile)) : null;
-    const project = kind === 'miner' ? PROJECTS[0] : PROJECTS[1];
     return {
       machine, status: this.status(tile), inputCapacity: isConveyor(kind) ? 1 : inputCapacity(kind),
       outputCapacity: outputCapacity(kind),
@@ -371,40 +246,68 @@ export class FactorySimulation {
         item: ingredient.item, capacity: inputCapacity(kind, ingredient.item),
       })) ?? [],
       deposit: kind === 'miner' ? this.world.at(machine.building).deposit : null,
-      farmerName: farmer ? residentName(farmer.id) : null,
+      staffing: haulItems(machine.building, this.world).length ? this.staffing(machine) : null,
       population: this.residents.length,
-      delivery,
       progress: kind === 'kitchen' ? machine.input['food-unit'] / inputCapacity(kind)
         : kind === 'storage' ? itemCount(machine.input) / inputCapacity(kind)
-          : kind === 'outpost' ? delivery ? delivery.accepted / delivery.quantity : 0 : machine.progress / cycleTicks,
+          : machine.progress / cycleTicks,
       nextStoredItem: kind === 'storage' ? depotNextItem(machine) : null,
-      option: kind === 'miner' || kind === 'storage' ? {
-        unlocked: kind === 'storage' && this.scenario === 'settlement' || this.projectComplete(project.id),
-        enabled: !!(kind === 'miner' ? machine.building.upgraded : machine.building.outputEnabled), project,
-      } : null,
+      option: kind === 'miner' ? { enabled: !!machine.building.upgraded } : null,
+      haul: this.inspectHauling(machine),
     };
   }
 
   place(building: Building): string | null {
     const error = this.placementError(building, building.kind);
     if (error) return error;
-    if (building.outputEnabled !== undefined || building.upgraded !== undefined || building.haulTo !== undefined) return 'Place first, then choose the machine option';
+    if (building.upgraded !== undefined || building.haulTo !== undefined || building.workPriority !== undefined) return 'Place first, then choose the machine option';
     this.addMachine(building);
-    if (building.kind === 'food-plot' && this.settlement) {
+    if (building.kind === 'food-plot') {
       const kitchen = [...this.placed.values()].find(value => value.kind === 'kitchen');
       if (kitchen) this.machines.get(tileKey(building))!.building.haulTo = { c: kitchen.c, r: kitchen.r };
     }
-    this.settlement?.layoutChanged();
+    this.settlement.layoutChanged();
     return null;
   }
 
   placementError(tile: Tile, kind: BuildingKind): string | null {
     if (kind === 'home') return 'The founding home stays in place';
-    if (this.scenario !== 'settlement' && (kind === 'food-plot' || kind === 'kitchen')) return 'Start a settlement to build food infrastructure';
-    if (this.settlement?.occupied(tile)) return 'A resident is using this tile';
-    if (kind === 'outpost') return 'The outpost is fixed; it cannot be built or moved';
-    if (kind === 'assembler' && !this.assemblerUnlocked) return 'Deliver 16 copper plates to the outpost to unlock the assembler';
-    return placementError(tile, kind, this.placed, this.world);
+    if (this.settlement.occupied(tile)) return 'A resident is using this tile';
+    const error = placementError(tile, kind, this.placed, this.world);
+    if (error) return error;
+    return kind === 'woodcutting-site' && !gatheringAccess(tile, this.placed, this.world).length
+      ? 'No accessible trees nearby; choose clear land beside a grove' : null;
+  }
+
+  setWorkPriority(tile: Tile, priority: WorkPriority): string | null {
+    const machine = this.machines.get(tileKey(tile));
+    if (!machine || !haulItems(machine.building, this.world).length) return 'Choose a building with resident work';
+    if (!WORK_PRIORITIES.includes(priority)) return 'Choose Low, Normal or High';
+    machine.building.workPriority = priority;
+    return null;
+  }
+
+  private staffing(machine: MachineState): string {
+    const workers = this.residents.filter(resident => resident.job &&
+      tileKey(resident.job.source) === tileKey(machine.building));
+    if (workers.length) return `Working · ${workers.length} ${workers.length === 1 ? 'resident' : 'residents'}`;
+    const { kind } = machine.building;
+    if (kind === 'food-plot' || kind === 'woodcutting-site') {
+      const item = kind === 'food-plot' ? 'food-unit' : 'wood';
+      if (machine.output[item] >= outputCapacity(kind)) return 'Output full';
+      if (kind === 'woodcutting-site' && !gatheringAccess(machine.building, this.buildings, this.world).length) return 'Grove access blocked';
+      return 'Waiting for a resident or clear access';
+    }
+    if (this.settlementHost().automated(machine)) return 'Delivery handled by conveyors';
+    const target = machine.building.haulTo;
+    if (!target) return 'No resident deliveries requested';
+    const destination = this.machines.get(tileKey(target));
+    const stock = kind === 'storage' ? machine.input : machine.output;
+    if (!destination || !ITEMS.some(item => stock[item] > 0 && acceptsInventoryItem(destination.building.kind, item)))
+      return 'Waiting for matching goods';
+    if (!ITEMS.some(item => stock[item] > 0 && acceptsInventoryItem(destination.building.kind, item) &&
+      this.freeSlots(destination, item) > 0)) return 'Destination full';
+    return 'Waiting for a resident or clear access';
   }
 
   private addMachine(building: Building): void {
@@ -421,7 +324,7 @@ export class FactorySimulation {
   rotate(tile: Tile): Building['direction'] {
     const machine = this.machines.get(tileKey(tile));
     if (!machine) throw new Error('Cannot rotate a missing building');
-    if (machine.building.kind === 'outpost' || machine.building.kind === 'home') throw new Error('Cannot rotate the fixed building');
+    if (machine.building.kind === 'home') throw new Error('Cannot rotate the fixed building');
     machine.building.direction = nextDirection(machine.building.direction);
     return machine.building.direction;
   }
@@ -430,14 +333,14 @@ export class FactorySimulation {
     const key = tileKey(tile);
     const machine = this.machines.get(key);
     if (!machine) throw new Error('Cannot remove a missing building');
-    if (machine.building.kind === 'outpost' || machine.building.kind === 'home') throw new Error('Cannot remove the fixed building');
+    if (machine.building.kind === 'home') throw new Error('Cannot remove the fixed building');
     const contents = recoverContents(machine, this.recovered);
     this.placed.delete(key);
     this.machines.delete(key);
     this.orderedMachines = null;
     this.lastSource.delete(key);
     for (const other of this.machines.values()) if (other.building.haulTo && tileKey(other.building.haulTo) === key) delete other.building.haulTo;
-    this.settlement?.layoutChanged();
+    this.settlement.layoutChanged();
     return contents;
   }
 
@@ -456,21 +359,40 @@ export class FactorySimulation {
   }
 
   setHaulTarget(source: Tile, target: Tile | null): string | null {
-    if (!this.settlement) return 'Hauling is available in settlements';
     const machine = this.machines.get(tileKey(source));
-    if (!machine || !canHaulFrom(machine.building.kind)) return 'Choose a production source or depot';
+    if (!machine || !haulItems(machine.building, this.world).length) return 'Choose a source of goods';
     if (target) {
-      const destination = this.machines.get(tileKey(target));
-      if (!destination || tileKey(source) === tileKey(target) ||
-        !canHaulTo(destination.building.kind)) return 'Choose a kitchen, depot, or production input';
-      machine.building.haulTo = { ...target };
+      const error = this.haulDestinationError(machine.building, target);
+      if (error) return error;
+      machine.building.haulTo = { c: target.c, r: target.r };
     } else delete machine.building.haulTo;
     this.settlement.assignmentChanged(source);
     return null;
   }
 
-  objective(): ObjectiveSummary | null {
-    return this.progression.objective(this.scenario, this.ticks);
+  private haulDestinationError(source: Building, target: Tile): string | null {
+    const destination = this.machines.get(tileKey(target));
+    if (!destination || tileKey(source) === tileKey(target)) {
+      return 'Choose another destination';
+    }
+    return canHaulBetween(source, destination.building, this.world) ? null
+      : `${NAMES[destination.building.kind]} cannot accept goods from this ${NAMES[source.kind].toLowerCase()}. Choose another destination.`;
+  }
+
+  private inspectHauling(machine: Readonly<MachineState>): HaulInspection | null {
+    const source = machine.building;
+    const items = haulItems(source, this.world);
+    if (!items.length) return null;
+    const destinations = [...this.machines.values()].filter(target => canHaulBetween(source, target.building, this.world))
+      .sort((a, b) => compareTiles(a.building, b.building)).map(target => {
+        const matching = items.filter(item => acceptsInventoryItem(target.building.kind, item));
+        return { building: target.building, items: matching, full: matching.every(item => this.freeSlots(target, item) <= 0) };
+      });
+    return {
+      items, destinations,
+      // Keep previously saved routes visible so the player can repair them without losing their settlement.
+      error: source.haulTo ? this.haulDestinationError(source, source.haulTo) : null,
+    };
   }
 
   resetClock(): void {
@@ -494,15 +416,12 @@ export class FactorySimulation {
     this.ticks++;
     const machines = this.orderedMachines ??= [...this.machines.values()].sort((a, b) => compareTiles(a.building, b.building));
     for (const machine of machines) produceMachine(machine, this.world, this.productionLedger);
-    this.settlement?.step(this.ticks);
+    this.settlement.step(this.ticks);
     transferMachines(machines, this.lastSource, this.transportHost);
-    this.progression.update(this.scenario, this.ticks);
   }
 
   private receive(machine: MachineState, item: Item): void {
-    if (machine.building.kind === 'outpost') {
-      this.progression.accept(this.scenario, item, this.ticks);
-    } else machine.input[item]++;
+    machine.input[item]++;
   }
 
   private destination(building: Building, direction = building.direction): MachineState | null {
@@ -512,29 +431,24 @@ export class FactorySimulation {
 
   private outgoing(machine: MachineState): Item | null {
     if (machine.building.kind === 'storage') {
-      const item = machine.building.outputEnabled && machine.progress >= BELT_TICKS ? depotNextItem(machine) : null;
-      return item && machine.input[item] > (this.settlement?.reservedSource(machine.building, item) ?? 0) ? item : null;
+      const item = machine.progress >= BELT_TICKS ? depotNextItem(machine) : null;
+      return item && machine.input[item] > this.settlement.reservedSource(machine.building, item) ? item : null;
     }
-    if (machine.building.kind === 'outpost' || machine.building.kind === 'home' || machine.building.kind === 'kitchen') return null;
+    if (machine.building.kind === 'home' || machine.building.kind === 'kitchen') return null;
     if (isConveyor(machine.building.kind)) return machine.progress >= BELT_TICKS ? machine.item : null;
-    return ITEMS.find(item => machine.output[item] > (this.settlement?.reservedSource(machine.building, item) ?? 0)) ?? null;
+    return ITEMS.find(item => machine.output[item] > this.settlement.reservedSource(machine.building, item)) ?? null;
   }
 
   private freeSlots(machine: MachineState, item: Item | null = null): number {
-    const reserved = this.settlement?.reservedDestination(machine.building, item) ?? 0;
+    const reserved = this.settlement.reservedDestination(machine.building, item);
     switch (machine.building.kind) {
       case 'belt':
       case 'splitter': return machine.item ? 0 : 1;
-      case 'outpost': {
-        const order = this.activeDelivery();
-        return order && item === order.item ? order.quantity - order.accepted : 0;
-      }
       default: return inputSlots(machine, item, reserved);
     }
   }
 
   private accepts(machine: MachineState, source: Building, item: Item): boolean {
-    if (machine.building.kind === 'outpost') return item === this.activeDelivery()?.item;
     if (isConveyor(machine.building.kind)) return acceptsConveyorInput(machine.building, source);
     return acceptsInventoryItem(machine.building.kind, item);
   }
@@ -542,11 +456,6 @@ export class FactorySimulation {
   private blockage(machine: MachineState, item: Item | null, direction = machine.building.direction): string | null {
     const target = this.destination(machine.building, direction);
     if (!target) return 'Output disconnected';
-    if (target.building.kind === 'outpost') {
-      const order = this.activeDelivery();
-      if (!order) return 'Order complete or project paused; items retained';
-      if (item !== order.item) return `Outpost needs ${ITEM_NAMES[order.item].toLowerCase()}`;
-    }
     if (item && !this.accepts(target, machine.building, item)) return 'Output incompatible';
     if (this.freeSlots(target, item) <= 0) return 'Output blocked';
     return null;
@@ -559,16 +468,30 @@ export class FactorySimulation {
       case 'home': return this.residents.length === 4 ? 'Four residents; farming and hauling automatically'
         : `${this.residents.length} residents; farming and hauling automatically`;
       case 'food-plot': {
-        const worker = this.settlement?.state.residents.find(resident => resident.job?.kind === 'farm' &&
+        const worker = this.settlement.state.residents.find(resident => resident.job?.kind === 'farm' &&
           tileKey(resident.job.source) === tileKey(tile));
-        return !worker ? 'No farmer available or access blocked'
-          : itemCount(machine.output) >= outputCapacity(machine.building.kind) ? 'Plot full; transport needed'
+        return itemCount(machine.output) >= outputCapacity(machine.building.kind) ? 'Plot full; transport needed'
+          : !worker ? 'Waiting for a resident or clear access'
             : worker.job?.path.length ? 'Farmer approaching' : 'Growing food';
+      }
+      case 'woodcutting-site': {
+        const worker = this.residents.find(resident => (resident.job?.kind === 'gather' || resident.job?.kind === 'return-wood') &&
+          tileKey(resident.job.source) === tileKey(tile));
+        if (itemCount(machine.output) >= outputCapacity(machine.building.kind)) return 'Site full; transport needed';
+        if (!worker) return gatheringAccess(tile, this.buildings, this.world).length ? 'Waiting for a resident or clear access' : 'Grove access blocked';
+        if (worker.job?.kind === 'return-wood') return 'Wood returning to site';
+        if (worker.job?.kind === 'gather') {
+          const destination = this.destination(machine.building);
+          const transport = machine.building.haulTo || destination && this.accepts(destination, machine.building, 'wood');
+          const activity = worker.job.path.length ? 'Woodcutter approaching grove' : 'Gathering wood';
+          return transport ? activity : `${activity}; no transport chosen`;
+        }
+        return worker.note;
       }
       case 'kitchen': return machine.input['food-unit'] > 0 ? this.residents.length === 4 ? 'Provisioning four residents'
         : `Provisioning ${this.residents.length} residents` : 'Food shortage; residents keep working';
       case 'storage':
-        if (!machine.building.outputEnabled) return this.freeSlots(machine) === 0 ? 'Depot full' : 'Receiving (storage only)';
+        if (!this.destination(machine.building)) return this.freeSlots(machine) === 0 ? 'Depot full' : 'Storing goods';
         return !depotNextItem(machine) ? 'Waiting for stock'
           : this.blockage(machine, depotNextItem(machine)) ?? (machine.progress < BELT_TICKS ? 'Preparing output' : 'Ready to transfer');
       case 'belt':
@@ -599,9 +522,6 @@ export class FactorySimulation {
         if (missing.length) return `Needs ${missing[0].quantity} ${ITEM_NAMES[missing[0].item].toLowerCase().replace(/s$/, missing[0].quantity === 1 ? '' : 's')}`;
         return 'Assembling';
       }
-      case 'outpost':
-        return this.activeDelivery() ? `Receiving ${ITEM_NAMES[this.activeDelivery()!.item].toLowerCase()}`
-          : this.scenario === 'guided' ? 'Factory preparation complete; optional projects available' : 'No active project';
     }
   }
 
@@ -614,10 +534,8 @@ export class FactorySimulation {
     }
     return {
       stored, recovered: { ...this.recovered }, mined: { ...this.productionLedger.mined }, smelted: { ...this.productionLedger.smelted },
-      assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed }, delivered: { ...this.progression.delivered },
-      objective: this.objective(), projects: { active: this.progression.projects.active, accepted: { ...this.progression.projects.accepted },
-        available: this.projectsAvailable, receiver: this.receiver }, scenario: this.scenario, ticks: this.ticks,
-      settlement: this.settlement?.serialize() ?? null,
+      assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed }, ticks: this.ticks,
+      settlement: this.settlement.serialize(),
     };
   }
 

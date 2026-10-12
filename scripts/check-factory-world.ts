@@ -5,7 +5,7 @@ import { Landscape } from '../src/games/factory/rendering/landscape';
 import { HALF_HEIGHT, HALF_WIDTH, project, tileKey } from '../src/games/factory/game/model';
 import { createSave, restoreSave } from '../src/games/factory/session/persistence';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { BIOMES, CHUNK_SIZE, FactoryWorld, GUIDED_SEED, WORLD_SIZE } from '../src/games/factory/game/world';
+import { BIOMES, CHUNK_SIZE, FactoryWorld, DEFAULT_SEED, WORLD_SIZE } from '../src/games/factory/game/world';
 
 assert.equal(WORLD_SIZE, 256);
 assert.equal(CHUNK_SIZE, 32);
@@ -136,7 +136,7 @@ for (let r = 0; r <= 256; r += 8) {
 assert.ok(maxChunks < 64, 'Camera must not retain the entire world');
 
 const world = new FactoryWorld('remote-factory');
-const sim = new FactorySimulation(new Map(), 'free-play', world);
+const sim = new FactorySimulation(world);
 let oreTile: { c: number; r: number } | null = null;
 for (let r = 64; r < 200 && !oreTile; r++) {
   for (let c = 64; c < 200; c++) {
@@ -170,8 +170,8 @@ assert.deepEqual(resumed.serialize(), sim.serialize());
 const invalid = structuredClone(saved);
 invalid.map.seed = 'another-seed';
 assert.throws(() => restoreSave(invalid), /identity mismatch/);
-assert.equal(FactorySimulation.forScenario('guided', 'ignored-user-seed').world.seed, GUIDED_SEED);
-assert.equal(FactorySimulation.forScenario('free-play', 'chosen-user-seed').world.seed, 'chosen-user-seed');
+assert.equal(FactorySimulation.create().world.seed, DEFAULT_SEED);
+assert.equal(FactorySimulation.create('chosen-user-seed').world.seed, 'chosen-user-seed');
 assert.equal(project(255, 255).y, 510 * HALF_HEIGHT);
 assert.equal(project(255, 0).x, 255 * HALF_WIDTH);
 console.log(`Factory world checks passed: 32 seeds, all regions/playable starts, deterministic boundaries, remote production/save restoration, camera coverage; 4 full-world visual checks for seeded detail, color blending, shore continuity, unchanged terrain, and bounded caching; max ${maxChunks} resident chunks, max generation ${maxGenerateMs.toFixed(1)}ms (local Node, not a phone benchmark).`);

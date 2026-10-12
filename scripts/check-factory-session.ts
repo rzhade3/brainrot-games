@@ -27,7 +27,7 @@ function fixture(store = new Store()) {
   const statuses: { text: string; error?: boolean; retry?: boolean }[] = [];
   const activations: FactorySimulation[] = [];
   const session = new FactorySession({
-    setSavedScenario() {},
+    setSavedSettlement() {},
     setSaveStatus(text, error, retry) { statuses.push({ text, error, retry }); },
   }, simulation => activations.push(simulation), store);
   return { store, session, statuses, activations };
@@ -35,11 +35,11 @@ function fixture(store = new Store()) {
 {
   const { store, session, statuses, activations } = fixture();
   await session.load();
-  assert.equal(await session.replace('settlement', 'north-bank'), true);
+  assert.equal(await session.replace('north-bank'), true);
   const original = session.simulation;
   const originalId = session.worldId;
   store.failure = new Error('quota exceeded');
-  assert.equal(await session.replace('guided', 'new-world'), false);
+  assert.equal(await session.replace('new-world'), false);
   assert.equal(session.simulation, original);
   assert.equal(session.worldId, originalId);
   assert.equal(activations.length, 1);
@@ -79,7 +79,7 @@ function fixture(store = new Store()) {
   store.failure = null;
   await session.save(true);
   assert.equal(store.writes.length, count + 2, 'Conflicts block even forced saves');
-  assert.equal(await session.replace('guided', 'replacement'), true);
+  assert.equal(await session.replace('replacement'), true);
   session.changed(false);
   await session.save();
   assert.equal(store.saved!.worldId, session.worldId);
@@ -87,12 +87,12 @@ function fixture(store = new Store()) {
   assert.equal(store.closed, true);
   const closedCount = store.writes.length;
   await session.save(true);
-  assert.equal(await session.replace('guided', 'closed'), false);
+  assert.equal(await session.replace('closed'), false);
   assert.equal(store.writes.length, closedCount);
 }
 {
   const { store, session, activations, statuses } = fixture();
-  store.saved = createSave(FactorySimulation.forScenario('guided'), true, 'resume-check');
+  store.saved = createSave(FactorySimulation.create(), true, 'resume-check');
   await session.load();
   session.resume();
   assert.equal(session.paused, true);
@@ -116,14 +116,14 @@ function fixture(store = new Store()) {
 {
   const { store, session, activations } = fixture();
   await session.load();
-  await session.replace('guided', 'old-world');
+  await session.replace('old-world');
   const old = session.simulation;
   const oldId = session.worldId;
   store.hold = true;
   session.changed(false);
   const saving = session.save();
   await flush();
-  const replacing = session.replace('settlement', 'new-world');
+  const replacing = session.replace('new-world');
   session.resume();
   assert.equal(session.simulation, old, 'Resume must not interrupt a pending replacement');
   assert.equal(activations.length, 1);
@@ -139,7 +139,7 @@ function fixture(store = new Store()) {
   assert.equal(await replacing, true);
   assert.notEqual(session.worldId, oldId);
   assert.equal(store.saved!.worldId, session.worldId);
-  assert.equal(session.simulation.scenario, 'settlement');
+  assert.equal(session.simulation.world.seed, 'new-world');
 }
 {
   const { store, session, statuses } = fixture();

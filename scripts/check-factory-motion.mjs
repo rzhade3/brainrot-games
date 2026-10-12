@@ -18,18 +18,33 @@ try {
     });
     const page = await context.newPage();
     await page.goto(url);
-    await page.waitForFunction(() => !document.querySelector('[data-scenario="settlement"]')?.disabled);
-    await page.locator('[data-scenario="settlement"]').click();
-    await page.waitForFunction(() => !document.querySelector('.factory-scenario-dialog').open);
+    await page.waitForFunction(() => !document.querySelector('[data-command="new-settlement"]')?.disabled);
+    await page.locator('[data-command="new-settlement"]').click();
+    await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
     const hashes = await page.evaluate(async () => {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
       const { FactorySimulation } = await import('/src/games/factory/game/simulation.ts');
-      const { createDemo, project } = await import('/src/games/factory/game/model.ts');
+      const { project } = await import('/src/games/factory/game/model.ts');
       game.loop.stop();
       const scene = game.scene.getScene('FactoryScene');
-      const sim = new FactorySimulation(createDemo(), 'free-play');
+      const sim = FactorySimulation.create();
+      for (const building of [
+        { kind: 'miner', c: 7, r: 10, direction: 0 },
+        { kind: 'belt', c: 8, r: 10, direction: 0 },
+        { kind: 'furnace', c: 9, r: 10, direction: 0 },
+        { kind: 'belt', c: 10, r: 10, direction: 0 },
+        { kind: 'storage', c: 11, r: 10, direction: 0 },
+      ]) {
+        const error = sim.place(building);
+        if (error) throw new Error(`Motion fixture: ${error}`);
+      }
       for (let tick = 0; tick < 60; tick++) sim.step();
-      scene.startScenario(sim);
+      const snapshot = sim.serialize();
+      if (!snapshot.machines.some(machine => machine.item) ||
+          !snapshot.machines.some(machine => machine.building.kind === 'furnace' && machine.running)) {
+        throw new Error('Motion fixture must include real conveyor cargo and an active smelter');
+      }
+      scene.startSettlement(sim);
       const center = project(12, 12);
       scene.zoom = 0.8;
       scene.cameras.main.setZoom(scene.zoom * scene.dpr).centerOn(center.x, center.y);

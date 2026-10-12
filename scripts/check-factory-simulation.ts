@@ -4,18 +4,19 @@ import {
   acceptsInventoryItem, ASSEMBLER_RECIPE, hasRecipeInputs, inputCapacity, inputSlots, outputCapacity,
   producesInventoryItem, SMELTER_RECIPES,
 } from '../src/games/factory/game/machines';
-import { Building, BuildingKind, createDemo, Direction, DIRECTIONS, isConveyor, outputDirections, Tile, tileKey } from '../src/games/factory/game/model';
+import { Building, BuildingKind, Direction, DIRECTIONS, isConveyor, outputDirections, Tile, tileKey } from '../src/games/factory/game/model';
 import {
   BELT_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, EXTRACT_TICKS, FactorySimulation,
   inventory, itemCount, ITEMS,
 } from '../src/games/factory/game/simulation';
+import { createDemo, emptyFactory, factoryFrom } from './factory-check-helpers';
 
 function building(kind: BuildingKind, c: number, r: number, direction: Direction = 0): Building {
   return { kind, c, r, direction };
 }
 
 function factory(...buildings: Building[]): FactorySimulation {
-  const simulation = new FactorySimulation();
+  const simulation = emptyFactory();
   for (const value of buildings) assert.equal(simulation.place(value), null);
   return simulation;
 }
@@ -72,10 +73,10 @@ const machineRules: Record<BuildingKind, { input: number; output: number; items:
   furnace: { input: 4, output: 4, items: ['iron-ore', 'copper-ore'] },
   storage: { input: 64, output: 0, items: ITEMS },
   assembler: { input: 8, output: 4, items: ['iron-plate', 'copper-plate'] },
-  outpost: { input: 0, output: 0, items: [] },
   home: { input: 0, output: 0, items: [] },
   'food-plot': { input: 0, output: 4, items: [] },
   kitchen: { input: 16, output: 0, items: ['food-unit'] },
+  'woodcutting-site': { input: 0, output: 4, items: [] },
 };
 for (const kind of Object.keys(machineRules) as BuildingKind[]) {
   const expected = machineRules[kind];
@@ -92,6 +93,7 @@ for (const item of ITEMS) {
   assert.equal(producesInventoryItem('furnace', item, null), item === 'iron-plate' || item === 'copper-plate');
   assert.equal(producesInventoryItem('assembler', item, null), item === 'defense-supply');
   assert.equal(producesInventoryItem('food-plot', item, null), item === 'food-unit');
+  assert.equal(producesInventoryItem('woodcutting-site', item, null), item === 'wood');
 }
 assert.deepEqual(SMELTER_RECIPES['iron-ore'], {
   inputs: [{ item: 'iron-ore', quantity: 1 }], output: { item: 'iron-plate', quantity: 1 }, ticks: 16,
@@ -121,7 +123,7 @@ assert.equal(assemblyInspection.cycleTicks, 20);
 assert.equal(assemblyInspection.status, 'Needs 2 iron + 1 copper plate');
 assert.throws(() => ingredientFactory.inspectMachine({ c: 0, r: 0 }), /missing/);
 
-const demo = new FactorySimulation(createDemo());
+const demo = factoryFrom(createDemo());
 run(demo, 300);
 assert.ok(demo.summary().stored['iron-plate'] > 0, 'Complete iron production chain must deliver plates');
 assert.ok(demo.summary().stored['copper-plate'] > 0, 'Existing copper study line must also deliver plates');
@@ -200,7 +202,7 @@ run(inFlight, EXTRACT_TICKS + 2);
 assert.equal(inFlight.remove({ c: 8, r: 10 })['iron-ore'], 1, 'Dismantling a conveyor must recover its traveling item');
 conserved(inFlight);
 
-const midRecipe = new FactorySimulation(createDemo());
+const midRecipe = factoryFrom(createDemo());
 for (let i = 0; i < 200 && midRecipe.getState({ c: 12, r: 10 })!.progress !== 5; i++) midRecipe.step();
 assert.equal(midRecipe.getState({ c: 12, r: 10 })!.progress, 5);
 const smelterContents = midRecipe.remove({ c: 12, r: 10 });
@@ -273,8 +275,8 @@ run(incompatible, 300);
 assert.equal(itemCount(incompatible.getState({ c: 11, r: 10 })!.input), 0, 'Smelters must reject plates');
 assert.equal(incompatible.status({ c: 10, r: 10 }), 'Output incompatible');
 
-const sixtyFps = new FactorySimulation(createDemo());
-const thirtyFps = new FactorySimulation(createDemo());
+const sixtyFps = factoryFrom(createDemo());
+const thirtyFps = factoryFrom(createDemo());
 for (let i = 0; i < 120; i++) sixtyFps.advance(1000 / 60);
 for (let i = 0; i < 60; i++) thirtyFps.advance(1000 / 30);
 assert.equal(sixtyFps.ticks, 20);
@@ -290,7 +292,7 @@ clock.advance(10000);
 assert.equal(clock.ticks, 3, 'Long suspension gaps must not fast-forward the factory');
 assert.throws(() => clock.advance(-1), /nonnegative/);
 assert.throws(() => clock.advance(Number.NaN), /finite/);
-assert.deepEqual(inventory(), { 'iron-ore': 0, 'copper-ore': 0, 'iron-plate': 0, 'copper-plate': 0, 'defense-supply': 0, 'food-unit': 0 });
+assert.deepEqual(inventory(), { 'iron-ore': 0, 'copper-ore': 0, 'iron-plate': 0, 'copper-plate': 0, 'defense-supply': 0, 'food-unit': 0, wood: 0 });
 assert.match(opposing.place(building('belt', 8, 10))!, /occupied/);
 assert.match(opposing.place(building('belt', 8.5, 10))!, /Outside/);
 assert.throws(() => opposing.remove({ c: 0, r: 0 }), /missing/);
@@ -344,7 +346,7 @@ assert.ok(incompatibleSplit.summary().stored['iron-plate'] > 10, 'Incompatible s
 assert.equal(itemCount(incompatibleSplit.getState({ c: 11, r: 10 })!.input), 0);
 
 for (const direction of [0, 1, 2, 3] as const) {
-  const router = building('splitter', 12, 12, direction);
+  const router = building('splitter', 18, 18, direction);
   for (const incoming of [0, 1, 2, 3] as const) {
     const vector = DIRECTIONS[incoming];
     const sender = building('belt', router.c - vector.c, router.r - vector.r, incoming);
@@ -433,7 +435,7 @@ const drawnBeforeUndo = drawnFactory.snapshot();
 const undone = undoRoute(drawnFactory, applied.placed);
 assert.equal(undone.removed, 6);
 assert.ok(itemCount(undone.recovered) > 0, 'Group undo recovers cargo that entered after drawing');
-assert.equal(drawnFactory.buildings.size, 2);
+assert.equal(drawnFactory.buildings.size, 3, 'Undo preserves the founding home and both existing endpoints');
 assert.deepEqual(drawnFactory.summary().stored, drawnBeforeUndo.stored, 'Undo leaves existing receivers and delivered inventory intact');
 conserved(drawnFactory);
 assert.equal(undoRoute(drawnFactory, applied.placed).removed, 0, 'Repeated undo cannot duplicate recovered cargo');
@@ -459,8 +461,8 @@ conserved(staleTrail);
 
 for (const direction of [0, 1, 2, 3] as const) {
   const vector = DIRECTIONS[direction];
-  const source = building('furnace', 12, 12, direction);
-  const receiver = building('storage', 12 + vector.c * 4, 12 + vector.r * 4);
+  const source = building('furnace', 18, 18, direction);
+  const receiver = building('storage', 18 + vector.c * 4, 18 + vector.r * 4);
   const ports = factory(source, receiver);
   const planned = planRoute(ports, source, receiver);
   assert.equal(planned.blocked, null);
@@ -472,8 +474,8 @@ for (const direction of [0, 1, 2, 3] as const) {
   assert.equal(ports.buildings.get(tileKey(receiver))!.kind, 'storage');
   assert.equal(undoRoute(ports, committed.placed).removed, 3);
 
-  const splitter = building('splitter', 12, 12, direction);
-  const behind = { c: 12 - vector.c * 4, r: 12 - vector.r * 4 };
+  const splitter = building('splitter', 18, 18, direction);
+  const behind = { c: 18 - vector.c * 4, r: 18 - vector.r * 4 };
   const splitInput = factory(splitter);
   const rear = planRoute(splitInput, behind, splitter);
   assert.equal(rear.blocked, null);
@@ -481,7 +483,7 @@ for (const direction of [0, 1, 2, 3] as const) {
   assert.ok(rear.buildings.every(value => value.direction === direction), 'Splitter destination uses its rear input only');
   for (const output of outputDirections(splitter)) {
     const along = DIRECTIONS[output];
-    const splitOutput = planRoute(splitInput, splitter, { c: 12 + along.c * 4, r: 12 + along.r * 4 });
+    const splitOutput = planRoute(splitInput, splitter, { c: 18 + along.c * 4, r: 18 + along.r * 4 });
     assert.equal(splitOutput.blocked, null);
     assert.equal(splitOutput.buildings.length, 4);
     assert.ok(splitOutput.buildings.every(value => value.direction === output), 'Both splitter outputs can anchor a route');
@@ -505,9 +507,9 @@ const endpointPreview = planRoute(endpointChanged, { c: 10, r: 10 }, { c: 14, r:
 endpointChanged.rotate({ c: 10, r: 10 });
 endpointChanged.place(building('splitter', 10, 11));
 assert.equal(commitRoute(endpointChanged, endpointPreview).placed.length, 0, 'Commit rechecks changed source ports and their obstructions atomically');
-assert.equal(endpointChanged.buildings.size, 3);
+assert.equal(endpointChanged.buildings.size, 4);
 endpointChanged.remove({ c: 10, r: 11 });
 assert.match(commitRoute(endpointChanged, endpointPreview).error!, /Route changed/,
   'A changed but unobstructed source cannot build a different route from the inspected preview');
-assert.equal(endpointChanged.buildings.size, 2);
+assert.equal(endpointChanged.buildings.size, 3);
 console.log('Factory simulation checks passed: complete chains, bounded buffers, congestion, deterministic/fair transfers, splitter routing, anchored-route production/group undo/atomic revalidation, conservation, turns, recovery, reconnection, and fixed-step timing.');
