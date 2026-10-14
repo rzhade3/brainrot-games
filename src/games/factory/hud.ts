@@ -7,7 +7,7 @@ import {
   ITEM_NAMES,
   itemCount,
   MachineInspection,
-  FLOW_MIN_TICKS,
+  FLOW_MIN_TICKS, FLOW_TICKS,
   ResourceInspection, ResourceVerdict,
   STEP_MS, UPGRADED_EXTRACT_TICKS, workerSlots,
 } from './game/simulation';
@@ -847,7 +847,7 @@ export class FactoryHud {
       </div>
       <footer class="factory-picker-footer"><p>${this.resourceItem
         ? 'Select a location to inspect its contents, connections and work priority.'
-        : 'Rates cover the last minute of work. Select a resource to find what is holding it up.'}</p></footer>`;
+        : `Rates cover the last ${FLOW_TICKS * STEP_MS / 1000} seconds of work. Select a resource to find what is holding it up.`}</p></footer>`;
     this.updateResources();
   }
 
@@ -1207,7 +1207,7 @@ function rateText(perMinute: number): string {
 function flowText(resource: ResourceInspection): string {
   const { flow } = resource;
   if (!flow.ticks) return `Measuring · first ${FLOW_MIN_TICKS * STEP_MS / 1000}s of work`;
-  return `Made ${rateText(flow.made)}/min · Used ${rateText(flow.used)}/min`;
+  return `Making ${rateText(flow.made)}/min · Using ${rateText(flow.used)}/min`;
 }
 
 function verdictText(resource: ResourceInspection): string {

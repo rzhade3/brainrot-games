@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { EXTRACT_TICKS, HOUSE_WOOD_COST, Item, RESIDENT_FOOD_TICKS } from '../src/games/factory/game/domain';
 import {
-  FactorySimulation, FLOW_MIN_TICKS, FLOW_TICKS, ResourceInspection, resourceVerdict, SMELT_TICKS,
+  FactorySimulation, FLOW_MIN_TICKS, FLOW_TICKS, MINUTE_TICKS, ResourceInspection, resourceVerdict, SMELT_TICKS,
 } from '../src/games/factory/game/simulation';
 import { advanceTicks, createDemo, emptyFactory, factoryFrom } from './factory-check-helpers';
 
 const resource = (sim: FactorySimulation, item: Item) => sim.inspectResources().find(value => value.item === item)!;
+/** One unit counted inside or outside the window moves a per-minute rate by this much. */
+const unit = MINUTE_TICKS / FLOW_TICKS;
 const near = (actual: number, expected: number, message: string) =>
-  assert.ok(Math.abs(actual - expected) <= 1, `${message}: ${actual} vs ${expected}`);
+  assert.ok(Math.abs(actual - expected) <= unit, `${message}: ${actual} vs ${expected}`);
 
 // Rates are measured in simulation time and withheld until enough work has been observed.
 const settlement = FactorySimulation.create();
@@ -18,8 +20,8 @@ advanceTicks(settlement, FLOW_MIN_TICKS - 2);
 assert.equal(resource(settlement, 'food-unit').flow.ticks, 0, 'Still measuring before the minimum window');
 advanceTicks(settlement, FLOW_TICKS + 2);
 const food = resource(settlement, 'food-unit');
-assert.ok(food.flow.ticks >= FLOW_TICKS && food.flow.ticks < FLOW_TICKS + 20, 'Rates cover about one minute');
-const need = 4 * FLOW_TICKS / RESIDENT_FOOD_TICKS;
+assert.ok(food.flow.ticks >= FLOW_TICKS && food.flow.ticks < FLOW_TICKS + 20, 'Rates cover about twenty seconds');
+const need = 4 * MINUTE_TICKS / RESIDENT_FOOD_TICKS;
 assert.equal(food.flow.needed, need);
 near(food.flow.used, need, 'Four residents eat their measured need');
 assert.ok(food.flow.made > 0, 'Starter plots grow food');
@@ -33,7 +35,7 @@ const demo = factoryFrom(createDemo());
 advanceTicks(demo, 900);
 const ore = resource(demo, 'iron-ore');
 assert.ok(SMELT_TICKS > EXTRACT_TICKS, 'This chain has a faster extractor than smelter');
-near(ore.flow.made, FLOW_TICKS / SMELT_TICKS, 'The slower smelter limits extraction');
+near(ore.flow.made, MINUTE_TICKS / SMELT_TICKS, 'The slower smelter limits extraction');
 near(ore.flow.used, ore.flow.made, 'Ore is used as fast as it is made');
 near(resource(demo, 'iron-plate').flow.made, ore.flow.used, 'Each ore becomes one plate');
 assert.equal(resource(demo, 'iron-plate').flow.used, 0);

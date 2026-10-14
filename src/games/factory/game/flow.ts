@@ -1,10 +1,12 @@
 import { inventory, Inventory, ITEMS, STEP_MS } from './domain';
 
-/** Resource flow is measured over the last minute of simulation time. */
-export const FLOW_TICKS = 60_000 / STEP_MS;
+/** Resource flow is measured over the last 20 seconds of simulation time. */
+export const FLOW_TICKS = 20_000 / STEP_MS;
+/** Rates are reported per simulation minute. */
+export const MINUTE_TICKS = 60_000 / STEP_MS;
 export const FLOW_SAMPLE_TICKS = 1000 / STEP_MS;
 /** Rates are withheld until this much simulation time has been observed. */
-export const FLOW_MIN_TICKS = 10 * FLOW_SAMPLE_TICKS;
+export const FLOW_MIN_TICKS = 5 * FLOW_SAMPLE_TICKS;
 
 export interface FlowTotals {
   made: Inventory;
@@ -44,7 +46,7 @@ export class FlowTracker {
     const made = inventory();
     const used = inventory();
     if (ticks < FLOW_MIN_TICKS) return { ticks: 0, made, used, missedFood: 0 };
-    const scale = FLOW_TICKS / ticks;
+    const scale = MINUTE_TICKS / ticks;
     for (const item of ITEMS) {
       made[item] = (last.made[item] - first.made[item]) * scale;
       used[item] = (last.used[item] - first.used[item]) * scale;

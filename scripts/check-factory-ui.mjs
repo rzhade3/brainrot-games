@@ -151,10 +151,10 @@ try {
       scene.refreshSimulationHud();
     });
     await page.getByRole('button', { name: 'Resources', exact: true }).click();
-    assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Made [\d.]+\/min · Used [\d.]+\/min/);
+    assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Making [\d.]+\/min · Using [\d.]+\/min/);
     assert.equal(await page.locator('[data-resource="iron-ore"]').count(), 0, 'Ore stays hidden until mining is discovered');
     await page.locator('[data-resource="food-unit"]').click();
-    assert.match(await page.locator('#factory-resource-flow').innerText(), /Made .*Used .*Residents need 24\/min/);
+    assert.match(await page.locator('#factory-resource-flow').innerText(), /Making .*Using .*Residents need 24\/min/);
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Settlement menu', exact: true }).click();
     const settlementBefore = await gameState(page);

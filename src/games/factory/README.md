@@ -93,7 +93,8 @@ inspector. Residents remain inspectable on the map and at the homestead.
 Each resource row also shows made and used rates per simulation minute and one
 verdict (Short, Stuck, Backed up, Idle, Falling, Keeping up, Not in use or
 Measuring). `game/flow.ts` samples cumulative production ledgers once per
-simulation second; rates are unsaved and re-measure after loading. Verdicts
+simulation second over a 20-second window (`FLOW_TICKS`), scaled to per-minute
+units (`MINUTE_TICKS`); rates are unsaved and re-measure after loading. Verdicts
 come from `inspectResources()`: waiting consumers, full producers and
 unstaffed sites are judged from current building state, and drilldowns list
 those locations first with one suggested action.

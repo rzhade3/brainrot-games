@@ -18,7 +18,7 @@ import {
   outputCapacity, produceMachine, ProductionLedger,
   recoverContents, SMELTER_RECIPES, transferMachines, TransportHost, workerSlots,
 } from './machines';
-import { FLOW_SAMPLE_TICKS, FLOW_TICKS, FlowTotals, FlowTracker } from './flow';
+import { FLOW_SAMPLE_TICKS, FlowTotals, FlowTracker, MINUTE_TICKS } from './flow';
 import {
   DISCOVERIES, discoveredItems, discoveryProgress, newlyDiscovered, nextDiscovery, sortKinds, STARTING_KINDS,
 } from './discovery';
@@ -39,7 +39,7 @@ import { DEFAULT_WORLD, FactoryWorld, DEFAULT_SEED, restoreWorld, WorldIdentity 
 export { BELT_TICKS, EXTRACT_TICKS, inventory, inventoryText, ITEM_NAMES, itemCount, ITEMS, STEP_MS, UPGRADED_EXTRACT_TICKS } from './domain';
 export type { Inventory, Item } from './domain';
 export { workerSlots } from './machines';
-export { FLOW_MIN_TICKS, FLOW_TICKS } from './flow';
+export { FLOW_MIN_TICKS, FLOW_TICKS, MINUTE_TICKS } from './flow';
 export { DISCOVERIES, STARTING_KINDS } from './discovery';
 export { ASSEMBLE_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, depotNextItem, SMELT_TICKS } from './machines';
 export type { MachineState } from './machines';
@@ -694,7 +694,7 @@ export class FactorySimulation {
       recovered: this.recovered[item], locations: [],
       flow: {
         ticks: rates.ticks, made: rates.made[item], used: rates.used[item],
-        needed: item === 'food-unit' ? this.residents.length * FLOW_TICKS / RESIDENT_FOOD_TICKS : null,
+        needed: item === 'food-unit' ? this.residents.length * MINUTE_TICKS / RESIDENT_FOOD_TICKS : null,
         missedFood: item === 'food-unit' ? rates.missedFood : 0,
       },
       verdict: 'measuring', waitingConsumers: 0, blockedProducers: 0, idleProducers: 0, producers: 0, consumers: 0,

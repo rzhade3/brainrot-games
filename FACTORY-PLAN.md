@@ -1602,11 +1602,13 @@ panel or event feed.
   rows with a colored mark; there is no changing summary line, so live updates
   never shift the layout. Rows keep a stable order so live updates never move focus.
 - Rates come from a headless `game/flow.ts` tracker sampling cumulative ledgers
-  once per simulation second over the last simulation minute. Paused, hidden or
-  closed time does not count. Rates are withheld for the first ten seconds and
+  once per simulation second over the last 20 simulation seconds, scaled to
+  per-minute units so a fix shows within seconds while one meal or delivery
+  moves a rate by only about 3/min. Paused, hidden or closed time does not
+  count. Rates are withheld for the first five seconds and
   are not saved; loading starts a fresh measurement instead of inventing history.
-- Made counts extraction (both kinds), smelting, assembly, harvested food and
-  gathered wood. Used counts smelter ore, assembler plates, eaten food and wood
+- Making counts extraction (both kinds), smelting, assembly, harvested food and
+  gathered wood. Using counts smelter ore, assembler plates, eaten food and wood
   installed in houses. Food also shows what the current residents need.
 - Verdicts judge current building states first, then measured flow: missed meals
   or consumers waiting for an input are Short; producers full while consumers
