@@ -460,15 +460,15 @@ export class FactoryHud {
       <h2 id="factory-settlement-title">Replace your settlement?</h2>
       <p>A new settlement replaces the saved buildings, items, residents, and progress on this device. If saving fails, no save is replaced.</p>
       <div class="factory-dialog-actions"><button data-command="cancel-settlement" autofocus>Keep existing save</button><button data-command="confirm-settlement">Replace and start</button></div>` : `
-      <h2 id="factory-settlement-title">Your settlement</h2>
+      <header class="factory-settlement-header"><h2 id="factory-settlement-title">Your settlement</h2>
+        ${this.activeSettlement ? '<button data-command="cancel-settlement" aria-label="Close and return to settlement" title="Return to settlement">&times;</button>' : ''}</header>
       ${this.resumableSave && !this.activeSettlement ? '<button class="factory-resume-button" data-command="resume-save" autofocus>Resume</button>' : ''}
       <div class="factory-settlement-options">
         <button class="factory-settlement-card" data-command="new-settlement" ${this.resumableSave ? '' : 'autofocus'} ${this.loadBlocked ? 'disabled' : ''}><strong>New settlement</strong><span>${RESIDENT_NAMES.length} residents. Grow food, gather wood, and arrange deliveries.</span></button>
       </div>
       <label class="factory-seed-label" for="factory-world-seed">World seed <span>(optional)</span></label>
       <input id="factory-world-seed" class="factory-seed-input" type="text" maxlength="64" placeholder="Random world" autocomplete="off" spellcheck="false" ${this.loadBlocked ? 'disabled' : ''}>
-      <p class="factory-dialog-note">Free construction. No combat.</p>
-      ${this.activeSettlement ? '<button data-command="cancel-settlement">Back to current settlement</button>' : ''}`;
+      <p class="factory-dialog-note">Free construction. No combat.</p>`;
     const message = document.createElement('p');
     message.className = 'factory-load-message';
     message.setAttribute('role', 'status');

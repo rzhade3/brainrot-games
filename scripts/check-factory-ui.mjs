@@ -157,6 +157,16 @@ try {
     await page.locator('[data-resource="food-unit"]').click();
     assert.match(await page.locator('#factory-resource-flow').innerText(), /Made .*Used .*Residents need 24\/min/);
     await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Settlement menu', exact: true }).click();
+    const settlementBefore = await gameState(page);
+    assert.equal(await page.getByText('Back to current settlement').count(), 0);
+    const close = page.locator('.factory-settlement-header [data-command="cancel-settlement"]');
+    const closeBox = await close.boundingBox();
+    const titleBox = await page.locator('#factory-settlement-title').boundingBox();
+    assert.ok(closeBox.width >= 44 && closeBox.height >= 44 && closeBox.x > titleBox.x, 'The close button sits beside the title');
+    await close.click();
+    assert.equal(await page.locator('.factory-settlement-dialog').evaluate(dialog => dialog.open), false);
+    assert.deepEqual(await gameState(page), settlementBefore, 'Closing the settlement menu keeps the current settlement');
     console.log('Resources overview passed:', `${viewport.width}x${viewport.height}`,
       'inventory, measured flow, verdicts, locations, navigation, keyboard focus and unchanged simulation');
     await page.getByRole('button', { name: 'Build', exact: true }).click();
