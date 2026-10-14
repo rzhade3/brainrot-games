@@ -97,7 +97,7 @@ export function restoreMachine(value: unknown, world: FactoryWorld): MachineStat
   requireSave(kind === 'furnace' || machine.processing === null && machine.lastProcessed === null, 'recipe outside a smelter');
   requireSave(!machine.processing || hasRecipeInputs(machine.input, SMELTER_RECIPES[machine.processing]), 'smelter recipe missing its input');
   const max = isConveyor(kind) || kind === 'storage' ? BELT_TICKS + 1
-    : kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' || kind === 'woodcutting-site' ? machineCycleTicks(machine) : 1;
+    : kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' || kind === 'woodcutting-site' || kind === 'mining-site' ? machineCycleTicks(machine) : 1;
   requireSave(machine.progress < max, 'invalid machine progress');
   requireSave(!isConveyor(kind) || machine.item !== null || machine.progress === 0, 'empty conveyor in progress');
   requireSave(kind !== 'furnace' || machine.processing !== null || machine.progress === 0, 'smelter missing its recipe');

@@ -1,6 +1,6 @@
-import { Building, compareTiles, DIRECTIONS, FARM_TICKS, GATHER_TICKS, Item, ITEMS, FOOD_READINESS_TICKS, RESIDENT_FOOD_TICKS, HOUSE_WOOD_COST, HOUSE_CAPACITY, Tile, tileKey, WALK_TICKS, WORK_PRIORITIES } from './domain';
+import { Building, compareTiles, DIRECTIONS, GATHER_TICKS, Item, itemCount, ITEMS, FOOD_READINESS_TICKS, RESIDENT_FOOD_TICKS, HOUSE_WOOD_COST, HOUSE_CAPACITY, Tile, tileKey, WALK_TICKS, WORK_PRIORITIES } from './domain';
 import { gatheringAccess, TreeAccess } from './gathering';
-import { acceptsInventoryItem, inputCapacity, inputSlots, KITCHEN_CAPACITY, MachineState, outputCapacity, workerSlots } from './machines';
+import { acceptsInventoryItem, inputCapacity, inputSlots, isTendedSite, KITCHEN_CAPACITY, machineCycleTicks, MachineState, outputCapacity, siteItem, workerSlots } from './machines';
 import { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
 import { requireCompatibleSave } from '../session/saveErrors';
 import { FactoryWorld } from './world';
@@ -14,6 +14,7 @@ export const PRIORITY_TILES = 16;
 export const FULLNESS_STEPS = 3;
 const ROUTE_ATTEMPTS = 4;
 export const RESIDENT_NAMES = ['Ada', 'Emil', 'Mira', 'Owen'] as const;
+/** `farm` is saved for any in-place site job (food plot or mining site). */
 export type ResidentJob =
   | { kind: 'farm'; source: Tile; destination: null; item: null; path: Tile[] }
   | { kind: 'gather' | 'return-wood'; source: Tile; destination: null; item: 'wood'; tree: Tile; access: Tile; path: Tile[] }
@@ -91,6 +92,13 @@ export function residentWorkTile(job: ResidentJob | null): Tile | null {
   return null;
 }
 
+/** Walking and working notes for in-place site jobs. */
+export function tendedNotes(building: Readonly<Building>, world: FactoryWorld): { travel: string; work: string; full: string } {
+  return building.kind === 'mining-site'
+    ? { travel: 'On the way to the mine', work: `Mining ${siteItem(building, world) === 'copper-ore' ? 'copper' : 'iron'} ore`, full: 'Mine full · waiting for transport' }
+    : { travel: 'On the way to the plot', work: 'Growing food', full: 'Plot full · waiting for transport' };
+}
+
 export function residentNextTile(resident: Resident): Tile {
   return resident.job?.path[0] ?? resident.exit ?? resident.tile;
 }
@@ -100,6 +108,8 @@ interface Host {
   world: FactoryWorld;
   automated: (machine: MachineState) => boolean;
   recover: (item: Item) => void;
+  /** Records ore a resident dug by hand in the shared extraction ledger. */
+  extract: (item: Item) => void;
   receive: (machine: MachineState, item: Item) => void;
   ticks: () => number;
 }
@@ -211,7 +221,7 @@ export class Settlement {
         requireSave(route.every((tile, n) => n === 0 ||
           Math.abs(tile.c - route[n - 1].c) + Math.abs(tile.r - route[n - 1].r) === 1), 'nonadjacent resident route');
         const machine = host.machines.get(tileKey(resident.job.source));
-        requireSave(machine && (job.kind !== 'farm' || machine.building.kind === 'food-plot'), 'missing resident source');
+        requireSave(machine && (job.kind !== 'farm' || isTendedSite(machine.building.kind)), 'missing resident source');
         requireSave(job.kind === 'gather' ? resident.cargo === null
           : job.kind === 'return-wood' ? resident.cargo === 'wood'
           : job.kind === 'farm' ? resident.cargo === null && job.item === null && job.destination === null
@@ -536,7 +546,8 @@ export class Settlement {
   }
 
   private canInhabit(tile: Tile): boolean {
-    return this.host.machines.get(tileKey(tile))?.building.kind === 'food-plot' ||
+    const site = this.host.machines.get(tileKey(tile));
+    return !!site && isTendedSite(site.building.kind) ||
       this.host.world.terrainAt(tile) === 'tree';
   }
 
@@ -679,9 +690,9 @@ export class Settlement {
     const { kind } = machine.building;
     if (this.state.residents.some(other => other !== resident && (other.job && (other.job.kind === 'farm' ||
       other.job.kind === 'gather' || other.job.kind === 'return-wood') && tileKey(other.job.source) === key ||
-      kind === 'food-plot' && other.siteAccess && tileKey(other.tile) === key))) return null;
-    if (kind === 'food-plot') {
-      if (machine.output['food-unit'] >= outputCapacity(kind)) return null;
+      isTendedSite(kind) && other.siteAccess && tileKey(other.tile) === key))) return null;
+    if (isTendedSite(kind)) {
+      if (itemCount(machine.output) >= outputCapacity(kind)) return null;
       const path = this.workRoute(resident, source);
       if (!path) this.routeBlocked = true;
       return path && { kind: 'farm', source, destination: null, item: null, path };
@@ -756,14 +767,14 @@ export class Settlement {
       resident.job = job;
       resident.exit = null;
       if (tileKey(next) !== tileKey(residentNextTile(resident))) resident.travel = 0;
-      resident.note = job.kind === 'farm' ? 'On the way to the plot'
+      resident.note = job.kind === 'farm' ? tendedNotes(this.host.machines.get(tileKey(job.source))!.building, this.host.world).travel
         : job.kind === 'gather' ? 'On the way to the grove' : 'On the way to collect goods';
       return;
     }
-    const plot = post?.building.kind === 'food-plot';
-    const full = post && (plot ? post.output['food-unit'] : post.output.wood) >= outputCapacity(post.building.kind);
+    const full = post && itemCount(post.output) >= outputCapacity(post.building.kind);
     resident.note = this.routeBlocked ? 'Route blocked. Leave access beside both buildings.'
-      : full ? `${plot ? 'Plot' : 'Site'} full · waiting for transport` : 'Available for work';
+      : full ? isTendedSite(post.building.kind) ? tendedNotes(post.building, this.host.world).full : 'Site full · waiting for transport'
+        : 'Available for work';
   }
 
   /** Recompute worker posts after a priority change. */
@@ -775,8 +786,7 @@ export class Settlement {
   step(): void {
     this.state.foodHistory = this.state.foodHistory.filter(event => event.tick > this.host.ticks() - FOOD_READINESS_TICKS);
     this.rebalance();
-    for (const machine of this.host.machines.values()) if (machine.building.kind === 'food-plot' ||
-      machine.building.kind === 'woodcutting-site') machine.running = false;
+    for (const machine of this.host.machines.values()) if (workerSlots(machine.building.kind) > 0) machine.running = false;
     for (let index = 0; index < this.state.residents.length; index++) {
       const resident = this.state.residents[index];
       if (!resident.job) {
@@ -790,19 +800,26 @@ export class Settlement {
       const job = resident.job;
       if (this.walk(resident)) {
         resident.note = job.kind === 'return-wood' ? 'Taking wood back to the site' : job.kind === 'gather' ? 'On the way to the grove'
-          : job.kind === 'deliver' ? 'Carrying goods' : job.kind === 'farm' ? 'On the way to the plot' : 'On the way to collect goods';
+          : job.kind === 'deliver' ? 'Carrying goods'
+            : job.kind === 'farm' ? tendedNotes(this.host.machines.get(tileKey(job.source))!.building, this.host.world).travel
+              : 'On the way to collect goods';
         continue;
       }
       const source = this.host.machines.get(tileKey(job.source))!;
       if (job.kind === 'farm') {
-        resident.note = source.output['food-unit'] >= outputCapacity(source.building.kind) ? 'Plot full · waiting for transport' : 'Growing food';
-        if (source.output['food-unit'] >= outputCapacity(source.building.kind)) { this.clearJob(resident); this.assign(resident); continue; }
+        const notes = tendedNotes(source.building, this.host.world);
+        const full = itemCount(source.output) >= outputCapacity(source.building.kind);
+        resident.note = full ? notes.full : notes.work;
+        if (full) { this.clearJob(resident); this.assign(resident); continue; }
         source.running = true;
-        if (++source.progress >= FARM_TICKS) {
+        if (++source.progress >= machineCycleTicks(source)) {
+          const item = siteItem(source.building, this.host.world);
           source.progress = 0;
-          source.output['food-unit']++;
-          this.state.producedFood++;
-          this.foodEvent('harvested');
+          source.output[item]++;
+          if (item === 'food-unit') {
+            this.state.producedFood++;
+            this.foodEvent('harvested');
+          } else this.host.extract(item);
           this.clearJob(resident);
         }
       } else if (job.kind === 'gather') {

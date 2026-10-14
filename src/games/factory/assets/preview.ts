@@ -24,12 +24,12 @@ class AssetPreview extends Phaser.Scene {
         fontFamily: 'system-ui', fontSize: '14px', color: '#344b48',
       }).setOrigin(0.5);
     }
-    this.add.text(460, 530, 'Residents, carried cargo, trees, and deposits', {
+    this.add.text(460, 700, 'Residents, carried cargo, trees, and deposits', {
       fontFamily: 'system-ui', fontSize: '14px', color: '#344b48',
     }).setOrigin(0.5);
     const fit = () => {
-      const scale = Math.min(window.innerWidth / 920, Math.max(100, window.innerHeight - 110) / 490);
-      this.cameras.main.setZoom(scale * getRenderScale()).centerOn(460, 300);
+      const scale = Math.min(window.innerWidth / 920, Math.max(100, window.innerHeight - 110) / 660);
+      this.cameras.main.setZoom(scale * getRenderScale()).centerOn(460, 385);
     };
     fit();
     this.scale.on('resize', fit);
@@ -62,13 +62,13 @@ class AssetPreview extends Phaser.Scene {
       }
     }
     for (let id = 0; id < 4; id++) {
-      drawResident(g, 160 + id * 65, 480, id, this.clock * 0.7, item, running.checked, { x: direction < 2 ? 38 : -38, y: direction % 2 ? 19 : -19 });
+      drawResident(g, 160 + id * 65, 650, id, this.clock * 0.7, item, running.checked, { x: direction < 2 ? 38 : -38, y: direction % 2 ? 19 : -19 });
     }
-    drawTree(g, 490, 480, 0, 0, 'meadow');
-    drawTree(g, 570, 480, 7, 3, 'riverbank');
-    drawTree(g, 650, 480, 14, 6, 'upland');
-    drawOre(g, 740, 480, false, 0, 0);
-    drawOre(g, 810, 480, true, 0, 0);
+    drawTree(g, 490, 650, 0, 0, 'meadow');
+    drawTree(g, 570, 650, 7, 3, 'riverbank');
+    drawTree(g, 650, 650, 14, 6, 'upland');
+    drawOre(g, 740, 650, false, 0, 0);
+    drawOre(g, 810, 650, true, 0, 0);
   }
 }
 

@@ -1,4 +1,4 @@
-export const BUILDING_KINDS = ['belt', 'splitter', 'miner', 'furnace', 'storage', 'assembler', 'home', 'food-plot', 'kitchen', 'woodcutting-site', 'house'] as const;
+export const BUILDING_KINDS = ['belt', 'splitter', 'miner', 'furnace', 'storage', 'assembler', 'home', 'food-plot', 'kitchen', 'woodcutting-site', 'house', 'mining-site'] as const;
 export type BuildingKind = typeof BUILDING_KINDS[number];
 export type BuildableKind = Exclude<BuildingKind, 'home'>;
 export type Tool = 'inspect' | BuildableKind;
@@ -44,6 +44,7 @@ export const UPGRADED_EXTRACT_TICKS = 8;
 export const BELT_TICKS = 8;
 export const WALK_TICKS = 3;
 export const FARM_TICKS = 20;
+export const MINE_TICKS = 20;
 export const GATHER_TICKS = 20;
 export const GATHER_RADIUS = 4;
 export const MEAL_TICKS = 25;
@@ -119,6 +120,7 @@ export const NAMES: Record<BuildingKind, string> = {
   'food-plot': 'Food plot', kitchen: 'Communal kitchen',
   'woodcutting-site': 'Woodcutting site',
   house: 'House',
+  'mining-site': 'Mining site',
 };
 
 export const DESCRIPTIONS: Record<BuildingKind, string> = {
@@ -132,12 +134,14 @@ export const DESCRIPTIONS: Record<BuildingKind, string> = {
   'food-plot': 'The farmer works inside the plot; keep one clear exit. Farming pauses when the plot is full; a conveyor frees its carriers.',
   kitchen: `Each resident needs one food unit every ${RESIDENT_FOOD_TICKS * STEP_MS / 1000} seconds. Shortages do not harm residents or stop their work.`,
   house: 'Deliver wood to finish the house, then invite a resident when food is reliable. Occupied houses cannot be removed; removing an empty site or house returns its wood to recovery.',
+  'mining-site': 'The miner digs ore by hand on the deposit; keep one clear exit. Mining pauses when the site is full; a conveyor frees its carriers, not the miner.',
   'woodcutting-site': 'Workers gather on the tree tile, then carry wood back; keep one clear exit beside the tree. Trees remain in place, and a conveyor frees carriers, not the woodcutter.',
 };
 
 export const CATALOG = [
   { kind: 'food-plot', category: 'production', note: 'Grows food for residents', shortcut: '9' },
   { kind: 'woodcutting-site', category: 'production', note: 'Gathers wood from groves', shortcut: '6' },
+  { kind: 'mining-site', category: 'production', note: 'Digs ore by hand', shortcut: '' },
   { kind: 'kitchen', category: 'storage', note: 'Keeps residents fed', shortcut: '0' },
   { kind: 'house', category: 'storage', note: 'Makes room for a resident', shortcut: '' },
   { kind: 'miner', category: 'production', note: 'Draws ore from deposits', shortcut: '3' },

@@ -72,7 +72,7 @@ const destinations: Record<BuildingKind, readonly BuildingKind[]> = {
   belt: [], splitter: [], home: [], kitchen: [], house: [],
   miner: ['furnace', 'storage'], furnace: ['assembler', 'storage'],
   assembler: ['storage'], storage: ['furnace', 'assembler', 'storage', 'kitchen', 'house'],
-  'food-plot': ['storage', 'kitchen'], 'woodcutting-site': ['storage', 'house'],
+  'food-plot': ['storage', 'kitchen'], 'woodcutting-site': ['storage', 'house'], 'mining-site': ['furnace', 'storage'],
 };
 for (const kind of BUILDING_KINDS) for (const targetKind of BUILDING_KINDS) {
   const from = { kind, c: 7, r: 10, direction: 0 as const };

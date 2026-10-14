@@ -60,6 +60,7 @@ its unlock condition):
 | Building | Purpose line |
 | --- | --- |
 | Food plot | Grows food for residents |
+| Mining site | Digs ore by hand |
 | Communal kitchen | Keeps residents fed |
 | House | Makes room for a resident |
 | Extractor | Draws ore from deposits |

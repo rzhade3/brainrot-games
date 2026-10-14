@@ -44,9 +44,10 @@ export function placementError(
   const terrain = terrainAt(tile, world);
   if (terrain === 'water') return 'Cannot build on water';
   if (terrain === 'tree') return 'Choose a clear tile';
-  if (kind === 'miner' && terrain !== 'iron' && terrain !== 'copper') return 'Extractors need an ore deposit';
-  if (kind !== 'miner' && !isConveyor(kind) && (terrain === 'iron' || terrain === 'copper')) {
-    return 'Leave deposits free for extractors';
+  const mining = kind === 'miner' || kind === 'mining-site';
+  if (mining && terrain !== 'iron' && terrain !== 'copper') return `${kind === 'miner' ? 'Extractors' : 'Mining sites'} need an ore deposit`;
+  if (!mining && !isConveyor(kind) && (terrain === 'iron' || terrain === 'copper')) {
+    return 'Leave deposits free for mining';
   }
   return null;
 }

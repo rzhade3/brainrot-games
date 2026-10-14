@@ -8,7 +8,7 @@ import {
   itemCount,
   MachineInspection,
   ResourceInspection,
-  STEP_MS, UPGRADED_EXTRACT_TICKS,
+  STEP_MS, UPGRADED_EXTRACT_TICKS, workerSlots,
 } from './game/simulation';
 import { FactoryWorld } from './game/world';
 
@@ -566,6 +566,7 @@ export class FactoryHud {
         `${icon(tool)}<div><span class="factory-overline">PLACING ${NAMES[tool].toUpperCase()}</span><strong>${tool === 'splitter'
           ? `Outputs ${outputDirections({ c: 0, r: 0, kind: tool, direction }).map(output => DIRECTION_NAMES[output]).join(' / ')}`
           : tool === 'miner' ? `Ore deposit · ${DIRECTION_NAMES[direction]} output`
+            : tool === 'mining-site' ? 'Ore deposit with one clear exit'
             : tool === 'woodcutting-site' ? 'Clear land beside a grove'
               : tool === 'kitchen' ? 'Keep adjacent land clear'
                 : tool === 'house' ? `${itemText('wood', HOUSE_WOOD_COST)} delivered to the site` : `Output faces ${DIRECTION_NAMES[direction]}`}</strong></div>`;
@@ -647,7 +648,7 @@ export class FactoryHud {
           ? outputDirections(building).map(direction => DIRECTION_NAMES[direction]).join(' / ') : DIRECTION_NAMES[building.direction]}</dd></div>`}
         ${building.kind === 'splitter' ? '<div><dt>Next preferred</dt><dd id="factory-next-output"></dd></div>' : ''}
         ${building.kind === 'home' ? '' : '<div><dt>Activity</dt><dd id="factory-machine-state"></dd></div>'}
-        ${building.kind === 'woodcutting-site' || building.kind === 'food-plot' ? '' : `<div><dt>${building.kind === 'storage' ? 'Stored' : isConveyor(building.kind) ? 'Cargo'
+        ${building.kind === 'woodcutting-site' || building.kind === 'food-plot' || building.kind === 'mining-site' ? '' : `<div><dt>${building.kind === 'storage' ? 'Stored' : isConveyor(building.kind) ? 'Cargo'
           : building.kind === 'miner' ? 'Source'
             : building.kind === 'home' ? 'Residents' : building.kind === 'kitchen' ? 'Food' : building.kind === 'house' ? 'Construction' : 'Input'}</dt><dd id="factory-machine-input"></dd></div>
         `}
@@ -684,7 +685,7 @@ export class FactoryHud {
             ${WORK_PRIORITIES.map(priority => `<button data-command="work-priority" data-priority="${priority}" aria-pressed="${priority === (building.workPriority ?? 'normal')}">${priority[0].toUpperCase()}${priority.slice(1)}</button>`).join('')}
           </div>
           <p id="factory-staffing" role="status"></p>
-          <small>${building.kind === 'food-plot' || building.kind === 'woodcutting-site'
+          <small>${workerSlots(building.kind) > 0
             ? 'One resident works here. Higher priority is staffed first; Off frees the worker.'
             : 'Priority orders resident deliveries. Production runs on its own.'}</small>
         </section>` : ''}
@@ -741,7 +742,7 @@ export class FactoryHud {
     if (!resident.job) return resident.exit ? 'Leaving the work site' : resident.note;
     if (resident.job.kind === 'gather') return resident.job.path.length ? 'On the way to the grove' : 'Gathering wood';
     if (resident.job.kind === 'return-wood') return 'Taking wood back to the site';
-    if (resident.job.kind === 'farm') return resident.job.path.length ? 'On the way to the plot' : 'Growing food';
+    if (resident.job.kind === 'farm') return resident.note;
     const item = resident.job.item === 'food-unit' ? 'food'
       : resident.job.item ? itemName(resident.job.item) : 'items';
     if (resident.job.kind === 'collect') return `Collecting ${item}`;

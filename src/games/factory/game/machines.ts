@@ -1,7 +1,7 @@
 import {
   BELT_TICKS,
   Building, BuildingKind, compareTiles, Direction,
-  EXTRACT_TICKS, FARM_TICKS, GATHER_TICKS,
+  EXTRACT_TICKS, FARM_TICKS, GATHER_TICKS, MINE_TICKS,
   Inventory, inventory, isConveyor, Item, itemCount, ITEMS,
   RESIDENT_FOOD_TICKS, HOUSE_WOOD_COST,
   moveInventory, tileKey,
@@ -74,6 +74,7 @@ export function machineCycleTicks(machine: Readonly<MachineState>): number {
   switch (machine.building.kind) {
     case 'miner': return machine.building.upgraded ? UPGRADED_EXTRACT_TICKS : EXTRACT_TICKS;
     case 'food-plot': return FARM_TICKS;
+    case 'mining-site': return MINE_TICKS;
     case 'woodcutting-site': return GATHER_TICKS;
     case 'kitchen': return RESIDENT_FOOD_TICKS;
     default: return BELT_TICKS;
@@ -121,16 +122,28 @@ export function inputSlots(machine: Readonly<MachineState>, item: Item | null = 
 
 /** Resident posts a workplace offers; everyone without a post hauls. */
 export function workerSlots(kind: BuildingKind): number {
-  return kind === 'food-plot' || kind === 'woodcutting-site' ? 1 : 0;
+  return kind === 'food-plot' || kind === 'woodcutting-site' || kind === 'mining-site' ? 1 : 0;
+}
+
+/** Sites whose worker produces in place on the site tile (not at a nearby tree). */
+export function isTendedSite(kind: BuildingKind): boolean {
+  return kind === 'food-plot' || kind === 'mining-site';
+}
+
+/** The single item a staffed site produces. */
+export function siteItem(building: Readonly<Building>, world: FactoryWorld): Item {
+  return building.kind === 'food-plot' ? 'food-unit' : building.kind === 'woodcutting-site' ? 'wood'
+    : world.at(building).deposit === 'copper' ? 'copper-ore' : 'iron-ore';
 }
 
 export function outputCapacity(kind: BuildingKind): number {
-  return kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' || kind === 'woodcutting-site' ? BUFFER_CAPACITY : 0;
+  return kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' || kind === 'woodcutting-site' || kind === 'mining-site' ? BUFFER_CAPACITY : 0;
 }
 
 export function producesInventoryItem(kind: BuildingKind, item: Item, deposit: Deposit): boolean {
   switch (kind) {
-    case 'miner': return item === (deposit === 'copper' ? 'copper-ore' : 'iron-ore');
+    case 'miner':
+    case 'mining-site': return item === (deposit === 'copper' ? 'copper-ore' : 'iron-ore');
     case 'furnace': return Object.values(SMELTER_RECIPES).some(recipe => recipe.output.item === item);
     case 'assembler': return item === ASSEMBLER_RECIPE.output.item;
     case 'food-plot': return item === 'food-unit';

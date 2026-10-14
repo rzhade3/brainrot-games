@@ -16,7 +16,7 @@ import {
   MachineRecipe, machineRecipe,
   MachineState,
   outputCapacity, produceMachine, ProductionLedger,
-  recoverContents, transferMachines, TransportHost,
+  recoverContents, transferMachines, TransportHost, workerSlots,
 } from './machines';
 import {
   acceptsConveyorInput, Building, BuildingKind, createSettlement,
@@ -29,11 +29,12 @@ import {
 } from './model';
 import { assertConservation, copyMachine, requireSave, restoreMachine, saveCount, saveInventory, saveObject, saveTile } from '../session/saveState';
 import { requireCompatibleSave } from '../session/saveErrors';
-import { HousingInspection, LaborSummary, Resident, residentName, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
+import { HousingInspection, LaborSummary, Resident, residentName, tendedNotes, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
 import { gatheringAccess } from './gathering';
 import { DEFAULT_WORLD, FactoryWorld, DEFAULT_SEED, restoreWorld, WorldIdentity } from './world';
 export { BELT_TICKS, EXTRACT_TICKS, inventory, inventoryText, ITEM_NAMES, itemCount, ITEMS, STEP_MS, UPGRADED_EXTRACT_TICKS } from './domain';
 export type { Inventory, Item } from './domain';
+export { workerSlots } from './machines';
 export { ASSEMBLE_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, depotNextItem, SMELT_TICKS } from './machines';
 export type { MachineState } from './machines';
 export { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
@@ -157,6 +158,7 @@ export class FactorySimulation {
         return !!destination && !!item && this.accepts(destination, machine.building, item);
       }),
       recover: (item: Item) => { this.recovered[item]++; },
+      extract: (item: Item) => { this.productionLedger.mined[item]++; },
       receive: (machine: MachineState, item: Item) => this.receive(machine, item),
       ticks: () => this.ticks,
     };
@@ -313,13 +315,12 @@ export class FactorySimulation {
   private staffing(machine: MachineState): string {
     const key = tileKey(machine.building);
     const { kind } = machine.building;
-    if (machine.building.workPriority === 'off') return kind === 'food-plot' || kind === 'woodcutting-site'
+    if (machine.building.workPriority === 'off') return workerSlots(kind) > 0
       ? 'Off · no worker' : 'Off · no resident deliveries';
     const workers = this.residents.filter(resident => resident.job && tileKey(resident.job.source) === key);
-    if (kind === 'food-plot' || kind === 'woodcutting-site') {
+    if (workerSlots(kind) > 0) {
       const worker = this.residents.find(resident => resident.post && tileKey(resident.post) === key);
-      const item = kind === 'food-plot' ? 'food-unit' : 'wood';
-      if (machine.output[item] >= outputCapacity(kind)) return 'Output full';
+      if (itemCount(machine.output) >= outputCapacity(kind)) return 'Output full';
       if (kind === 'woodcutting-site' && !gatheringAccess(machine.building, this.buildings, this.world).length) return 'Grove access blocked';
       if (worker) return `Worker: ${residentName(worker.id)}`;
       return workers.length ? `Working · ${workers.length} ${workers.length === 1 ? 'resident' : 'residents'}`
@@ -514,12 +515,14 @@ export class FactorySimulation {
       case 'house': return machine.input.wood < HOUSE_WOOD_COST
         ? `Building house · ${machine.input.wood}/${HOUSE_WOOD_COST} wood`
         : this.residents.some(resident => tileKey(resident.home) === tileKey(tile)) ? 'House occupied' : 'House ready';
-      case 'food-plot': {
+      case 'food-plot':
+      case 'mining-site': {
         const worker = this.settlement.state.residents.find(resident => resident.job?.kind === 'farm' &&
           tileKey(resident.job.source) === tileKey(tile));
-        return itemCount(machine.output) >= outputCapacity(machine.building.kind) ? 'Plot full · waiting for transport'
+        const notes = tendedNotes(machine.building, this.world);
+        return itemCount(machine.output) >= outputCapacity(machine.building.kind) ? notes.full
           : !worker ? 'Waiting for a resident or a clear path'
-            : worker.job?.path.length ? 'On the way to the plot' : 'Growing food';
+            : worker.job?.path.length ? notes.travel : notes.work;
       }
       case 'woodcutting-site': {
         const worker = this.residents.find(resident => (resident.job?.kind === 'gather' || resident.job?.kind === 'return-wood') &&

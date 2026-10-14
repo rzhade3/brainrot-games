@@ -42,6 +42,7 @@ export const BUILDING_SHAPES: Record<BuildingKind, AssetShape> = {
   storage: shape(28, 42), assembler: shape(28, 44),
   home: shape(28, 44), house: shape(31, 53), 'food-plot': shape(32, 8), kitchen: shape(28, 44),
   'woodcutting-site': shape(32, 34),
+  'mining-site': shape(32, 32),
 };
 
 export function containsBuilding(kind: BuildingKind, point: Point): boolean {

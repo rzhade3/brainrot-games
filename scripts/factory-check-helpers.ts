@@ -8,7 +8,7 @@ export function assertResidentLocation(simulation: FactorySimulation, resident: 
   const clear = (tile: Resident['tile']) => !simulation.buildings.has(tileKey(tile)) &&
     !['water', 'tree'].includes(simulation.world.terrainAt(tile));
   if (resident.siteAccess) {
-    assert.ok(simulation.buildings.get(tileKey(resident.tile))?.kind === 'food-plot' ||
+    assert.ok(['food-plot', 'mining-site'].includes(simulation.buildings.get(tileKey(resident.tile))?.kind ?? '') ||
       simulation.world.terrainAt(resident.tile) === 'tree', 'Only work sites can be inhabited');
     assert.ok(clear(resident.siteAccess), 'An occupied work site retains a clear exit');
     assert.equal(Math.abs(resident.tile.c - resident.siteAccess.c) + Math.abs(resident.tile.r - resident.siteAccess.r), 1);

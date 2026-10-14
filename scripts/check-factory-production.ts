@@ -25,7 +25,7 @@ for (const field of ['scenario', 'projects', 'delivered', 'stage', 'deliveryTick
 }
 for (const entry of CATALOG) {
   const fresh = FactorySimulation.create();
-  let tile = entry.kind === 'miner' ? { c: 7, r: 10 } : { c: 17, r: 17 };
+  let tile = entry.kind === 'miner' || entry.kind === 'mining-site' ? { c: 7, r: 10 } : { c: 17, r: 17 };
   if (entry.kind === 'woodcutting-site') {
     const sites = [];
     for (let c = 2; c < 30; c++) for (let r = 2; r < 30; r++) {

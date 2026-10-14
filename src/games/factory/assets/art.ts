@@ -110,7 +110,7 @@ export function drawBuilding(g: Graphics, b: BuildingAppearance): void {
     drawSplitter(g, x, y, b.direction);
     return;
   }
-  if (b.kind !== 'food-plot') {
+  if (b.kind !== 'food-plot' && b.kind !== 'mining-site') {
     g.fillStyle(0x243c36, 0.18).fillEllipse(x + 10, y + 10, 68, 23);
     prism(g, x, y, 32, 16, 5, 0xc5c9b9, 0x929f93, 0x7c9087);
   }
@@ -137,6 +137,21 @@ export function drawBuilding(g: Graphics, b: BuildingAppearance): void {
         g.fillStyle(0xa3b67c).fillEllipse(px - 1, py - height - 2, 4, 3);
       }
     }
+  } else if (b.kind === 'mining-site') {
+    // An open, walkable dig: the miner works inside, so keep the frame low and to the rear.
+    prism(g, x, y, 32, 16, 1, 0x9a8b70, 0x7d6f58, 0x6c604c);
+    diamond(g, x, y - 1, 24, 12, 0x5b5142);
+    diamond(g, x + 2, y, 15, 7.5, 0x3f392f);
+    for (const [dx, dy] of [[-17, -2], [15, 4], [-6, 9], [9, -9]] as const) {
+      const size = 2 + variation(b.variant.c + dx, b.variant.r + dy) * 1.5;
+      prism(g, x + dx, y + dy - 1, size, size / 2, size, 0xb3ab98, 0x857d6c, 0x6c6557);
+    }
+    for (const dx of [-13, 13]) prism(g, x + dx, y - 9, 1.5, 0.75, 20, 0xc6af83, 0x9b805b, 0x77694e);
+    line(g, { x: x - 13, y: y - 29 }, { x: x + 13, y: y - 29 }, 0x77694e, 3);
+    prism(g, x, y - 27, 7, 3.5, 3, 0xc6af83, 0x9b805b, 0x77694e);
+    line(g, { x: x + 1, y: y - 27 }, { x: x + 1, y: y - 10 }, 0x4a4436, 1);
+    line(g, { x: x + 20, y: y + 1 }, { x: x + 25, y: y - 9 }, 0x77694e, 2);
+    line(g, { x: x + 21, y: y - 9 }, { x: x + 29, y: y - 7 }, 0x8fa5a0, 2);
   } else if (b.kind === 'woodcutting-site') {
     for (const dx of [-22, 22]) prism(g, x + dx, y - 4, 2, 1, 29, 0xc6af83, 0x9b805b, 0x77694e);
     prism(g, x, y - 31, 30, 15, 3, 0x9caa8c, 0x77876d, 0x5c745d);

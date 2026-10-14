@@ -1266,11 +1266,15 @@ Residents finish their current harvest or cargo trip before reassignment.
 Full buffers and inaccessible jobs release the worker to haul. People is inspection-only.
 Worker posts use `settlement-v8` and settlement version 7; earlier saves require a
 new settlement.
+Mining sites (implemented): placed on an iron or copper deposit, one worker
+digging in place at two seconds per ore into a four-unit buffer, carried by
+residents or a conveyor. The automated extractor stays in the catalog until 8C
+gates it behind a commissioned kit.
 Removal and blocked access recover carried wood; saves preserve priorities,
 queue ages, progress, routes and cargo with strict conservation and replay checks.
 
 This starter slice intentionally preserves automatic farming, ungated existing
-industry, free construction, and fixed population. Mining, worker-run processing,
+industry, free construction, and fixed population. Worker-run processing,
 planks, tools and earned extractors below remain
 future work; wood has no downstream recipe yet. Saves now use envelope version 4,
 `settlement-v4`, and resident state version 3; older saves require a new settlement

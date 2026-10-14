@@ -44,6 +44,12 @@ Deliver to, or connect a conveyor. Trees remain renewable obstacles. Blocking
 access or removing a site recovers interrupted cargo without loss.
 Priorities, posts, gathering progress, reservations and cargo resume exactly.
 
+Mining sites sit on an iron or copper deposit beside the extractor. Their one
+worker digs in place, like a farmer, producing one ore every two seconds into a
+four-unit buffer. Hand-dug ore enters the same extraction ledger as extractor
+output. Residents carry it, or a conveyor takes it onward. In-place site jobs
+keep the saved `farm` job kind, so adding mines needed no new save version.
+
 House sites accept eight physical wood units through residents or conveyors.
 The eighth delivery completes a house with one resident place. Wood stays
 installed and cannot be delivered again; removing an empty site/house returns
