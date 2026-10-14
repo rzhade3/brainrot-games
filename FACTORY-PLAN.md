@@ -1598,8 +1598,9 @@ panel or event feed.
 
 - Resources stays on demand. Each row shows the physical total, measured made
   and used rates per minute and one verdict: Short, Stuck, Backed up, Idle,
-  Falling, Keeping up, Not in use or Measuring. A summary line names resources
-  that need attention. Rows keep a stable order so live updates never move focus.
+  Falling, Keeping up, Not in use or Measuring. Problems stay inline on their
+  rows with a colored mark; there is no changing summary line, so live updates
+  never shift the layout. Rows keep a stable order so live updates never move focus.
 - Rates come from a headless `game/flow.ts` tracker sampling cumulative ledgers
   once per simulation second over the last simulation minute. Paused, hidden or
   closed time does not count. Rates are withheld for the first ten seconds and

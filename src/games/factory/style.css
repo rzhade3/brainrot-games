@@ -42,7 +42,11 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
   color: var(--muted); display: block;
 }
 .factory-brand h1 { margin: 3px 0 0; font-size: 25px; font-weight: 600; letter-spacing: -1px; }
-.factory-period { color: #a48140; }
+.factory-period, .factory-noted::after { color: #a48140; }
+.factory-noted::after { content: "."; }
+/* Field-notebook theme: light headline titles with an ochre period, spaced overlines and ruled lists. */
+.factory-ui .factory-title { font-weight: 450; letter-spacing: -1px; line-height: 1.15; }
+.factory-settlement-dialog .factory-title { margin: 6px 0 12px; }
 .factory-intro { display: none; }
 .factory-settlement-button { min-height: 44px; padding: 8px 12px; margin-left: auto; border: 1px solid #b9c6b5; border-radius: 12px; background: #e9ede1e6; font-size: 11px; }
 .factory-resources-button { margin-left: 0; }
@@ -79,14 +83,16 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .factory-picker-filters > span { font-size: 11px; color: var(--muted); }
 .factory-picker-filters > span:last-child { margin-left: auto; }
 .factory-picker-results { overflow-y: auto; overscroll-behavior: contain; min-height: 72px; flex: 1; padding: 4px; margin: -4px; }
-.factory-picker-dialog .factory-picker-row { display: flex; align-items: center; gap: 10px; width: 100%; margin-bottom: 8px; padding: 12px; text-align: left; background: #f0f2e8; }
+.factory-picker-dialog .factory-picker-row { display: flex; align-items: center; gap: 10px; width: 100%; margin: 0; padding: 12px 10px 12px 14px; text-align: left; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+.factory-picker-dialog .factory-picker-row:hover, .factory-picker-dialog .factory-picker-row:focus-visible { background: #edf0e4; }
+.factory-picker-results:has(.factory-picker-row) { border-top: 1px solid var(--line); }
 .factory-picker-row > svg { width: 40px; height: 40px; flex-shrink: 0; }
 .factory-picker-row > span:first-of-type { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.factory-picker-row strong { font-size: 14px; overflow-wrap: anywhere; }
+.factory-picker-row strong { font-size: 14px; font-weight: 550; overflow-wrap: anywhere; }
 .factory-picker-activity, .factory-picker-workplace { color: var(--muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
 .factory-picker-choice { font-size: 10px; color: var(--teal); flex-shrink: 0; }
-.factory-picker-dialog .factory-picker-row[aria-pressed="true"] { border-color: var(--teal); background: #e1ead9; box-shadow: inset 3px 0 var(--teal); }
-.factory-picker-dialog .factory-picker-row:disabled { opacity: 1; background: #eeeee5; border-style: dashed; }
+.factory-picker-dialog .factory-picker-row[aria-pressed="true"] { background: #e1ead9; box-shadow: inset 3px 0 var(--teal); }
+.factory-picker-dialog .factory-picker-row:disabled { opacity: 1; background: transparent; color: var(--muted); }
 .factory-picker-row:disabled .factory-picker-choice { color: var(--muted); }
 .factory-picker-footer { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .factory-picker-footer > div { display: flex; gap: 8px; }
@@ -107,7 +113,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .factory-picker-compact .factory-picker-footer { padding-top: 6px; gap: 6px; }
 .factory-picker-compact .factory-picker-preview { font-size: 11px; max-height: 48px; }
 .factory-picker-compact .factory-picker-error { max-height: 32px; overflow-y: auto; }
-.factory-resident-list button { display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left; min-height: 44px; padding: 10px; margin: 6px 0; border: 1px solid #b7cab0; border-radius: 10px; background: #e9eedf; font-size: 11px; }
+.factory-resident-list { border-top: 1px solid var(--line); margin-top: 10px; }
+.factory-resident-list:empty { border-top: 0; }
+.factory-resident-list button { display: flex; flex-direction: column; gap: 5px; width: 100%; text-align: left; min-height: 44px; padding: 10px 6px; margin: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; font-size: 11px; }
+.factory-resident-list button:hover, .factory-resident-list button:focus-visible { background: #edf0e4; }
 .factory-resident-list span { color: var(--muted); }
 .factory-machine-option { width: 100%; min-height: 44px; padding: 10px; border: 1px solid #b7cab0; border-radius: 10px; background: #e9eedf; font-size: 11px; }
 .factory-depot-next { font-size: 11px; color: var(--muted); line-height: 1.6; }
@@ -365,8 +374,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; }
 }
-.factory-resources-dialog .factory-picker-row:is([data-verdict="short"], [data-verdict="stuck"], [data-issue="waiting"]) { box-shadow: inset 4px 0 #b0603f; }
-.factory-resources-dialog .factory-picker-row:is([data-verdict="backed-up"], [data-verdict="idle"], [data-verdict="falling"], [data-issue="blocked"], [data-issue="idle"]) { box-shadow: inset 4px 0 #c49a3c; }
-.factory-resources-dialog .factory-picker-row:is([data-verdict="short"], [data-verdict="stuck"]) .factory-picker-workplace { color: #884a32; }
+.factory-resources-dialog .factory-picker-row:is([data-verdict="short"], [data-verdict="stuck"], [data-issue="waiting"]) { box-shadow: inset 4px 0 #a8452f; }
+.factory-resources-dialog .factory-picker-row:is([data-verdict="backed-up"], [data-verdict="idle"], [data-verdict="falling"], [data-issue="blocked"], [data-issue="idle"]) { box-shadow: inset 4px 0 #9a6a1c; }
+.factory-resources-dialog .factory-picker-row:is([data-verdict="short"], [data-verdict="stuck"]) .factory-picker-workplace { color: #8f3a27; font-weight: 550; }
+.factory-resources-dialog .factory-picker-row:is([data-verdict="backed-up"], [data-verdict="idle"], [data-verdict="falling"]) .factory-picker-workplace { color: #7a5416; font-weight: 550; }
 .factory-resources-dialog #factory-resource-flow { color: var(--ink); font-weight: 550; }
-.factory-resources-dialog #factory-resources-summary { color: var(--ink); }

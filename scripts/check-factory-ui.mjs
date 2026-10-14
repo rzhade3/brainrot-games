@@ -104,7 +104,7 @@ try {
     assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Food units · 8/);
     assert.match(await page.locator('[data-resource="wood"]').innerText(), /Wood · 0/);
     assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Measuring/);
-    assert.match(await page.locator('#factory-resources-summary').innerText(), /Measuring flow/);
+    assert.equal(await page.locator('#factory-resources-summary').count(), 0, 'Problems stay inline on each row');
     await page.locator('[data-resource="food-unit"]').click();
     assert.equal(await page.locator('#factory-resources-title').innerText(), 'Food units');
     assert.match(await page.locator('#factory-resource-stock').innerText(), /Buildings: 8.*In transit: 0.*Recovery: 0.*1 producer · 1 consumer/);
@@ -153,7 +153,6 @@ try {
     await page.getByRole('button', { name: 'Resources', exact: true }).click();
     assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Made [\d.]+\/min · Used [\d.]+\/min/);
     assert.equal(await page.locator('[data-resource="iron-ore"]').count(), 0, 'Ore stays hidden until mining is discovered');
-    assert.match(await page.locator('#factory-resources-summary').innerText(), /keeping up|Needs attention/);
     await page.locator('[data-resource="food-unit"]').click();
     assert.match(await page.locator('#factory-resource-flow').innerText(), /Made .*Used .*Residents need 24\/min/);
     await page.keyboard.press('Escape');

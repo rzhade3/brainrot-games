@@ -109,7 +109,7 @@ export class FactoryHud {
       <div class="factory-catalog-scrim" data-command="close-catalog" aria-hidden="true" hidden></div>
       <footer class="factory-footer">
         <section class="factory-catalog" id="factory-catalog" role="dialog" aria-modal="false" aria-labelledby="factory-catalog-title" hidden>
-          <div class="factory-catalog-header"><div><h2 id="factory-catalog-title">Build</h2></div><button data-command="close-catalog" aria-label="Close build menu">&times;</button></div>
+          <div class="factory-catalog-header"><div><h2 id="factory-catalog-title" class="factory-title factory-noted">Build</h2></div><button data-command="close-catalog" aria-label="Close build menu">&times;</button></div>
           <div class="factory-categories" role="tablist" aria-label="Building categories">
             ${CATEGORIES.map(category => `<button id="factory-tab-${category.id}" data-category="${category.id}" role="tab" aria-selected="${category.id === 'all'}" aria-controls="factory-category-${category.id}" tabindex="${category.id === 'all' ? 0 : -1}">${category.name}</button>`).join('')}
           </div>
@@ -457,10 +457,11 @@ export class FactoryHud {
 
   private renderSettlementDialog(confirm: boolean): void {
     this.settlementDialog.innerHTML = confirm ? `
-      <h2 id="factory-settlement-title">Replace your settlement?</h2>
+      <span class="factory-overline">NEW SETTLEMENT</span>
+      <h2 id="factory-settlement-title" class="factory-title">Replace your settlement?</h2>
       <p>A new settlement replaces the saved buildings, items, residents, and progress on this device. If saving fails, no save is replaced.</p>
       <div class="factory-dialog-actions"><button data-command="cancel-settlement" autofocus>Keep existing save</button><button data-command="confirm-settlement">Replace and start</button></div>` : `
-      <header class="factory-settlement-header"><h2 id="factory-settlement-title">Your settlement</h2>
+      <header class="factory-settlement-header"><div><span class="factory-overline">START OR CONTINUE</span><h2 id="factory-settlement-title" class="factory-title factory-noted">Your settlement</h2></div>
         ${this.activeSettlement ? '<button data-command="cancel-settlement" aria-label="Close and return to settlement" title="Return to settlement">&times;</button>' : ''}</header>
       ${this.resumableSave && !this.activeSettlement ? '<button class="factory-resume-button" data-command="resume-save" autofocus>Resume</button>' : ''}
       <div class="factory-settlement-options">
@@ -670,7 +671,7 @@ export class FactoryHud {
     this.inspector.innerHTML = `
       <button class="factory-inspector-close" data-action="close" aria-label="Close inspector">&times;</button>
       <span class="factory-overline">${building.c}, ${building.r}</span>
-      <div class="factory-inspector-title">${icon(building.kind)}<h2>${NAMES[building.kind]}</h2></div>
+      <div class="factory-inspector-title">${icon(building.kind)}<h2 class="factory-title factory-noted">${NAMES[building.kind]}</h2></div>
       <dl>
         ${building.kind === 'home' || building.kind === 'kitchen' || building.kind === 'house' ? '' : `<div><dt>${building.kind === 'splitter' ? 'Outputs' : 'Output faces'}</dt><dd>${outputDirections(building).length > 1
           ? outputDirections(building).map(direction => DIRECTION_NAMES[direction]).join(' / ') : DIRECTION_NAMES[building.direction]}</dd></div>`}
@@ -744,7 +745,7 @@ export class FactoryHud {
     this.inspector.hidden = false;
     this.root.classList.add('has-selection');
     this.inspector.innerHTML = `<button class="factory-inspector-close" data-action="close" aria-label="Close inspector">&times;</button>
-      <span class="factory-overline">RESIDENT</span><h2>${residentName(resident.id)}</h2>
+      <span class="factory-overline">RESIDENT</span><h2 class="factory-title factory-noted">${residentName(resident.id)}</h2>
       <dl><div><dt>Activity</dt><dd id="factory-resident-activity"></dd></div>
       <div><dt>Position</dt><dd id="factory-resident-position"></dd></div>
       <div><dt>Destination</dt><dd id="factory-resident-destination"></dd></div>
@@ -834,14 +835,14 @@ export class FactoryHud {
     this.resourceRows.clear();
     this.resourcesDialog.innerHTML = `
       <header class="factory-picker-header"><div><span class="factory-overline">SETTLEMENT STOCK</span>
-        <h2 id="factory-resources-title">${this.resourceItem ? ITEM_NAMES[this.resourceItem] : 'Resources'}</h2></div>
+        <h2 id="factory-resources-title" class="factory-title factory-noted">${this.resourceItem ? ITEM_NAMES[this.resourceItem] : 'Resources'}</h2></div>
         <button data-command="close-resources" aria-label="Close resources">&times;</button></header>
       <div class="factory-picker-body">
         ${this.resourceItem ? '<button class="factory-resource-back" data-command="resource-back">All resources</button>' : ''}
         <p id="factory-resources-note" class="factory-picker-note">Goods stay where they are. Stock elsewhere may need a delivery route to reach a building.</p>
         ${this.resourceItem
           ? '<p id="factory-resource-flow" role="status"></p><p id="factory-resource-advice"></p><p id="factory-resource-stock"></p><p id="factory-resource-recovery"></p>'
-          : '<p id="factory-resources-summary" role="status"></p>'}
+          : ''}
         <div class="factory-picker-results" aria-label="${this.resourceItem ? 'Resource locations' : 'Resources'}"><p class="factory-picker-empty" hidden></p></div>
       </div>
       <footer class="factory-picker-footer"><p>${this.resourceItem
@@ -879,11 +880,6 @@ export class FactoryHud {
         this.setText(row.querySelector<HTMLElement>('.factory-picker-activity')!, flowText(resource));
         this.setText(row.querySelector<HTMLElement>('.factory-picker-workplace')!, verdictText(resource));
       }
-      const attention = resources.filter(resource => NEEDS_ATTENTION.includes(resource.verdict));
-      const measuring = resources[0] && !resources[0].flow.ticks;
-      this.setText(this.resourcesDialog.querySelector<HTMLElement>('#factory-resources-summary')!,
-        attention.length ? `Needs attention: ${attention.map(resource => `${ITEM_NAMES[resource.item]} (${VERDICT_LABELS[resource.verdict].toLowerCase()})`).join(', ')}`
-          : measuring ? 'Measuring flow. Rates appear after a few seconds of work.' : 'Supplies are keeping up.');
     } else {
       const resource = resources.find(value => value.item === this.resourceItem);
       if (!resource) throw new Error('Selected resource is missing');
@@ -942,8 +938,8 @@ export class FactoryHud {
     this.deliveryRows.clear();
     this.deliveryReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.deliveryDialog.innerHTML = `
-      <header class="factory-picker-header"><div><span class="factory-overline">${NAMES[this.inspectedBuilding.kind]} · ${this.deliverySource.c}, ${this.deliverySource.r}</span>
-        <h2 id="factory-delivery-title">Choose a destination</h2></div><button data-command="close-delivery-picker" aria-label="Close delivery picker">&times;</button></header>
+      <header class="factory-picker-header"><div><span class="factory-overline">${NAMES[this.inspectedBuilding.kind].toUpperCase()} · ${this.deliverySource.c}, ${this.deliverySource.r}</span>
+        <h2 id="factory-delivery-title" class="factory-title factory-noted">Choose a destination</h2></div><button data-command="close-delivery-picker" aria-label="Close delivery picker">&times;</button></header>
       <div class="factory-picker-body">
         <p id="factory-delivery-note" class="factory-picker-note">Choose a building that accepts these goods. You can choose a full building; new deliveries wait for space.</p>
         <label class="factory-picker-search" for="factory-delivery-search">Search by building or coordinates<input id="factory-delivery-search" type="search" autocomplete="off" placeholder="Depot or 15, 10"></label>
@@ -1190,7 +1186,6 @@ const VERDICT_LABELS: Record<ResourceVerdict, string> = {
   short: 'Short', stuck: 'Stuck', 'backed-up': 'Backed up', idle: 'Idle',
   falling: 'Falling', steady: 'Keeping up', unused: 'Not in use', measuring: 'Measuring',
 };
-const NEEDS_ATTENTION: readonly ResourceVerdict[] = ['short', 'stuck', 'backed-up', 'idle', 'falling'];
 const VERDICT_ADVICE: Record<ResourceVerdict, string> = {
   short: 'Add producers or a delivery route to the waiting buildings.',
   stuck: 'Producers are full while buildings wait. Connect them with a delivery route.',

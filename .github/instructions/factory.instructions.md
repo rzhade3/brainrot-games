@@ -41,6 +41,21 @@ resident where the player can act on it; reserve global warnings for global
 issues such as failed saves. The world communicates activity through animation
 and carried items, not extra text over every resident.
 
+## Visual treatment
+
+Every panel, dialog and menu shares the look of the intro ("Grow food. Keep
+goods moving."): paper background and green ink, a small spaced uppercase
+overline, then a light-weight headline title (`factory-title`). Titles that
+name a thing end in the ochre period from "Pocket Factory." (`factory-noted`);
+questions keep their question mark. Lists of rows (resources, destinations,
+residents) are ruled lines on the paper, not boxed cards; selection, problems
+and hover use a tint or a colored left mark. Problems use earthy, not bright,
+colors: brick red for Short or Stuck and deep amber for Backed up, Idle or
+Falling, on both the mark and the verdict text. Keep both clearly distinct from
+the decorative ochre period and readable against the paper. Keep body text, numbers and
+controls in the plain sans-serif so stock and rates stay easy to read.
+Apply new surfaces with these shared classes rather than one-off styles.
+
 Residents can gain recognizable voices and small habits in future work, but
 do not invent preferences, memories, relationships, or survival mechanics in
 copy before they are intentionally designed. Personality can also come from
@@ -88,7 +103,9 @@ population, not the old household-wide serving rate.
 Used 8/min", and one short verdict such as "Short · 2 buildings waiting" or
 "Keeping up". Save the suggested action for the resource's drilldown, and label
 problem locations there ("Waiting for it", "Output full", "No worker"). Rates
-are measured from actual work; say "Measuring" rather than guessing.
+are measured from actual work; say "Measuring" rather than guessing. Keep
+problems inline on their rows; do not add a changing summary line above the
+list, which shifts the layout as verdicts change.
 
 **Field notes (collapsed help):** explain only non-obvious behavior or a useful
 exception in one or two short sentences. For example: "Keep a clear tile beside
