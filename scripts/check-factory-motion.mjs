@@ -24,6 +24,7 @@ try {
     const hashes = await page.evaluate(async () => {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
       const { FactorySimulation } = await import('/src/games/factory/game/simulation.ts');
+      const { CATALOG } = await import('/src/games/factory/game/domain.ts');
       const { project } = await import('/src/games/factory/game/model.ts');
       const { drawResident } = await import('/src/games/factory/assets/art.ts');
       game.loop.stop();
@@ -56,7 +57,9 @@ try {
         }
       }
       drawing.destroy();
-      const sim = FactorySimulation.create();
+      const save = FactorySimulation.create().serialize();
+      save.discovered = CATALOG.map(entry => entry.kind);
+      const sim = FactorySimulation.restore(save);
       for (const building of [
         { kind: 'miner', c: 7, r: 10, direction: 0 },
         { kind: 'belt', c: 8, r: 10, direction: 0 },

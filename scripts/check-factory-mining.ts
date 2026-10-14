@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { MINE_TICKS, Tile, tileKey } from '../src/games/factory/game/domain';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks, assertResidentLocation, roundTrip } from './factory-check-helpers';
+import { advanceTicks, assertResidentLocation, roundTrip, unlockedFactory } from './factory-check-helpers';
 
 const plot = { c: 10, r: 9 };
 const worker = (sim: FactorySimulation, tile: Tile) => sim.residents.find(resident => resident.post && tileKey(resident.post) === tileKey(tile));
@@ -16,7 +16,7 @@ function depositTile(sim: FactorySimulation, deposit: 'iron' | 'copper'): Tile {
 }
 
 // Placement shares the extractor's deposit rule.
-const sim = FactorySimulation.create();
+const sim = unlockedFactory();
 assert.equal(sim.placementError({ c: 12, r: 16 }, 'mining-site'), 'Mining sites need an ore deposit');
 assert.equal(sim.placementError({ c: 7, r: 10 }, 'storage'), 'Leave deposits free for mining');
 const mine = { c: 7, r: 10 };
@@ -56,7 +56,7 @@ assert.deepEqual(restored.serialize(), sim.serialize());
 assert.equal(sim.setWorkPriority(mine, 'off'), null);
 assert.equal(worker(sim, mine), undefined);
 assert.equal(sim.inspectMachine(mine).staffing, 'Off · no worker');
-const copperSim = FactorySimulation.create();
+const copperSim = unlockedFactory();
 copperSim.remove(plot);
 const copper = depositTile(copperSim, 'copper');
 assert.equal(copperSim.place({ ...copper, kind: 'mining-site', direction: 0 }), null);
@@ -66,7 +66,7 @@ assert.equal(copperSim.getState(copper)!.output['iron-ore'], 0);
 roundTrip(copperSim);
 
 // Removing an occupied mine recovers its ore without loss.
-const removal = FactorySimulation.create();
+const removal = unlockedFactory();
 assert.equal(removal.place({ ...mine, kind: 'mining-site', direction: 0 }), null);
 while (removal.getState(mine)!.output['iron-ore'] < 2) removal.step();
 const recovered = removal.summary().recovered['iron-ore'];

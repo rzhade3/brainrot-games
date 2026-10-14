@@ -1619,6 +1619,36 @@ panel or event feed.
   unchanged state on inspection and fresh measurement after load. The native UI
   check covers Measuring, measured rows and the food drilldown on every viewport.
 
+### Implemented slice: First discoveries
+
+Goal: show only buildings and resources that matter yet, and let the settlement
+earn the rest through its own work instead of presenting every machine at once.
+
+- New settlements start with the food plot, woodcutting site, kitchen, house and
+  depot; Resources lists food and wood.
+- Ordered discoveries in `game/discovery.ts`: finishing a house reveals the
+  mining site (ore); digging 10 ore by hand reveals the smelter (plates); the
+  first plate reveals conveyors and splitters; 20 plates reveal the extractor.
+  Thresholds are provisional and should be tuned from playtests.
+- Progress reads completed houses and the existing mined/smelted ledgers, so
+  moving or storing goods never counts twice. Discoveries are permanent, never
+  remove an earlier capability and survive losing the building that earned them.
+- The Build catalog hides undiscovered cards and shows one disabled card per
+  building of the next discovery with its condition and progress, such as
+  "Dig ore by hand · 4/10". Categories with no cards are hidden. Shortcuts
+  ignore undiscovered buildings. Each discovery is announced once in the status
+  line ("Mining site discovered. Find it in Build.") with no feed or log.
+- Saves store the discovered list. Older saves infer it from placed buildings
+  and recorded work; unknown, duplicate or missing starting kinds, and placed
+  buildings that were never discovered, are rejected as damaged.
+- The assembler has no settlement use yet and stays hidden unless an older save
+  already built one. Milestone 10 should extend this list rather than add a
+  second unlock system.
+- Checks: `check-factory-discovery.ts` plays the chain from a new settlement and
+  covers announcements, permanence, saving, inference and validation. Machine
+  checks start from a fully discovered settlement. The native UI check covers
+  the starting catalog, locked shortcuts and the first announcement.
+
 ### Milestone 9: Food processing and later settlement growth
 
 Add a food processor producing processed food units according to the shared

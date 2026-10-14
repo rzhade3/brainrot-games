@@ -3,6 +3,7 @@ import { createSave, restoreSave } from '../src/games/factory/session/persistenc
 import { FactorySimulation } from '../src/games/factory/game/simulation';
 import { Building, BuildingKind, Direction, tileKey } from '../src/games/factory/game/model';
 import { Resident, WALK_TICKS } from '../src/games/factory/game/settlement';
+import { CATALOG } from '../src/games/factory/game/domain';
 
 export function assertResidentLocation(simulation: FactorySimulation, resident: Resident): void {
   const clear = (tile: Resident['tile']) => !simulation.buildings.has(tileKey(tile)) &&
@@ -58,8 +59,21 @@ export function assertInvariants(simulation: FactorySimulation): void {
   assert.deepEqual(restored.serialize(), simulation.serialize());
 }
 
+/** Every catalog building, for checks that exercise machines rather than discovery. */
+export function discoverAll(save: ReturnType<FactorySimulation['serialize']>): void {
+  save.discovered = CATALOG.map(entry => entry.kind);
+}
+
+/** A new settlement with every building discovered. */
+export function unlockedFactory(seed?: string): FactorySimulation {
+  const save = FactorySimulation.create(seed).serialize();
+  discoverAll(save);
+  return FactorySimulation.restore(save);
+}
+
 export function emptyFactory(): FactorySimulation {
   const save = FactorySimulation.create().serialize();
+  discoverAll(save);
   save.machines = save.machines.filter(machine => machine.building.kind === 'home');
   save.recovered['food-unit'] = save.settlement.starterFood;
   save.settlement.kitchenRemoved = save.settlement.starterFood;

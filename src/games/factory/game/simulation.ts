@@ -2,7 +2,7 @@ import {
   BELT_TICKS,
   compareTiles,
   EXTRACT_TICKS,
-  firstItem, inventory, Inventory, Item,
+  BuildableKind, firstItem, inventory, Inventory, isBuildingKind, Item,
   itemCount, itemText,
   ITEMS,
   HOUSE_WOOD_COST,
@@ -19,6 +19,9 @@ import {
   recoverContents, SMELTER_RECIPES, transferMachines, TransportHost, workerSlots,
 } from './machines';
 import { FLOW_SAMPLE_TICKS, FLOW_TICKS, FlowTotals, FlowTracker } from './flow';
+import {
+  DISCOVERIES, discoveredItems, discoveryProgress, newlyDiscovered, nextDiscovery, sortKinds, STARTING_KINDS,
+} from './discovery';
 import {
   acceptsConveyorInput, Building, BuildingKind, createSettlement,
   DIRECTION_NAMES,
@@ -37,6 +40,7 @@ export { BELT_TICKS, EXTRACT_TICKS, inventory, inventoryText, ITEM_NAMES, itemCo
 export type { Inventory, Item } from './domain';
 export { workerSlots } from './machines';
 export { FLOW_MIN_TICKS, FLOW_TICKS } from './flow';
+export { DISCOVERIES, STARTING_KINDS } from './discovery';
 export { ASSEMBLE_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, depotNextItem, SMELT_TICKS } from './machines';
 export type { MachineState } from './machines';
 export { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
@@ -110,6 +114,8 @@ export interface ResourceFlow {
 
 export interface ResourceInspection {
   item: Item;
+  /** False until the settlement has a building that makes or uses it, unless some is already held or moving. */
+  discovered: boolean;
   flow: ResourceFlow;
   verdict: ResourceVerdict;
   waitingConsumers: number;
@@ -139,6 +145,13 @@ export interface SimulationSave {
   recipeConsumed: Inventory;
   ruleset: 'settlement-v8';
   settlement: SettlementSave;
+  /** Buildable kinds earned so far, in catalog order. Older saves infer it. */
+  discovered: BuildableKind[];
+}
+
+export interface DiscoveryInspection {
+  discovered: BuildableKind[];
+  next: { kinds: readonly BuildableKind[]; condition: string; current: number; required: number } | null;
 }
 
 export class FactorySimulation {
@@ -150,6 +163,9 @@ export class FactorySimulation {
   private settlement: Settlement;
   private orderedMachines: MachineState[] | null = null;
   private flow = new FlowTracker();
+  private discovered = new Set<BuildableKind>(STARTING_KINDS);
+  /** Discoveries made since the scene last asked, for one-time feedback. Not saved. */
+  private freshDiscoveries: BuildableKind[] = [];
   /** Unsaved, monotonic count of wood installed in houses, used only for flow rates. */
   private installedWood = 0;
   private readonly productionLedger: ProductionLedger = {
@@ -204,6 +220,7 @@ export class FactorySimulation {
       assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed },
       ruleset: 'settlement-v8',
       settlement: this.settlement.serialize(),
+      discovered: sortKinds(this.discovered),
     };
   }
 
@@ -252,6 +269,20 @@ export class FactorySimulation {
       sim.lastSource.set(entry[0], tile);
     }
     assertConservation(sim.machines.values(), sim.recovered, sim.productionLedger, sim.settlement.state);
+    sim.discovered = new Set(STARTING_KINDS);
+    if (source.discovered === undefined) {
+      for (const building of sim.placed.values()) if (building.kind !== 'home') sim.discovered.add(building.kind);
+      for (const kind of newlyDiscovered(sim.discovered, sim.discoveryProgress())) sim.discovered.add(kind);
+    } else {
+      const listed: unknown = source.discovered;
+      requireSave(Array.isArray(listed) && listed.every(kind => typeof kind === 'string' && isBuildingKind(kind)) &&
+        new Set(listed).size === listed.length, 'invalid discoveries');
+      for (const kind of listed as BuildableKind[]) sim.discovered.add(kind);
+      requireSave(sim.discovered.size === listed.length, 'missing starting discoveries');
+      for (const building of sim.placed.values()) {
+        requireSave(building.kind === 'home' || sim.discovered.has(building.kind), 'undiscovered building');
+      }
+    }
     sim.flow = new FlowTracker();
     sim.flow.sample(sim.ticks, sim.flowTotals());
     return sim;
@@ -327,6 +358,7 @@ export class FactorySimulation {
 
   placementError(tile: Tile, kind: BuildingKind): string | null {
     if (kind === 'home') return 'The homestead stays in place';
+    if (!this.discovered.has(kind)) return `${NAMES[kind]} not discovered yet`;
     if (this.settlement.occupied(tile)) return 'A resident is using this tile';
     const error = placementError(tile, kind, this.placed, this.world);
     if (error) return error;
@@ -496,6 +528,36 @@ export class FactorySimulation {
     this.settlement.step();
     transferMachines(machines, this.lastSource, this.transportHost);
     if (this.ticks % FLOW_SAMPLE_TICKS === 0) this.flow.sample(this.ticks, this.flowTotals());
+    if (DISCOVERIES.some(discovery => discovery.kinds.some(kind => !this.discovered.has(kind)))) {
+      for (const kind of newlyDiscovered(this.discovered, this.discoveryProgress())) {
+        this.discovered.add(kind);
+        this.freshDiscoveries.push(kind);
+      }
+    }
+  }
+
+  private discoveryProgress() {
+    const houses = [...this.machines.values()].filter(machine => machine.building.kind === 'house').map(machine => machine.input);
+    return discoveryProgress(houses, this.productionLedger.mined, this.productionLedger.smelted);
+  }
+
+  isDiscovered(kind: BuildableKind): boolean {
+    return this.discovered.has(kind);
+  }
+
+  inspectDiscoveries(): DiscoveryInspection {
+    const next = nextDiscovery(this.discovered, this.discoveryProgress());
+    return {
+      discovered: sortKinds(this.discovered),
+      next: next && { kinds: next.discovery.kinds, condition: next.discovery.condition, current: next.current, required: next.discovery.required },
+    };
+  }
+
+  /** Returns and forgets discoveries made since the last call. */
+  takeDiscoveries(): BuildableKind[] {
+    const fresh = this.freshDiscoveries;
+    this.freshDiscoveries = [];
+    return fresh;
   }
 
   private flowTotals(): FlowTotals {
@@ -626,8 +688,9 @@ export class FactorySimulation {
 
   inspectResources(): ResourceInspection[] {
     const rates = this.flow.rates();
+    const known = discoveredItems(this.discovered);
     const resources: ResourceInspection[] = ITEMS.map(item => ({
-      item, total: 0, depots: 0, buildings: 0, inTransit: 0, waiting: 0,
+      item, discovered: known.has(item), total: 0, depots: 0, buildings: 0, inTransit: 0, waiting: 0,
       recovered: this.recovered[item], locations: [],
       flow: {
         ticks: rates.ticks, made: rates.made[item], used: rates.used[item],
@@ -687,6 +750,7 @@ export class FactorySimulation {
       resource.total = resource.depots + resource.buildings + resource.inTransit + resource.recovered;
       resource.locations.sort((a, b) => rank(a.issue) - rank(b.issue) || b.quantity - a.quantity || a.key.localeCompare(b.key));
       resource.verdict = resourceVerdict(resource);
+      resource.discovered ||= resource.total > 0 || resource.flow.made > 0 || resource.flow.used > 0;
     }
     return resources;
   }

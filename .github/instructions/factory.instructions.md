@@ -54,8 +54,9 @@ not a recipe plus speed plus capacity plus instructions. Show a placement
 restriction when selecting or previewing placement, rather than burying it in
 the catalog. A future construction cost belongs here only when implemented.
 
-The catalog uses these purpose lines (an unavailable building may instead show
-its unlock condition):
+The catalog uses these purpose lines. Undiscovered buildings are hidden; only
+the next discovery appears, disabled, with its condition and progress in place
+of the purpose line ("Dig ore by hand · 4/10"):
 
 | Building | Purpose line |
 | --- | --- |

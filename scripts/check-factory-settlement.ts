@@ -3,9 +3,9 @@ import { DIRECTIONS, tileKey } from '../src/games/factory/game/model';
 import { createSave, restoreSave } from '../src/games/factory/session/persistence';
 import { FARM_TICKS, KITCHEN_CAPACITY, MEAL_TICKS, STARTER_FOOD, WALK_TICKS } from '../src/games/factory/game/settlement';
 import { DEPOT_CAPACITY, FactorySimulation, itemCount, ITEMS } from '../src/games/factory/game/simulation';
-import { assertResidentLocation } from './factory-check-helpers';
+import { assertResidentLocation, unlockedFactory } from './factory-check-helpers';
 
-const fresh = () => FactorySimulation.create();
+const fresh = () => unlockedFactory();
 const ticks = (sim: FactorySimulation, count: number) => { for (let i = 0; i < count; i++) sim.step(); };
 const state = (sim: FactorySimulation) => sim.summary().settlement!;
 const roundtrip = (sim: FactorySimulation) => {
@@ -225,7 +225,7 @@ for (const scenario of ['guided', 'free-play'] as const) {
 }
 
 for (const seed of ['north-bank', 'settlement', 'food', 'river', 'wood', '42', '100']) {
-  const seeded = FactorySimulation.create(seed);
+  const seeded = unlockedFactory(seed);
   ticks(seeded, 300);
   assert.ok(state(seeded).producedFood > 0);
   assert.equal(state(seeded).missedMeals, 0);

@@ -3,13 +3,13 @@ import { FOOD_READINESS_TICKS, HOUSE_CAPACITY, HOUSE_WOOD_COST, inventory, RESID
 import { inputSlots } from '../src/games/factory/game/machines';
 import { residentName, Settlement } from '../src/games/factory/game/settlement';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks, roundTrip } from './factory-check-helpers';
+import { advanceTicks, roundTrip, unlockedFactory } from './factory-check-helpers';
 
 const house = { c: 16, r: 12 };
 const kitchen = { c: 14, r: 12 };
 
 function readySave() {
-  const simulation = FactorySimulation.create();
+  const simulation = unlockedFactory();
   assert.equal(simulation.place({ ...house, kind: 'house', direction: 0 }), null);
   const save = simulation.serialize();
   save.ticks = FOOD_READINESS_TICKS;
@@ -149,7 +149,7 @@ for (const wood of [0, HOUSE_WOOD_COST - 1, HOUSE_WOOD_COST]) {
   assert.throws(() => FactorySimulation.restore(overflow), /capacity/);
 }
 {
-  const simulation = FactorySimulation.create();
+  const simulation = unlockedFactory();
   assert.equal(simulation.place({ ...house, kind: 'house', direction: 0 }), null);
   assert.equal(simulation.place({ c: 15, r: 12, kind: 'belt', direction: 0 }), null);
   const save = simulation.serialize();
@@ -174,7 +174,7 @@ for (const wood of [0, HOUSE_WOOD_COST - 1, HOUSE_WOOD_COST]) {
   roundTrip(full);
 }
 {
-  const simulation = FactorySimulation.create();
+  const simulation = unlockedFactory();
   for (const [kind, c, r, direction] of [['house', 16, 12, 0], ['storage', 13, 12, 0], ['belt', 17, 12, 2]] as const) {
     assert.equal(simulation.place({ kind, c, r, direction }), null);
   }
@@ -224,7 +224,7 @@ for (const wood of [0, HOUSE_WOOD_COST - 1, HOUSE_WOOD_COST]) {
   roundTrip(kitchens);
 }
 {
-  const simulation = FactorySimulation.create();
+  const simulation = unlockedFactory();
   assert.equal(simulation.place({ c: 13, r: 12, kind: 'belt', direction: 0 }), null);
   const save = simulation.serialize();
   save.machines.find(machine => machine.building.kind === 'belt')!.item = 'food-unit';
@@ -258,7 +258,7 @@ for (const mutate of [
 {
   const machine = structuredClone(ready.getState(kitchen)!);
   machine.input['food-unit'] = 16;
-  const state = FactorySimulation.create().serialize().settlement;
+  const state = unlockedFactory().serialize().settlement;
   state.residents = Array.from({ length: 105 }, (_, id) => ({ ...structuredClone(state.residents[0]), id }));
   const settlement = new Settlement({
     machines: new Map([[tileKey(kitchen), machine]]), world: ready.world, automated: () => false,
@@ -280,7 +280,7 @@ for (const mutate of [
 }
 
 function normalOpening() {
-  const simulation = FactorySimulation.create();
+  const simulation = unlockedFactory();
   for (const [kind, c, r] of [
     ['house', 16, 12], ['kitchen', 16, 10], ['food-plot', 13, 10], ['food-plot', 15, 10],
   ] as const) assert.equal(simulation.place({ kind, c, r, direction: 0 }), null);

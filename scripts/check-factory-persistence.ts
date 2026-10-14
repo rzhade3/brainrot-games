@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { Building } from '../src/games/factory/game/model';
 import { createSave, restoreSave, SAVE_VERSION } from '../src/games/factory/session/persistence';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks, createDemo, factoryFrom, roundTrip } from './factory-check-helpers';
+import { advanceTicks, createDemo, factoryFrom, roundTrip, unlockedFactory } from './factory-check-helpers';
 
 const sim = factoryFrom(createDemo());
 const place = (kind: Building['kind'], c: number, r: number, direction: Building['direction'] = 0) =>
@@ -39,7 +39,7 @@ for (let i = 0; i < 400; i++) {
 assert.deepEqual(replica.serialize(), sim.serialize());
 assert.throws(() => replica.remove({ c: 11, r: 12 }), /fixed/);
 
-const fresh = FactorySimulation.create();
+const fresh = unlockedFactory();
 assert.equal(fresh.place({ kind: 'miner', c: 7, r: 10, direction: 0 }), null);
 fresh.advance(175);
 assert.equal(roundTrip(fresh).interpolation, 0.75);
@@ -84,7 +84,7 @@ for (const field of ['nextOutput', 'nextItem'] as const) {
   delete missing.simulation.machines[0][field];
   assert.throws(() => restoreSave(missing), /Corrupt/);
 }
-const splitting = FactorySimulation.create();
+const splitting = unlockedFactory();
 for (const building of [
   { kind: 'miner', c: 7, r: 10, direction: 0 },
   { kind: 'belt', c: 8, r: 10, direction: 0 },

@@ -3,7 +3,7 @@ import { containsBuilding, pickBuilding } from '../src/games/factory/assets/pick
 import { DIRECTIONS, GATHER_RADIUS, GATHER_TICKS, project, Tile, tileKey } from '../src/games/factory/game/domain';
 import { gatheringAccess } from '../src/games/factory/game/gathering';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks, assertInvariants, assertResidentLocation, roundTrip } from './factory-check-helpers';
+import { advanceTicks, assertInvariants, assertResidentLocation, roundTrip, unlockedFactory } from './factory-check-helpers';
 
 function sites(sim: FactorySimulation): Tile[] {
   const result: Tile[] = [];
@@ -13,11 +13,11 @@ function sites(sim: FactorySimulation): Tile[] {
   return result.sort((a, b) => Math.abs(a.c - 12) + Math.abs(a.r - 12) -
     Math.abs(b.c - 12) - Math.abs(b.r - 12) || a.c - b.c || a.r - b.r);
 }
-const initial = FactorySimulation.create();
+const initial = unlockedFactory();
 const site = sites(initial)[0];
 assert.ok(site);
 const setup = () => {
-  const sim = FactorySimulation.create();
+  const sim = unlockedFactory();
   assert.equal(sim.place({ ...site, kind: 'woodcutting-site', direction: 0 }), null);
   return sim;
 };
@@ -130,7 +130,7 @@ assert.ok(hauling.summary().recovered.wood > 0);
 accounted(hauling);
 roundTrip(hauling);
 
-const conveyor = FactorySimulation.create();
+const conveyor = unlockedFactory();
 const line = sites(conveyor).flatMap(source => DIRECTIONS.flatMap((vector, direction) => {
   const belt = { c: source.c + vector.c, r: source.r + vector.r };
   const storage = { c: source.c + vector.c * 2, r: source.r + vector.r * 2 };

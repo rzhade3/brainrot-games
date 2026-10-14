@@ -3,11 +3,11 @@ import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks, assertInvariants, roundTrip } from './factory-check-helpers';
+import { advanceTicks, assertInvariants, roundTrip, unlockedFactory } from './factory-check-helpers';
 
 const factories = [
   () => {
-    const sim = FactorySimulation.create();
+    const sim = unlockedFactory();
     for (const building of [
       { kind: 'miner', c: 7, r: 10, direction: 0 },
       { kind: 'belt', c: 8, r: 10, direction: 0 },
@@ -16,10 +16,10 @@ const factories = [
     ] as const) assert.equal(sim.place(building), null);
     return sim;
   },
-  () => FactorySimulation.create(),
-  () => FactorySimulation.create('architecture-check'),
+  () => unlockedFactory(),
+  () => unlockedFactory('architecture-check'),
   () => {
-    const sim = FactorySimulation.create();
+    const sim = unlockedFactory();
     for (let c = 5; c < 22; c++) for (let r = 5; r < 22; r++) {
       if (!sim.placementError({ c, r }, 'food-plot')) {
         assert.equal(sim.place({ c, r, kind: 'food-plot', direction: 0 }), null);

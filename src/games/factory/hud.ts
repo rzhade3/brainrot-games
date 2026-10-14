@@ -1,9 +1,9 @@
 import { icon } from './assets/icons';
-import { CATALOG, FOOD_READINESS_TICKS, HOUSE_WOOD_COST, RESIDENT_FOOD_TICKS, Item, ITEMS, itemName, itemText, WorkPriority, WORK_PRIORITIES } from './game/domain';
+import { BuildableKind, CATALOG, FOOD_READINESS_TICKS, HOUSE_WOOD_COST, RESIDENT_FOOD_TICKS, Item, ITEMS, itemName, itemText, WorkPriority, WORK_PRIORITIES } from './game/domain';
 import { Building, DESCRIPTIONS, Direction, DIRECTION_NAMES, isBuildingKind, isConveyor, isTool, NAMES, outputDirections, Point, Tile, tileKey, Tool } from './game/model';
 import { Resident, residentName, RESIDENT_NAMES, SettlementSave } from './game/settlement';
 import {
-  FactorySummary, inventoryText,
+  DiscoveryInspection, FactorySummary, inventoryText,
   ITEM_NAMES,
   itemCount,
   MachineInspection,
@@ -52,6 +52,8 @@ export class FactoryHud {
   private scrim: HTMLElement;
   private placement: HTMLElement;
   private category: Category = 'all';
+  private discovered: ReadonlySet<BuildableKind> = new Set(CATALOG.map(entry => entry.kind));
+  private discoveryKey = '';
   private abort = new AbortController();
   private footerObserver: ResizeObserver;
   private settlementDialog: HTMLDialogElement;
@@ -113,7 +115,8 @@ export class FactoryHud {
           </div>
           <div class="factory-catalog-scroll">
             ${CATEGORIES.map(category => `<div class="factory-catalog-grid" id="factory-category-${category.id}" role="tabpanel" aria-labelledby="factory-tab-${category.id}" ${category.id === 'all' ? '' : 'hidden'}>
-              ${CATALOG.filter(entry => category.id === 'all' || entry.category === category.id).map(entry => `<button class="factory-building-card" data-action="${entry.kind}" aria-label="${NAMES[entry.kind]}">${icon(entry.kind)}<span><strong>${NAMES[entry.kind]}</strong><small>${entry.note}</small>${entry.kind === 'house' ? `<small>Construction: ${itemText('wood', HOUSE_WOOD_COST)}</small>` : ''}</span>${entry.shortcut ? `<kbd>${entry.shortcut}</kbd>` : ''}</button>`).join('')}
+              ${CATALOG.filter(entry => category.id === 'all' || entry.category === category.id).map(entry => `<button class="factory-building-card" data-action="${entry.kind}" aria-label="${NAMES[entry.kind]}">${icon(entry.kind)}<span><strong>${NAMES[entry.kind]}</strong><small>${entry.note}</small>${entry.kind === 'house' ? `<small>Construction: ${itemText('wood', HOUSE_WOOD_COST)}</small>` : ''}</span>${entry.shortcut ? `<kbd>${entry.shortcut}</kbd>` : ''}</button>` +
+                `<button class="factory-building-card is-locked" data-locked="${entry.kind}" disabled hidden>${icon(entry.kind)}<span><strong>${NAMES[entry.kind]}</strong><small class="factory-unlock"></small></span></button>`).join('')}
             </div>`).join('')}
           </div>
         </section>
@@ -362,7 +365,7 @@ export class FactoryHud {
         return;
       }
       if (event.target instanceof HTMLElement && event.target.matches('input, textarea, select, [contenteditable]')) return;
-      const entry = CATALOG.find(entry => entry.shortcut === event.key);
+      const entry = CATALOG.find(entry => entry.shortcut === event.key && this.discovered.has(entry.kind));
       if (entry || event.key === '1') {
         event.preventDefault();
         this.closeCatalog(false);
@@ -538,6 +541,30 @@ export class FactoryHud {
     this.buildButton.setAttribute('aria-expanded', 'false');
     if (wasOpen) this.root.querySelector<HTMLButtonElement>('.factory-toolbar [data-action="inspect"]')!.setAttribute('aria-pressed', 'true');
     if (wasOpen && restoreFocus) this.buildButton.focus({ preventScroll: true });
+  }
+
+  /** Shows earned buildings and, for the next discovery, its condition. */
+  setDiscoveries(discoveries: DiscoveryInspection): void {
+    const next = discoveries.next;
+    const key = `${discoveries.discovered.join()}|${next ? `${next.kinds.join()}:${next.current}` : ''}`;
+    if (key === this.discoveryKey) return;
+    this.discoveryKey = key;
+    this.discovered = new Set(discoveries.discovered);
+    for (const card of this.catalog.querySelectorAll<HTMLButtonElement>('[data-action]')) {
+      if (isBuildingKind(card.dataset.action!)) card.hidden = !this.discovered.has(card.dataset.action);
+    }
+    for (const card of this.catalog.querySelectorAll<HTMLButtonElement>('[data-locked]')) {
+      const kind = card.dataset.locked as BuildableKind;
+      card.hidden = !next?.kinds.includes(kind);
+      if (!next || card.hidden) continue;
+      this.setText(card.querySelector<HTMLElement>('.factory-unlock')!, `${next.condition} · ${next.current}/${next.required}`);
+      card.setAttribute('aria-label', `${NAMES[kind]}, not discovered yet. ${next.condition}: ${next.current} of ${next.required}`);
+    }
+    for (const category of CATEGORIES) {
+      const empty = !this.root.querySelector(`#factory-category-${category.id} > .factory-building-card:not([hidden])`);
+      this.root.querySelector<HTMLButtonElement>(`#factory-tab-${category.id}`)!.hidden = empty;
+      if (empty && this.category === category.id) this.setCategory('all');
+    }
   }
 
   private setCategory(category: Category): void {
@@ -824,7 +851,7 @@ export class FactoryHud {
   }
 
   updateResources(paused = this.paused): void {
-    const resources = this.onResources();
+    const resources = this.onResources().filter(resource => resource.discovered || resource.item === this.resourceItem);
     const results = this.resourcesDialog.querySelector<HTMLElement>('.factory-picker-results')!;
     const keys = new Set<string>();
     const rowFor = (key: string, command: string) => {

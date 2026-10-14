@@ -489,6 +489,7 @@ export default class FactoryScene extends Phaser.Scene {
 
   private act(action: Action): void {
     if (this.choosingSettlement || this.hud.choosingAssignment) return;
+    if (isBuildingKind(action) && !this.simulation.isDiscovered(action)) return;
     if (action === 'swap-bend') {
       this.horizontalFirst = !this.horizontalFirst;
       this.renderPreview();
@@ -785,6 +786,12 @@ export default class FactoryScene extends Phaser.Scene {
     }
     this.hud.setBuildings(this.buildings);
     this.hud.setSummary(this.simulation.summary());
+    this.hud.setDiscoveries(this.simulation.inspectDiscoveries());
+    const discovered = this.simulation.takeDiscoveries();
+    if (discovered.length) {
+      const names = discovered.map(kind => NAMES[kind]);
+      this.hud.setStatus(`${names.join(' and ')} discovered. Find ${names.length > 1 ? 'them' : 'it'} in Build.`);
+    }
     if (this.hud.resourcesOpen) this.hud.updateResources(this.paused);
     if (this.selected) {
       if (this.simulation.getState(this.selected)) {

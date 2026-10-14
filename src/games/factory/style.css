@@ -189,6 +189,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 .factory-building-card > span { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .factory-building-card strong { font-size: 13px; font-weight: 550; }
 .factory-building-card small { font-size: 10px; color: var(--muted); line-height: 1.5; }
+.factory-building-card.is-locked { border-style: dashed; background: transparent; cursor: default; }
+.factory-building-card.is-locked > svg { color: var(--muted); opacity: 0.6; }
 .factory-building-card kbd { position: absolute; top: 5px; right: 8px; font-family: inherit; font-size: 9px; color: #82947a; }
 .factory-placement { display: flex; align-items: center; gap: 8px; padding: 10px 12px; margin: 0 7px 10px; border: 1px solid #b8cdb2; border-radius: 12px; background: #e9f0e1f5; }
 .factory-placement-machine { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; }

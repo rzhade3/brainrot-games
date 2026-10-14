@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { Building, CATALOG, createSettlement, inventory, itemCount, ITEMS, tileKey } from '../src/games/factory/game/model';
 import { ASSEMBLE_TICKS, FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks as ticks, assertInvariants, emptyFactory, factoryFrom, roundTrip } from './factory-check-helpers';
+import { advanceTicks as ticks, assertInvariants, emptyFactory, factoryFrom, roundTrip, unlockedFactory } from './factory-check-helpers';
 
 const building = (kind: Building['kind'], c: number, r: number, direction: Building['direction'] = 0): Building =>
   ({ kind, c, r, direction });
@@ -14,7 +14,7 @@ const place = (sim: FactorySimulation, ...buildings: Building[]) => {
   for (const value of buildings) assert.equal(sim.place(value), null, `Cannot place ${value.kind} at ${tileKey(value)}`);
 };
 
-const settlement = FactorySimulation.create();
+const settlement = unlockedFactory();
 assert.deepEqual(settlement.buildings, createSettlement());
 assert.equal(settlement.residents.length, 4);
 assert.equal(settlement.getState({ c: 14, r: 12 })!.input['food-unit'], 8);
@@ -24,7 +24,7 @@ for (const field of ['scenario', 'projects', 'delivered', 'stage', 'deliveryTick
   assert.equal(Object.hasOwn(settlement.summary(), field), false);
 }
 for (const entry of CATALOG) {
-  const fresh = FactorySimulation.create();
+  const fresh = unlockedFactory();
   let tile = entry.kind === 'miner' || entry.kind === 'mining-site' ? { c: 7, r: 10 } : { c: 17, r: 17 };
   if (entry.kind === 'woodcutting-site') {
     const sites = [];
@@ -125,8 +125,8 @@ for (let i = 0; i < 120; i++) {
   reverse.step();
   assert.deepEqual(forward.snapshot(), reverse.snapshot());
 }
-const fast = FactorySimulation.create();
-const slow = FactorySimulation.create();
+const fast = unlockedFactory();
+const slow = unlockedFactory();
 for (let i = 0; i < 600; i++) fast.advance(1000 / 60);
 for (let i = 0; i < 300; i++) slow.advance(1000 / 30);
 assert.deepEqual(fast.snapshot(), slow.snapshot());

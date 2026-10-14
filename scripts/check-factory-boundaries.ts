@@ -3,7 +3,7 @@ import { BUILDING_SHAPES, containsBuilding, pickBuilding } from '../src/games/fa
 import { BuildingKind, BUILDING_KINDS, CATALOG, inventory, inventoryText, itemCount, ITEMS, itemText, moveInventory, project, tileKey } from '../src/games/factory/game/domain';
 import { ASSEMBLER_RECIPE, canHaulBetween, haulItems, inputCapacity, inputSlots, machineCycleTicks, machineRecipe, SMELTER_RECIPES } from '../src/games/factory/game/machines';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { roundTrip } from './factory-check-helpers';
+import { roundTrip, unlockedFactory } from './factory-check-helpers';
 
 const source = inventory();
 const destination = inventory();
@@ -38,7 +38,7 @@ for (const kind of BUILDING_KINDS) {
       point.y >= shape.bounds.top && point.y <= shape.bounds.bottom);
   }
 }
-const plotFactory = FactorySimulation.create();
+const plotFactory = unlockedFactory();
 assert.equal(plotFactory.place({ kind: 'furnace', c: 25, r: 25, direction: 0 }), null);
 assert.equal(plotFactory.place({ kind: 'food-plot', c: 26, r: 26, direction: 0 }), null);
 const plot = plotFactory.buildings.get('26,26')!;
@@ -52,7 +52,7 @@ assert.equal(containsBuilding('food-plot', { x: 0, y: -54 }), false, 'Plots cann
 assert.equal(pickBuilding({ x: smelterOrigin.x, y: smelterOrigin.y - 16 }, plotFactory.buildings), smelter,
   'A plot must not intercept a visible smelter behind it');
 assert.deepEqual(roundTrip(plotFactory).serialize(), plotFactory.serialize());
-const sim = FactorySimulation.create();
+const sim = unlockedFactory();
 const snapshot = sim.serialize();
 for (const building of sim.buildings.values()) {
   const inspection = sim.inspectMachine(building);
@@ -83,7 +83,7 @@ for (const kind of BUILDING_KINDS) for (const targetKind of BUILDING_KINDS) {
 }
 assert.deepEqual(haulItems({ kind: 'miner', c: 9, r: 14, direction: 0 }, sim.world), ['copper-ore']);
 assert.deepEqual(haulItems({ kind: 'miner', c: 7, r: 10, direction: 0 }, sim.world), ['iron-ore']);
-const delivery = FactorySimulation.create();
+const delivery = unlockedFactory();
 const placeReceiver = (kind: 'furnace' | 'assembler' | 'storage' | 'woodcutting-site') => {
   for (let c = 2; c < 32; c++) for (let r = 2; r < 32; r++) {
     const building = { kind, c, r, direction: 0 as const };

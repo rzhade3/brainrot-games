@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { DIRECTIONS, Tile, tileKey } from '../src/games/factory/game/domain';
 import { residentNextTile, residentWorkTile, Resident, WALK_TICKS } from '../src/games/factory/game/settlement';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks, assertResidentLocation, roundTrip } from './factory-check-helpers';
+import { advanceTicks, assertResidentLocation, roundTrip, unlockedFactory } from './factory-check-helpers';
 
 const plot = { c: 10, r: 9 };
 const kitchen = { c: 14, r: 12 };
@@ -29,7 +29,7 @@ function farmer(sim: FactorySimulation): Resident | undefined {
   return sim.residents.find(resident => resident.job?.kind === 'farm');
 }
 function farm(): FactorySimulation {
-  const sim = FactorySimulation.create();
+  const sim = unlockedFactory();
   assert.equal(sim.setHaulTarget(plot, null), null);
   until(sim, () => sim.getState(plot)!.progress > 0);
   return sim;
@@ -96,7 +96,7 @@ assert.equal(removedWorker.exit, null);
 assert.deepEqual(removedWorker.tile, plot);
 replay(removed, WALK_TICKS);
 
-const handoff = FactorySimulation.create();
+const handoff = unlockedFactory();
 let sawInterruptedExit = false;
 for (let tick = 0; tick < 1400; tick++) {
   const departing = handoff.residents.filter(worker => worker.exit && worker.travel > 0).map(worker => worker.id);
@@ -123,7 +123,7 @@ function woodSite(sim: FactorySimulation): Tile {
   return sites[0];
 }
 function grove() {
-  const sim = FactorySimulation.create();
+  const sim = unlockedFactory();
   const site = woodSite(sim);
   assert.equal(sim.place({ ...site, kind: 'woodcutting-site', direction: 0 }), null);
   until(sim, () => sim.getState(site)!.progress > 0);

@@ -13,6 +13,18 @@ async function gameState(page) {
     return scene.simulation.serialize();
   });
 }
+/** Discovers every building, for checks that exercise machines rather than discovery. */
+async function unlockAll(page) {
+  await page.evaluate(async () => {
+    const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+    const { CATALOG } = await import('/src/games/factory/game/domain.ts');
+    const { FactorySimulation } = await import('/src/games/factory/game/simulation.ts');
+    const scene = game.scene.getScene('FactoryScene');
+    const save = scene.simulation.serialize();
+    save.discovered = CATALOG.map(entry => entry.kind);
+    scene.startSettlement(FactorySimulation.restore(save));
+  });
+}
 async function storedSave(page) {
   return page.evaluate(() => new Promise((resolve, reject) => {
     const request = indexedDB.open('brainrot-pocket-factory', 1);
@@ -87,7 +99,8 @@ try {
     assert.equal(await page.getByRole('button', { name: 'People', exact: true }).count(), 0);
     await page.getByRole('button', { name: 'Resources', exact: true }).click();
     assert.equal(await page.locator('.factory-resources-dialog').evaluate(dialog => dialog.open), true);
-    assert.equal(await page.locator('.factory-resources-dialog [data-resource]').count(), 7);
+    assert.equal(await page.locator('.factory-resources-dialog [data-resource]').count(), 2,
+      'A new settlement lists only food and wood');
     assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Food units · 8/);
     assert.match(await page.locator('[data-resource="wood"]').innerText(), /Wood · 0/);
     assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Measuring/);
@@ -139,7 +152,7 @@ try {
     });
     await page.getByRole('button', { name: 'Resources', exact: true }).click();
     assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Made [\d.]+\/min · Used [\d.]+\/min/);
-    assert.match(await page.locator('[data-resource="iron-ore"]').innerText(), /Not in use/);
+    assert.equal(await page.locator('[data-resource="iron-ore"]').count(), 0, 'Ore stays hidden until mining is discovered');
     assert.match(await page.locator('#factory-resources-summary').innerText(), /keeping up|Needs attention/);
     await page.locator('[data-resource="food-unit"]').click();
     assert.match(await page.locator('#factory-resource-flow').innerText(), /Made .*Used .*Residents need 24\/min/);
@@ -147,6 +160,19 @@ try {
     console.log('Resources overview passed:', `${viewport.width}x${viewport.height}`,
       'inventory, measured flow, verdicts, locations, navigation, keyboard focus and unchanged simulation');
     await page.getByRole('button', { name: 'Build', exact: true }).click();
+    const catalog = await page.locator('#factory-category-all').evaluate(grid => ({
+      cards: [...grid.querySelectorAll('[data-action]:not([hidden])')].map(card => card.dataset.action),
+      locked: [...grid.querySelectorAll('[data-locked]:not([hidden])')].map(card => [card.dataset.locked, card.innerText, card.disabled]),
+      logistics: document.querySelector('#factory-tab-logistics').hidden,
+    }));
+    assert.deepEqual(catalog.cards, ['food-plot', 'woodcutting-site', 'kitchen', 'house', 'storage']);
+    assert.equal(catalog.locked.length, 1, 'Only the next discovery is shown');
+    assert.equal(catalog.locked[0][0], 'mining-site');
+    assert.match(catalog.locked[0][1], /Mining site\s+Finish a house · 0\/1/);
+    assert.equal(catalog.locked[0][2], true);
+    assert.equal(catalog.logistics, true, 'Empty categories are hidden');
+    await page.keyboard.press('2');
+    assert.equal(await page.locator('#factory-catalog').isHidden(), false, 'Locked shortcuts do nothing');
     await page.getByRole('button', { name: 'Woodcutting site', exact: true }).first().click();
     const site = await page.evaluate(async () => {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
@@ -307,11 +333,15 @@ try {
         if (!scene.simulation.inspectMachine({ c: 16, r: 12 }).housing.reason) break;
       }
       scene.refreshSimulationHud();
+      const announced = document.querySelector('#factory-status').textContent;
+      const mining = document.querySelector('#factory-category-all [data-action="mining-site"]').hidden;
       scene.hud.onBuilding({ c: 16, r: 12 });
       game.step(10001, 0);
-      return scene.simulation.ticks;
+      return { ticks: scene.simulation.ticks, announced, mining };
     });
-    assert.ok(readyAt <= 1200, 'Four founders should be able to prepare the first arrival without material grants');
+    assert.equal(readyAt.announced, 'Mining site discovered. Find it in Build.');
+    assert.equal(readyAt.mining, false, 'The first finished house reveals the mining site');
+    assert.ok(readyAt.ticks <= 1200, 'Four founders should be able to prepare the first arrival without material grants');
     assert.match(await page.locator('#factory-machine-input').innerText(), /8\/8 wood.*Installed/);
     assert.equal(await page.locator('[data-command="invite-resident"]').isDisabled(), false);
     assert.match(await page.locator('#factory-house-demand').innerText(), /5 residents.*5 food units \/ 10s/);
@@ -397,7 +427,9 @@ try {
       const { ASSEMBLER_RECIPE } = await import('/src/games/factory/game/machines.ts');
       game.loop.stop();
       const hud = game.scene.getScene('FactoryScene').hud;
-      const sim = FactorySimulation.create();
+      const save = FactorySimulation.create().serialize();
+      save.discovered = CATALOG.map(entry => entry.kind);
+      const sim = FactorySimulation.restore(save);
       for (const { kind } of CATALOG) {
         if ([...sim.buildings.values()].some(building => building.kind === kind)) continue;
         const tiles = [];
@@ -506,6 +538,7 @@ try {
     await page.goto(url);
     await page.locator('[data-command="new-settlement"]:not(:disabled)').click();
     await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+    await unlockAll(page);
     await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
     await page.evaluate(async () => {
       const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
@@ -704,6 +737,7 @@ try {
     await page.locator('#factory-world-seed').fill('north-bank');
     await page.locator('[data-command="new-settlement"]').click();
     await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+    await unlockAll(page);
     await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
     const tap = point => touch ? page.touchscreen.tap(point.x, point.y) : page.mouse.click(point.x, point.y);
     await page.getByRole('button', { name: 'Build', exact: true }).click();
@@ -952,6 +986,7 @@ try {
       await page.waitForFunction(() => !document.querySelector('[data-command="new-settlement"]')?.disabled);
       await page.locator('[data-command="new-settlement"]').click();
       await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
+      await unlockAll(page);
       await page.getByRole('button', { name: 'Pause factory', exact: true }).click();
     }
     await page.locator('canvas').waitFor();

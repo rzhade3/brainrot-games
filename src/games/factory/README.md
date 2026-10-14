@@ -98,6 +98,16 @@ come from `inspectResources()`: waiting consumers, full producers and
 unstaffed sites are judged from current building state, and drilldowns list
 those locations first with one suggested action.
 
+New settlements start with only the food plot, woodcutting site, kitchen, house
+and depot. `game/discovery.ts` lists ordered discoveries earned from actual
+work: finishing a house reveals the mining site, hand-dug ore the smelter, the
+first plate conveyors and splitters, and further plates the extractor. Progress
+reads existing ledgers and completed houses, so each item counts once.
+Discoveries are permanent and saved; older saves infer them from placed buildings
+and recorded work. The assembler stays hidden without a settlement use. The Build
+catalog hides undiscovered buildings and shows only the next one with its
+condition, and Resources lists only resources the settlement can make or holds.
+
 | Responsibility | Owner |
 | --- | --- |
 | Types, items, catalog, timing and geometry | `game/domain.ts` |
@@ -105,6 +115,7 @@ those locations first with one suggested action.
 | Machine state, recipes, capacities, production and transfers | `game/machines.ts` |
 | Authoritative state, fixed-step orchestration and inspection | `game/simulation.ts` |
 | Rolling made/used resource rates | `game/flow.ts` |
+| Earned building discoveries and their conditions | `game/discovery.ts` |
 | Residents, jobs, navigation, reservations and food consumption | `game/settlement.ts` |
 | Bounded grove access search | `game/gathering.ts` |
 | Save-state validation, error classification and conservation | `session/saveState.ts`, `session/saveErrors.ts` |
@@ -134,7 +145,7 @@ preserves future extraction without maintaining another deployment today.
 
 - `npm run check:factory`: headless boundaries, session races, inventory,
   construction, housing readiness/growth, scaled provisioning, production, resource flow,
-  machine options, saves, settlement and replay.
+  discoveries, machine options, saves, settlement and replay.
 - `npm run check:factory:ui`: native desktop/touch actions, save-resume and
   asset-only changes in both the live game and temporary preview.
 - `npm run check:factory:browser`: canvas correctness, dense scenes, long pans,

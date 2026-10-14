@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { FARM_TICKS, Tile, tileKey } from '../src/games/factory/game/domain';
 import { residentName } from '../src/games/factory/game/settlement';
 import { FactorySimulation } from '../src/games/factory/game/simulation';
-import { advanceTicks, roundTrip } from './factory-check-helpers';
+import { advanceTicks, roundTrip, unlockedFactory } from './factory-check-helpers';
 
 const plot = { c: 10, r: 9 };
 const holder = (sim: FactorySimulation, tile: Tile) => sim.residents.find(resident => resident.post && tileKey(resident.post) === tileKey(tile));
@@ -11,7 +11,7 @@ const waiting = (sim: FactorySimulation) => sim.inspectResources().find(resource
 const posts = (sim: FactorySimulation) => sim.residents.map(resident => resident.post && tileKey(resident.post));
 
 function plots(count: number) {
-  const sim = FactorySimulation.create();
+  const sim = unlockedFactory();
   sim.remove(plot);
   const tiles: Tile[] = [];
   for (let r = 8; r <= 20 && tiles.length < count; r += 3) {
@@ -91,7 +91,7 @@ wrongKind.settlement.residents[0].post = { c: 11, r: 12 };
 assert.throws(() => FactorySimulation.restore(wrongKind), /invalid resident post/);
 
 // A priority change finishes the current harvest before anything else happens.
-const farm = FactorySimulation.create();
+const farm = unlockedFactory();
 while (!farm.residents.some(resident => resident.job?.kind === 'farm' && !resident.job.path.length &&
   farm.getState(plot)!.progress > 0)) farm.step();
 const farmer = farm.residents.find(resident => resident.job?.kind === 'farm')!;
@@ -109,7 +109,7 @@ assert.equal(farm.residents.some(resident => resident.job?.kind === 'farm'), fal
 roundTrip(farm);
 
 // Hauling board: priority beats distance, and a filling Low buffer is not starved.
-const queue = FactorySimulation.create();
+const queue = unlockedFactory();
 queue.remove(plot);
 const sink = { c: 17, r: 17 };
 assert.equal(queue.place({ ...sink, kind: 'storage', direction: 0 }), null);
@@ -155,13 +155,13 @@ assert.ok(firstLow > 0, 'Low work is eventually hauled');
 assert.ok(board.getState(highSource)!.input['iron-ore'] > 0, 'Low is served before High is completely drained');
 
 // Free residents carry a site's output so its worker can keep producing.
-const helped = FactorySimulation.create();
+const helped = unlockedFactory();
 advanceTicks(helped, 1200);
 const worker = holder(helped, plot)!;
 assert.ok(helped.residents.some(resident => !resident.post && resident.job), 'Free residents haul');
 assert.ok(worker.job === null || worker.job.kind === 'farm', 'The site worker is not sent to haul while others are free');
 
-const extractor = FactorySimulation.create();
+const extractor = unlockedFactory();
 assert.equal(extractor.place({ c: 7, r: 10, kind: 'miner', direction: 0 }), null);
 const automatedReplica = roundTrip(extractor);
 extractor.setWorkPriority({ c: 7, r: 10 }, 'low');

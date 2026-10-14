@@ -14,7 +14,7 @@ const files = sources(root);
 const graph = new Map<string, string[]>();
 const pure = new Set([
   'game/domain.ts', 'game/model.ts', 'game/world.ts', 'game/machines.ts', 'game/simulation.ts',
-  'game/settlement.ts', 'game/gathering.ts', 'game/labor.ts', 'game/flow.ts', 'session/saveState.ts', 'session/saveErrors.ts', 'game/beltRoute.ts',
+  'game/settlement.ts', 'game/gathering.ts', 'game/labor.ts', 'game/flow.ts', 'game/discovery.ts', 'session/saveState.ts', 'session/saveErrors.ts', 'game/beltRoute.ts',
 ]);
 for (const path of files) {
   const name = relative(root, path);
