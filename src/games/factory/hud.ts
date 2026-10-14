@@ -7,7 +7,8 @@ import {
   ITEM_NAMES,
   itemCount,
   MachineInspection,
-  ResourceInspection,
+  FLOW_MIN_TICKS,
+  ResourceInspection, ResourceVerdict,
   STEP_MS, UPGRADED_EXTRACT_TICKS, workerSlots,
 } from './game/simulation';
 import { FactoryWorld } from './game/world';
@@ -811,12 +812,14 @@ export class FactoryHud {
       <div class="factory-picker-body">
         ${this.resourceItem ? '<button class="factory-resource-back" data-command="resource-back">All resources</button>' : ''}
         <p id="factory-resources-note" class="factory-picker-note">Goods stay where they are. Stock elsewhere may need a delivery route to reach a building.</p>
-        ${this.resourceItem ? '<p id="factory-resource-stock"></p><p id="factory-resource-recovery"></p>' : ''}
+        ${this.resourceItem
+          ? '<p id="factory-resource-flow" role="status"></p><p id="factory-resource-advice"></p><p id="factory-resource-stock"></p><p id="factory-resource-recovery"></p>'
+          : '<p id="factory-resources-summary" role="status"></p>'}
         <div class="factory-picker-results" aria-label="${this.resourceItem ? 'Resource locations' : 'Resources'}"><p class="factory-picker-empty" hidden></p></div>
       </div>
       <footer class="factory-picker-footer"><p>${this.resourceItem
         ? 'Select a location to inspect its contents, connections and work priority.'
-        : 'Select a resource to find stock, producers and buildings waiting for supplies.'}</p></footer>`;
+        : 'Rates cover the last minute of work. Select a resource to find what is holding it up.'}</p></footer>`;
     this.updateResources();
   }
 
@@ -844,18 +847,28 @@ export class FactoryHud {
       for (const resource of resources) {
         const row = rowFor(resource.item, 'resource-item');
         row.dataset.resource = resource.item;
+        row.dataset.verdict = resource.verdict;
         this.setText(row.querySelector<HTMLElement>('strong')!, `${ITEM_NAMES[resource.item]} · ${resource.total}`);
-        this.setText(row.querySelector<HTMLElement>('.factory-picker-activity')!, stockText(resource));
-        const producers = resource.locations.filter(location => location.role === 'Produces' || location.role === 'Produces and uses').length;
-        const consumers = resource.locations.filter(location => location.role === 'Uses' || location.role === 'Produces and uses').length;
-        this.setText(row.querySelector<HTMLElement>('.factory-picker-workplace')!,
-          `${producers} ${producers === 1 ? 'producer' : 'producers'} · ${consumers} ${consumers === 1 ? 'consumer' : 'consumers'}`);
+        this.setText(row.querySelector<HTMLElement>('.factory-picker-activity')!, flowText(resource));
+        this.setText(row.querySelector<HTMLElement>('.factory-picker-workplace')!, verdictText(resource));
       }
+      const attention = resources.filter(resource => NEEDS_ATTENTION.includes(resource.verdict));
+      const measuring = resources[0] && !resources[0].flow.ticks;
+      this.setText(this.resourcesDialog.querySelector<HTMLElement>('#factory-resources-summary')!,
+        attention.length ? `Needs attention: ${attention.map(resource => `${ITEM_NAMES[resource.item]} (${VERDICT_LABELS[resource.verdict].toLowerCase()})`).join(', ')}`
+          : measuring ? 'Measuring flow. Rates appear after a few seconds of work.' : 'Supplies are keeping up.');
     } else {
       const resource = resources.find(value => value.item === this.resourceItem);
       if (!resource) throw new Error('Selected resource is missing');
+      const flow = this.resourcesDialog.querySelector<HTMLElement>('#factory-resource-flow')!;
+      this.setText(flow, `${verdictText(resource)} · ${flowText(resource)}${resource.flow.needed === null ? ''
+        : ` · Residents need ${rateText(resource.flow.needed)}/min`}`);
+      flow.dataset.verdict = resource.verdict;
+      const advice = this.resourcesDialog.querySelector<HTMLElement>('#factory-resource-advice')!;
+      advice.hidden = !VERDICT_ADVICE[resource.verdict];
+      this.setText(advice, VERDICT_ADVICE[resource.verdict]);
       this.setText(this.resourcesDialog.querySelector<HTMLElement>('#factory-resource-stock')!,
-        `Total: ${resource.total} · ${stockText(resource)}`);
+        `Total: ${resource.total} · ${stockText(resource)} · ${countText(resource.producers, 'producer')} · ${countText(resource.consumers, 'consumer')}`);
       const recovery = this.resourcesDialog.querySelector<HTMLElement>('#factory-resource-recovery')!;
       recovery.hidden = resource.recovered === 0;
       const hasDepot = resource.locations.some(location => location.role === 'Stored');
@@ -869,8 +882,10 @@ export class FactoryHud {
           ? `${NAMES[location.building.kind]} · ${location.building.c}, ${location.building.r}`
           : residentName(location.residentId);
         this.setText(row.querySelector<HTMLElement>('strong')!, name);
+        if (location.issue) row.dataset.issue = location.issue;
+        else delete row.dataset.issue;
         this.setText(row.querySelector<HTMLElement>('.factory-picker-activity')!,
-          `${location.role} · ${itemText(resource.item, location.quantity)} here${location.role === 'Installed' ? ' · Not available for delivery' : ''}`);
+          `${location.issue ? `${ISSUE_LABELS[location.issue]} · ` : ''}${location.role} · ${itemText(resource.item, location.quantity)} here${location.role === 'Installed' ? ' · Not available for delivery' : ''}`);
         const target = building?.haulTo && this.buildingChoices.get(tileKey(building.haulTo));
         this.setText(row.querySelector<HTMLElement>('.factory-picker-workplace')!,
           `${paused ? 'Paused · ' : ''}${location.status}${target ? ` · Deliver to: ${NAMES[target.kind]} at ${target.c}, ${target.r}` : ''}`);
@@ -1141,5 +1156,47 @@ export class FactoryHud {
     if (this.statusTimer !== null) clearTimeout(this.statusTimer);
     this.footerObserver.disconnect();
     this.root.remove();
+  }
+}
+
+const VERDICT_LABELS: Record<ResourceVerdict, string> = {
+  short: 'Short', stuck: 'Stuck', 'backed-up': 'Backed up', idle: 'Idle',
+  falling: 'Falling', steady: 'Keeping up', unused: 'Not in use', measuring: 'Measuring',
+};
+const NEEDS_ATTENTION: readonly ResourceVerdict[] = ['short', 'stuck', 'backed-up', 'idle', 'falling'];
+const VERDICT_ADVICE: Record<ResourceVerdict, string> = {
+  short: 'Add producers or a delivery route to the waiting buildings.',
+  stuck: 'Producers are full while buildings wait. Connect them with a delivery route.',
+  'backed-up': 'Carry it onward, add a depot, or build something that uses it.',
+  idle: 'Its producers have no worker. Raise their priority or free a resident.',
+  falling: 'Used faster than made. Add producers or shorten their routes.',
+  steady: '', unused: '', measuring: '',
+};
+const ISSUE_LABELS = { waiting: 'Waiting for it', blocked: 'Output full', idle: 'No worker' } as const;
+
+function countText(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+function rateText(perMinute: number): string {
+  return perMinute >= 10 ? `${Math.round(perMinute)}` : `${Math.round(perMinute * 10) / 10}`;
+}
+
+function flowText(resource: ResourceInspection): string {
+  const { flow } = resource;
+  if (!flow.ticks) return `Measuring · first ${FLOW_MIN_TICKS * STEP_MS / 1000}s of work`;
+  return `Made ${rateText(flow.made)}/min · Used ${rateText(flow.used)}/min`;
+}
+
+function verdictText(resource: ResourceInspection): string {
+  const label = VERDICT_LABELS[resource.verdict];
+  switch (resource.verdict) {
+    case 'short': return resource.flow.missedFood && !resource.waitingConsumers
+      ? `${label} · ${countText(resource.flow.missedFood, 'meal')} missed`
+      : `${label} · ${countText(resource.waitingConsumers, 'building')} waiting`;
+    case 'stuck': return `${label} · ${resource.blockedProducers} full, ${resource.waitingConsumers} waiting`;
+    case 'backed-up': return `${label} · ${countText(resource.blockedProducers, 'producer')} full`;
+    case 'idle': return `${label} · ${countText(resource.idleProducers, 'producer')} without a worker`;
+    default: return label;
   }
 }

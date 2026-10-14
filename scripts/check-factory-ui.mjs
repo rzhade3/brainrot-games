@@ -90,9 +90,11 @@ try {
     assert.equal(await page.locator('.factory-resources-dialog [data-resource]').count(), 7);
     assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Food units · 8/);
     assert.match(await page.locator('[data-resource="wood"]').innerText(), /Wood · 0/);
-    assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Buildings: 8.*In transit: 0.*Recovery: 0/);
+    assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Measuring/);
+    assert.match(await page.locator('#factory-resources-summary').innerText(), /Measuring flow/);
     await page.locator('[data-resource="food-unit"]').click();
     assert.equal(await page.locator('#factory-resources-title').innerText(), 'Food units');
+    assert.match(await page.locator('#factory-resource-stock').innerText(), /Buildings: 8.*In transit: 0.*Recovery: 0.*1 producer · 1 consumer/);
     assert.match(await page.locator('[data-location="14,12"]').innerText(), /Kitchen stocked/);
     assert.match(await page.locator('[data-location="14,12"]').innerText(), /Paused/);
     assert.match(await page.locator('[data-location="10,9"]').innerText(), /Produces/);
@@ -129,8 +131,21 @@ try {
     assert.equal(await page.locator('.factory-inspector h2').innerText(), 'Communal kitchen');
     assert.equal(await page.evaluate(() => document.activeElement.dataset.action), 'close');
     await page.keyboard.press('Escape');
+    await page.evaluate(async () => {
+      const { game } = await import(document.querySelector('script[src*="/src/games/factory/main.ts"]').src);
+      const scene = game.scene.getScene('FactoryScene');
+      for (let tick = 0; tick < 700; tick++) scene.simulation.step();
+      scene.refreshSimulationHud();
+    });
+    await page.getByRole('button', { name: 'Resources', exact: true }).click();
+    assert.match(await page.locator('[data-resource="food-unit"]').innerText(), /Made [\d.]+\/min · Used [\d.]+\/min/);
+    assert.match(await page.locator('[data-resource="iron-ore"]').innerText(), /Not in use/);
+    assert.match(await page.locator('#factory-resources-summary').innerText(), /keeping up|Needs attention/);
+    await page.locator('[data-resource="food-unit"]').click();
+    assert.match(await page.locator('#factory-resource-flow').innerText(), /Made .*Used .*Residents need 24\/min/);
+    await page.keyboard.press('Escape');
     console.log('Resources overview passed:', `${viewport.width}x${viewport.height}`,
-      'inventory, locations, navigation, keyboard focus and unchanged simulation');
+      'inventory, measured flow, verdicts, locations, navigation, keyboard focus and unchanged simulation');
     await page.getByRole('button', { name: 'Build', exact: true }).click();
     await page.getByRole('button', { name: 'Woodcutting site', exact: true }).first().click();
     const site = await page.evaluate(async () => {

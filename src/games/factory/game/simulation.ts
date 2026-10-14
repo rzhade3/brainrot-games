@@ -8,7 +8,7 @@ import {
   HOUSE_WOOD_COST,
   moveInventory,
   WorkPriority, WORK_PRIORITIES,
-  STEP_MS, UPGRADED_EXTRACT_TICKS,
+  RESIDENT_FOOD_TICKS, STEP_MS, UPGRADED_EXTRACT_TICKS,
 } from './domain';
 import {
   acceptsInventoryItem, ASSEMBLER_RECIPE, canHaulBetween, depotNextItem, haulItems, inputCapacity, inputSlots,
@@ -16,8 +16,9 @@ import {
   MachineRecipe, machineRecipe,
   MachineState,
   outputCapacity, produceMachine, ProductionLedger,
-  recoverContents, transferMachines, TransportHost, workerSlots,
+  recoverContents, SMELTER_RECIPES, transferMachines, TransportHost, workerSlots,
 } from './machines';
+import { FLOW_SAMPLE_TICKS, FLOW_TICKS, FlowTotals, FlowTracker } from './flow';
 import {
   acceptsConveyorInput, Building, BuildingKind, createSettlement,
   DIRECTION_NAMES,
@@ -35,6 +36,7 @@ import { DEFAULT_WORLD, FactoryWorld, DEFAULT_SEED, restoreWorld, WorldIdentity 
 export { BELT_TICKS, EXTRACT_TICKS, inventory, inventoryText, ITEM_NAMES, itemCount, ITEMS, STEP_MS, UPGRADED_EXTRACT_TICKS } from './domain';
 export type { Inventory, Item } from './domain';
 export { workerSlots } from './machines';
+export { FLOW_MIN_TICKS, FLOW_TICKS } from './flow';
 export { ASSEMBLE_TICKS, BUFFER_CAPACITY, DEPOT_CAPACITY, depotNextItem, SMELT_TICKS } from './machines';
 export type { MachineState } from './machines';
 export { requireSave, saveCount, saveObject, saveTile } from '../session/saveState';
@@ -87,10 +89,34 @@ export type ResourceLocation = {
   quantity: number;
   role: 'Stored' | 'In transit' | 'Produces and uses' | 'Produces' | 'Uses' | 'Holds' | 'Construction' | 'Installed';
   status: string;
+  /** A consumer waiting for this item, a producer that cannot output it, or a producer with no worker. */
+  issue: ResourceIssue | null;
 } & ({ building: Readonly<Building>; residentId: null } | { building: null; residentId: number });
+
+export type ResourceIssue = 'waiting' | 'blocked' | 'idle';
+
+export type ResourceVerdict = 'short' | 'stuck' | 'backed-up' | 'idle' | 'falling' | 'steady' | 'unused' | 'measuring';
+
+export interface ResourceFlow {
+  /** Simulation ticks measured; zero while still measuring. */
+  ticks: number;
+  /** Units per simulation minute. */
+  made: number;
+  used: number;
+  /** Food residents need per simulation minute; null for other items. */
+  needed: number | null;
+  missedFood: number;
+}
 
 export interface ResourceInspection {
   item: Item;
+  flow: ResourceFlow;
+  verdict: ResourceVerdict;
+  waitingConsumers: number;
+  blockedProducers: number;
+  idleProducers: number;
+  producers: number;
+  consumers: number;
   total: number;
   depots: number;
   buildings: number;
@@ -123,6 +149,9 @@ export class FactorySimulation {
   private accumulator = 0;
   private settlement: Settlement;
   private orderedMachines: MachineState[] | null = null;
+  private flow = new FlowTracker();
+  /** Unsaved, monotonic count of wood installed in houses, used only for flow rates. */
+  private installedWood = 0;
   private readonly productionLedger: ProductionLedger = {
     mined: inventory(), smelted: inventory(), assembled: inventory(), recipeConsumed: inventory(),
   };
@@ -143,6 +172,7 @@ export class FactorySimulation {
     }
     this.machines.get('14,12')!.input['food-unit'] = STARTER_FOOD;
     this.settlement = new Settlement(this.settlementHost());
+    this.flow.sample(this.ticks, this.flowTotals());
   }
 
   static create(seed = DEFAULT_SEED): FactorySimulation {
@@ -222,6 +252,8 @@ export class FactorySimulation {
       sim.lastSource.set(entry[0], tile);
     }
     assertConservation(sim.machines.values(), sim.recovered, sim.productionLedger, sim.settlement.state);
+    sim.flow = new FlowTracker();
+    sim.flow.sample(sim.ticks, sim.flowTotals());
     return sim;
   }
 
@@ -463,10 +495,29 @@ export class FactorySimulation {
     for (const machine of machines) produceMachine(machine, this.world, this.productionLedger);
     this.settlement.step();
     transferMachines(machines, this.lastSource, this.transportHost);
+    if (this.ticks % FLOW_SAMPLE_TICKS === 0) this.flow.sample(this.ticks, this.flowTotals());
+  }
+
+  private flowTotals(): FlowTotals {
+    const { mined, smelted, assembled, recipeConsumed } = this.productionLedger;
+    const settlement = this.settlement.state;
+    const made = inventory();
+    const used = { ...recipeConsumed };
+    for (const item of ITEMS) made[item] = mined[item] + smelted[item] + assembled[item];
+    for (const recipe of Object.values(SMELTER_RECIPES)) {
+      const batches = smelted[recipe.output.item] / recipe.output.quantity;
+      for (const ingredient of recipe.inputs) used[ingredient.item] += batches * ingredient.quantity;
+    }
+    made['food-unit'] += settlement.producedFood;
+    made.wood += settlement.producedWood;
+    used['food-unit'] += settlement.consumedFood;
+    used.wood += this.installedWood;
+    return { made, used, missedFood: settlement.missedMeals };
   }
 
   private receive(machine: MachineState, item: Item): void {
     machine.input[item]++;
+    if (machine.building.kind === 'house' && item === 'wood') this.installedWood++;
     if (machine.building.kind === 'kitchen' && item === 'food-unit') this.settlement.foodDelivered();
   }
 
@@ -574,9 +625,16 @@ export class FactorySimulation {
   }
 
   inspectResources(): ResourceInspection[] {
+    const rates = this.flow.rates();
     const resources: ResourceInspection[] = ITEMS.map(item => ({
       item, total: 0, depots: 0, buildings: 0, inTransit: 0, waiting: 0,
       recovered: this.recovered[item], locations: [],
+      flow: {
+        ticks: rates.ticks, made: rates.made[item], used: rates.used[item],
+        needed: item === 'food-unit' ? this.residents.length * FLOW_TICKS / RESIDENT_FOOD_TICKS : null,
+        missedFood: item === 'food-unit' ? rates.missedFood : 0,
+      },
+      verdict: 'measuring', waitingConsumers: 0, blockedProducers: 0, idleProducers: 0, producers: 0, consumers: 0,
     }));
     for (const machine of this.machines.values()) {
       const building = machine.building;
@@ -597,8 +655,14 @@ export class FactorySimulation {
         else if (isConveyor(building.kind)) resource.inTransit += quantity;
         else resource.buildings += quantity;
         if (!quantity && !produces && !consumes && building.kind !== 'storage') continue;
+        const issue = this.resourceIssue(machine, item, produces, consumes);
+        if (produces) resource.producers++;
+        if (consumes) resource.consumers++;
+        if (issue === 'waiting') resource.waitingConsumers++;
+        if (issue === 'blocked') resource.blockedProducers++;
+        if (issue === 'idle') resource.idleProducers++;
         resource.locations.push({
-          key: tileKey(building), building: { ...building }, residentId: null, quantity,
+          key: tileKey(building), building: { ...building }, residentId: null, quantity, issue,
           role: building.kind === 'house' ? quantity === HOUSE_WOOD_COST ? 'Installed' : 'Construction'
             : building.kind === 'storage' ? 'Stored'
             : isConveyor(building.kind) ? 'In transit'
@@ -615,14 +679,40 @@ export class FactorySimulation {
       resource.inTransit++;
       resource.locations.push({
         key: `resident:${resident.id}`, building: null, residentId: resident.id, quantity: 1,
-        role: 'In transit', status: resident.note,
+        role: 'In transit', status: resident.note, issue: null,
       });
     }
+    const rank = (issue: ResourceIssue | null) => issue === 'waiting' ? 0 : issue === 'blocked' ? 1 : issue === 'idle' ? 2 : 3;
     for (const resource of resources) {
       resource.total = resource.depots + resource.buildings + resource.inTransit + resource.recovered;
-      resource.locations.sort((a, b) => b.quantity - a.quantity || a.key.localeCompare(b.key));
+      resource.locations.sort((a, b) => rank(a.issue) - rank(b.issue) || b.quantity - a.quantity || a.key.localeCompare(b.key));
+      resource.verdict = resourceVerdict(resource);
     }
     return resources;
+  }
+
+  /** Why one building is holding up the flow of one item, if it is. */
+  private resourceIssue(machine: MachineState, item: Item, produces: boolean, consumes: boolean): ResourceIssue | null {
+    const { building } = machine;
+    if (consumes) {
+      const waiting = building.kind === 'house' ? item === 'wood' && machine.input.wood < HOUSE_WOOD_COST
+        : building.kind === 'kitchen' ? machine.input[item] === 0
+          // A smelter accepts either ore, so it waits for the one it last smelted.
+          : building.kind === 'furnace' ? !machine.processing && itemCount(machine.input) === 0 &&
+            itemCount(machine.output) < outputCapacity(building.kind) && (machine.lastProcessed ?? item) === item
+            : building.kind === 'assembler' ? itemCount(machine.output) < outputCapacity(building.kind) &&
+              ASSEMBLER_RECIPE.inputs.some(ingredient => ingredient.item === item && machine.input[item] < ingredient.quantity)
+              : false;
+      if (waiting) return 'waiting';
+    }
+    if (!produces) return null;
+    if (itemCount(machine.output) >= outputCapacity(building.kind) &&
+        (machine.output[item] > 0 || building.kind !== 'furnace')) return 'blocked';
+    // Posts are first assigned on the opening tick, so a new settlement is not yet unstaffed.
+    if (workerSlots(building.kind) > 0 && (building.workPriority === 'off' || this.ticks > 0 &&
+        !this.residents.some(resident => resident.job && tileKey(resident.job.source) === tileKey(building) ||
+          resident.post && tileKey(resident.post) === tileKey(building)))) return 'idle';
+    return null;
   }
 
   summary(): FactorySummary {
@@ -647,4 +737,17 @@ export class FactorySimulation {
         .map(([key, source]) => [key, { ...source }]),
     };
   }
+}
+
+/** One headline judgement per resource, from current building states first and measured flow second. */
+export function resourceVerdict(resource: Omit<ResourceInspection, 'verdict'>): ResourceVerdict {
+  const { flow } = resource;
+  if (flow.missedFood > 0) return 'short';
+  if (resource.waitingConsumers && resource.blockedProducers) return 'stuck';
+  if (resource.waitingConsumers) return 'short';
+  if (resource.blockedProducers) return 'backed-up';
+  if (resource.idleProducers && resource.idleProducers === resource.producers) return 'idle';
+  if (!flow.ticks) return resource.producers || resource.consumers || resource.total ? 'measuring' : 'unused';
+  if (!flow.made && !flow.used && !resource.producers) return 'unused';
+  return flow.used > flow.made + 0.5 ? 'falling' : 'steady';
 }

@@ -361,3 +361,8 @@ button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px soli
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; }
 }
+.factory-resources-dialog .factory-picker-row:is([data-verdict="short"], [data-verdict="stuck"], [data-issue="waiting"]) { box-shadow: inset 4px 0 #b0603f; }
+.factory-resources-dialog .factory-picker-row:is([data-verdict="backed-up"], [data-verdict="idle"], [data-verdict="falling"], [data-issue="blocked"], [data-issue="idle"]) { box-shadow: inset 4px 0 #c49a3c; }
+.factory-resources-dialog .factory-picker-row:is([data-verdict="short"], [data-verdict="stuck"]) .factory-picker-workplace { color: #884a32; }
+.factory-resources-dialog #factory-resource-flow { color: var(--ink); font-weight: 550; }
+.factory-resources-dialog #factory-resources-summary { color: var(--ink); }

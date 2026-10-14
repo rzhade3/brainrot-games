@@ -1590,6 +1590,35 @@ Native desktop, narrow touch and landscape checks cover placement, wood routing,
 readiness, completion art, invitation, installed-stock inspection, occupied
 removal protection, updated kitchen demand and exact save/resume.
 
+### Implemented slice: Resource flow and bottleneck diagnosis
+
+Goal: let the player see at a glance how much of each resource is being made,
+used and held, and which buildings are holding a chain up, without a persistent
+panel or event feed.
+
+- Resources stays on demand. Each row shows the physical total, measured made
+  and used rates per minute and one verdict: Short, Stuck, Backed up, Idle,
+  Falling, Keeping up, Not in use or Measuring. A summary line names resources
+  that need attention. Rows keep a stable order so live updates never move focus.
+- Rates come from a headless `game/flow.ts` tracker sampling cumulative ledgers
+  once per simulation second over the last simulation minute. Paused, hidden or
+  closed time does not count. Rates are withheld for the first ten seconds and
+  are not saved; loading starts a fresh measurement instead of inventing history.
+- Made counts extraction (both kinds), smelting, assembly, harvested food and
+  gathered wood. Used counts smelter ore, assembler plates, eaten food and wood
+  installed in houses. Food also shows what the current residents need.
+- Verdicts judge current building states first, then measured flow: missed meals
+  or consumers waiting for an input are Short; producers full while consumers
+  wait is Stuck (a routing problem); full producers are Backed up; every producer
+  unstaffed or off is Idle; use above production is Falling. A smelter waits for
+  the ore it last smelted, so an iron line does not make copper look short.
+- Drilldowns add one action for the verdict and list waiting, full and unstaffed
+  locations first, each labelled, then the existing stock and navigation.
+- Checks: `check-factory-flow.ts` covers rates, food need, a smelter-limited
+  chain, backed-up and short inputs, idle sites, missed meals, house wood,
+  unchanged state on inspection and fresh measurement after load. The native UI
+  check covers Measuring, measured rows and the food drilldown on every viewport.
+
 ### Milestone 9: Food processing and later settlement growth
 
 Add a food processor producing processed food units according to the shared

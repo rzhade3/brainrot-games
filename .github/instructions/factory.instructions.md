@@ -83,6 +83,12 @@ Houses show delivered/installed wood, occupancy and food readiness beside Invite
 Installed wood is not available stock. Kitchens show demand for the current
 population, not the old household-wide serving rate.
 
+**Resources overview:** one row per resource with its total, "Made 12/min ·
+Used 8/min", and one short verdict such as "Short · 2 buildings waiting" or
+"Keeping up". Save the suggested action for the resource's drilldown, and label
+problem locations there ("Waiting for it", "Output full", "No worker"). Rates
+are measured from actual work; say "Measuring" rather than guessing.
+
 **Field notes (collapsed help):** explain only non-obvious behavior or a useful
 exception in one or two short sentences. For example: "Keep a clear tile beside
 the plot. Connect a conveyor to free its carriers." Splitter fallback behavior,

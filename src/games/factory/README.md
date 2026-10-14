@@ -90,12 +90,21 @@ House wood is labeled Construction or Installed, never shared spendable stock.
 Choose a location to focus its building or carrier and open the contextual
 inspector. Residents remain inspectable on the map and at the homestead.
 
+Each resource row also shows made and used rates per simulation minute and one
+verdict (Short, Stuck, Backed up, Idle, Falling, Keeping up, Not in use or
+Measuring). `game/flow.ts` samples cumulative production ledgers once per
+simulation second; rates are unsaved and re-measure after loading. Verdicts
+come from `inspectResources()`: waiting consumers, full producers and
+unstaffed sites are judged from current building state, and drilldowns list
+those locations first with one suggested action.
+
 | Responsibility | Owner |
 | --- | --- |
 | Types, items, catalog, timing and geometry | `game/domain.ts` |
 | Seeded terrain, placement, ports and starting layouts | `game/world.ts`, `game/model.ts` |
 | Machine state, recipes, capacities, production and transfers | `game/machines.ts` |
 | Authoritative state, fixed-step orchestration and inspection | `game/simulation.ts` |
+| Rolling made/used resource rates | `game/flow.ts` |
 | Residents, jobs, navigation, reservations and food consumption | `game/settlement.ts` |
 | Bounded grove access search | `game/gathering.ts` |
 | Save-state validation, error classification and conservation | `session/saveState.ts`, `session/saveErrors.ts` |
@@ -124,7 +133,7 @@ There is no separate Factory build configuration. Independence from sibling game
 preserves future extraction without maintaining another deployment today.
 
 - `npm run check:factory`: headless boundaries, session races, inventory,
-  construction, housing readiness/growth, scaled provisioning, production,
+  construction, housing readiness/growth, scaled provisioning, production, resource flow,
   machine options, saves, settlement and replay.
 - `npm run check:factory:ui`: native desktop/touch actions, save-resume and
   asset-only changes in both the live game and temporary preview.
