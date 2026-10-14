@@ -1389,7 +1389,7 @@ inside Factory and its existing checks.
 | Housing capacity | One additional resident per completed house |
 | Population growth | Explicit Invite action; no automatic arrivals |
 | Food consumption | One food unit per resident per ten seconds of simulation time |
-| Invitation readiness | Thirty seconds of sustainable provisioning and thirty seconds of kitchen reserve, both evaluated for the prospective population |
+| Invitation readiness | A kitchen reserve covering thirty seconds of food for the prospective population, held continuously for thirty seconds without missed meals |
 | Shortage behavior | Block further invitations; existing residents keep working and do not die |
 
 Opening loop: gather wood -> deliver wood to a house -> maintain sufficient food
@@ -1436,26 +1436,23 @@ research, maintenance, departures, or broader construction costs in this slice.
   Serve every whole due unit, including multiple units in a tick at larger
   populations. Record unmet due units without accumulating starvation debt that
   would drain every future delivery. Shortages never disable workers.
-- Measure readiness from actual simulation events, not theoretical plot output,
-  historical lifetime totals, wall time, or global stock. Maintain a bounded,
-  persisted rolling thirty-second record of newly harvested food, net kitchen
-  replenishment, and unmet food demand. Instrument both conveyor and resident
-  delivery paths through the existing rules; neither path receives special
-  readiness privileges.
-- Net kitchen replenishment must subtract food removed with a kitchen. Recovering
-  and re-delivering that stock cannot manufacture extra supply. Initial starter
-  inventory and restore operations do not count as deliveries or production.
-  Newly harvested food bounds the supply credit so starter/recovered stock alone
-  cannot establish a sustainable chain.
-- For prospective population `N`, require a complete observation window with no
-  missed due food, at least `ceil(N * 30 / 10)` newly harvested units and net
-  kitchen replenishment in that window, and at least `ceil(N * 30 / 10)` food
-  units currently in kitchen inventories. Depot stock, plot buffers, cargo,
-  recovery, and reservations are not ready-to-serve food.
+- Measure readiness from actual simulation state and events, not theoretical
+  plot output, historical lifetime totals, wall time, or global stock. Maintain
+  a bounded, persisted rolling thirty-second record of unmet food demand, and
+  persist the tick since which the combined kitchen reserve has held.
+- For prospective population `N`, require no missed due food in the window and
+  at least `ceil(N * 30 / 10)` food units across all kitchen inventories, held
+  continuously for thirty seconds. Any dip below that reserve restarts the
+  hold. Depot stock, plot buffers, cargo, recovery, and reservations are not
+  ready-to-serve food.
+- A held reserve is proof of supply: residents keep eating throughout the hold,
+  so the kitchens only stay stocked if harvests and deliveries keep pace.
+  Full kitchens therefore satisfy readiness without further deliveries. An
+  earlier rule also required net kitchen deliveries in the window; it could
+  stall indefinitely when every kitchen was full and food was plentiful.
 - Thus the first invitation, from four to five residents, requires fifteen
-  replenished food units over thirty seconds and fifteen units stocked in
-  kitchens. Count each stock unit once; multiple kitchens may contribute.
-  Higher populations may need more kitchen capacity and more plots/shorter routes.
+  food units stocked across kitchens for thirty seconds. Kitchens that cannot
+  hold the reserve ask for more kitchen space.
 - Reset the observation window after a successful invitation so the next
   invitation proves the enlarged settlement is actually provisioned. Do not
   reset fractional consumption demand, food stock, work progress, or cargo.

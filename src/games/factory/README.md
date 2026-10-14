@@ -55,11 +55,11 @@ The eighth delivery completes a house with one resident place. Wood stays
 installed and cannot be delivered again; removing an empty site/house returns
 only its actual wood to recovery. Occupied houses cannot be removed.
 Invite explicitly from a completed house with connected, clear arrival access.
-Readiness requires a full thirty-second simulation window without missed food,
-newly harvested food and net kitchen deliveries covering the prospective
-population, plus thirty seconds of food currently stocked in kitchens. The
-window restarts after each invitation. More kitchen space can be necessary to
-receive surplus food instead of throttling deliveries at current demand.
+Readiness requires no missed food in the last thirty simulation seconds and a
+combined kitchen reserve of thirty seconds of food for the prospective
+population, held continuously for thirty seconds. Any dip restarts the hold, and
+the hold restarts after each invitation. A full kitchen counts as proof of
+supply; residents keep eating, so the reserve only holds if supply keeps pace.
 
 Each resident consumes one food unit per ten simulation seconds. An integer
 resident-time accumulator preserves fractional demand, serves whole units in

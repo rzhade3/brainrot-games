@@ -36,11 +36,12 @@ assert.equal(ready.inspectResources().find(resource => resource.item === 'wood')
   .locations.find(location => location.key === tileKey(house))!.role, 'Installed');
 assert.deepEqual(ready.serialize(), before, 'Housing inspection is read-only');
 
-for (const field of ['harvested', 'delivered'] as const) {
+{
   const save = readySave();
-  save.settlement.foodHistory[0][field] = 0;
+  save.settlement.reserveSince = 1;
   const below = FactorySimulation.restore(save);
-  assert.match(below.inviteResident(house)!, /too slow|kitchen space/);
+  assert.equal(below.inspectMachine(house).housing!.heldTicks, FOOD_READINESS_TICKS - 1);
+  assert.match(below.inviteResident(house)!, /Watching food supply/, 'The reserve must hold for the full window');
   assert.equal(below.residents.length, 4);
 }
 {
@@ -59,7 +60,7 @@ for (const field of ['harvested', 'delivered'] as const) {
   save.settlement.consumedFood--;
   save.machines.find(machine => machine.building.kind === 'kitchen')!.input['food-unit']++;
   save.settlement.foodHistory.forEach(event => event.tick--);
-  assert.match(FactorySimulation.restore(save).inviteResident(house)!, /observation/);
+  assert.match(FactorySimulation.restore(save).inviteResident(house)!, /Watching food supply/);
 }
 {
   const save = readySave();
@@ -71,10 +72,24 @@ for (const field of ['harvested', 'delivered'] as const) {
   assert.match(FactorySimulation.restore(save).inviteResident(house)!, /ran short/);
 }
 {
+  // A full kitchen is proof of supply: no extra deliveries are needed once the reserve holds.
   const save = readySave();
   save.settlement.foodHistory.forEach(event => { event.harvested = 0; });
-  assert.match(FactorySimulation.restore(save).inviteResident(house)!, /too slow|kitchen space/,
-    'Recovered/starter deliveries cannot establish sustainability without newly harvested food');
+  assert.equal(FactorySimulation.restore(save).inspectMachine(house).housing!.reason, null);
+  // Any dip below the combined reserve restarts the watch.
+  const dipping = FactorySimulation.restore(readySave());
+  dipping.remove({ c: 10, r: 9 });
+  while (dipping.inspectMachine(house).housing!.stockedFood >= 15) dipping.step();
+  assert.match(dipping.inspectMachine(house).housing!.reason!, /reserve is too low.*15 food units/);
+  const topped = dipping.serialize();
+  topped.machines.find(machine => machine.building.kind === 'kitchen')!.input['food-unit'] += 2;
+  topped.settlement.kitchenDelivered += 2;
+  topped.settlement.producedFood += 2;
+  const refilled = FactorySimulation.restore(topped);
+  refilled.step();
+  assert.match(refilled.inspectMachine(house).housing!.reason!, /Watching food supply/);
+  assert.ok(refilled.inspectMachine(house).housing!.heldTicks < 5);
+  roundTrip(refilled);
 }
 {
   const blocked = FactorySimulation.restore(readySave());
@@ -97,7 +112,7 @@ assert.match(ready.inviteResident(house)!, /occupied/);
 assert.match(ready.removalError(house)!, /occupied/);
 assert.throws(() => ready.remove(house), /occupied/);
 assert.equal(ready.serialize().settlement.foodHistory.length, 0);
-assert.equal(ready.inspectMachine(house).housing!.observedTicks, 0);
+assert.equal(ready.inspectMachine(house).housing!.heldTicks, 0);
 assert.equal(ready.place({ c: 18, r: 12, kind: 'house', direction: 0 }), null);
 const second = ready.serialize();
 second.machines.find(machine => tileKey(machine.building) === '18,12')!.input.wood = HOUSE_WOOD_COST;
@@ -105,7 +120,7 @@ second.settlement.producedWood += HOUSE_WOOD_COST;
 const enlarged = FactorySimulation.restore(second);
 assert.equal(enlarged.inspectMachine({ c: 18, r: 12 }).housing!.requiredFood, 18,
   'The second invitation checks six residents, not the current five');
-assert.match(enlarged.inviteResident({ c: 18, r: 12 })!, /observation/);
+assert.match(enlarged.inviteResident({ c: 18, r: 12 })!, /Kitchens hold only 16 food units\. Add kitchen space/);
 const consumed = enlarged.serialize().settlement.consumedFood;
 advanceTicks(enlarged, RESIDENT_FOOD_TICKS);
 assert.equal(enlarged.serialize().settlement.consumedFood - consumed, 5);
@@ -189,10 +204,9 @@ for (const wood of [0, HOUSE_WOOD_COST - 1, HOUSE_WOOD_COST]) {
   simulation.remove(kitchen);
   const noKitchen = simulation.inspectMachine(house).housing!;
   assert.equal(noKitchen.stockedFood, 0);
-  assert.equal(noKitchen.deliveredFood, 0, 'Removing a kitchen subtracts its recovered stock from observed replenishment');
   assert.match(simulation.inviteResident(house)!, /arrival path/);
   assert.equal(simulation.place({ ...kitchen, kind: 'kitchen', direction: 0 }), null);
-  assert.match(simulation.inviteResident(house)!, /too slow/, 'Recovery alone is not a new sustainable supply');
+  assert.match(simulation.inviteResident(house)!, /Kitchen reserve is too low/, 'An empty replacement kitchen restarts the reserve watch');
   roundTrip(simulation);
 }
 {
@@ -232,6 +246,7 @@ for (const mutate of [
   (save: ReturnType<typeof readySave>) => { save.settlement.foodHistory[0].delivered = 99; },
   (save: ReturnType<typeof readySave>) => { save.settlement.foodHistory[0].tick = save.ticks + 1; },
   (save: ReturnType<typeof readySave>) => { save.settlement.foodObservedSince = save.ticks + 1; },
+  (save: ReturnType<typeof readySave>) => { save.settlement.reserveSince = save.ticks + 1; },
   (save: ReturnType<typeof readySave>) => { save.settlement.mealClock = RESIDENT_FOOD_TICKS; },
   (save: ReturnType<typeof readySave>) => { save.settlement.kitchenDelivered++; },
   (save: ReturnType<typeof readySave>) => { save.settlement.residents[0].home = house; },
@@ -247,7 +262,7 @@ for (const mutate of [
   state.residents = Array.from({ length: 105 }, (_, id) => ({ ...structuredClone(state.residents[0]), id }));
   const settlement = new Settlement({
     machines: new Map([[tileKey(kitchen), machine]]), world: ready.world, automated: () => false,
-    recover: () => assert.fail('Unexpected recovery'), receive: () => assert.fail('Unexpected delivery'), ticks: () => 1,
+    recover: () => assert.fail('Unexpected recovery'), extract: () => assert.fail('Unexpected extraction'), receive: () => assert.fail('Unexpected delivery'), ticks: () => 1,
   }, state);
   settlement.step();
   assert.equal(settlement.state.consumedFood, 1);

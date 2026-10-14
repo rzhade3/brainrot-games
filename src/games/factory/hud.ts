@@ -672,10 +672,8 @@ export class FactoryHud {
       ${building.kind === 'house' ? `<section class="factory-housing-card factory-assignment-card" aria-label="Housing">
         <dl><div><dt>Places</dt><dd id="factory-house-places"></dd></div>
         <div><dt>After arrival</dt><dd id="factory-house-demand"></dd></div>
-        <div><dt>Observation</dt><dd id="factory-house-observation"></dd></div>
-        <div><dt>Food grown</dt><dd id="factory-house-harvested"></dd></div>
-        <div><dt>Food delivered</dt><dd id="factory-house-delivered"></dd></div>
-        <div><dt>Kitchen reserve</dt><dd id="factory-house-reserve"></dd></div></dl>
+        <div><dt>Kitchen reserve</dt><dd id="factory-house-reserve"></dd></div>
+        <div><dt>Reserve held</dt><dd id="factory-house-held"></dd></div></dl>
         <p id="factory-house-reason" role="status"></p><button class="factory-invite-button" data-command="invite-resident" disabled>Invite resident</button>
       </section>` : ''}
       ${this.settlement && !isConveyor(building.kind) && !['home', 'kitchen', 'house'].includes(building.kind) ? `
@@ -1022,10 +1020,8 @@ export class FactoryHud {
       const set = (id: string, text: string) => this.setText(this.inspector.querySelector<HTMLElement>(`#factory-house-${id}`)!, text);
       set('places', `${housing.occupied}/${housing.capacity} occupied`);
       set('demand', `${housing.prospective} residents · ${housing.prospective} food units / ${RESIDENT_FOOD_TICKS * STEP_MS / 1000}s`);
-      set('observation', `${Math.floor(housing.observedTicks * STEP_MS / 1000)}/${FOOD_READINESS_TICKS * STEP_MS / 1000}s`);
-      set('harvested', `${housing.harvestedFood}/${housing.requiredFood}`);
-      set('delivered', `${housing.deliveredFood}/${housing.requiredFood}`);
-      set('reserve', `${housing.stockedFood}/${housing.requiredFood}`);
+      set('reserve', `${housing.stockedFood}/${housing.requiredFood} food units`);
+      set('held', `${Math.floor(housing.heldTicks * STEP_MS / 1000)}/${FOOD_READINESS_TICKS * STEP_MS / 1000}s`);
       set('reason', housing.reason ?? 'Food ready. One more resident can join the work.');
       for (const row of this.inspector.querySelectorAll<HTMLElement>('.factory-housing-card dl > div')) {
         row.hidden = housing.occupied > 0 && !row.querySelector('#factory-house-places');
