@@ -13,6 +13,8 @@ export default defineConfig({
         topDown: resolve(__dirname, 'games/top-down/index.html'),
         typing: resolve(__dirname, 'games/typing/index.html'),
         associations: resolve(__dirname, 'games/associations/index.html'),
+        factory: resolve(__dirname, 'games/factory/index.html'),
+        factoryAssets: resolve(__dirname, 'src/games/factory/assets/preview.html'),
       },
     },
   },

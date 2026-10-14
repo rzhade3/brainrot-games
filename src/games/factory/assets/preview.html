@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pocket Factory asset preview</title>
+    <style>
+      body { margin: 0; background: #dce3d7; color: #344b48; font: 14px system-ui, sans-serif; }
+      form { position: fixed; z-index: 1; inset: 12px 12px auto; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px; background: #f5f2e7; border: 1px solid #b3bdae; border-radius: 8px; }
+      label { display: flex; align-items: center; gap: 5px; }
+      select, input { accent-color: #3f7774; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <form aria-label="Asset preview controls">
+      <strong>Pocket Factory assets</strong>
+      <label>Facing <select id="facing"><option value="0">East</option><option value="1">South</option><option value="2">West</option><option value="3">North</option></select></label>
+      <label>Cargo <select id="cargo"><option value="">Empty</option></select></label>
+      <label>Progress <input id="progress" type="range" min="0" max="100" value="50" /></label>
+      <label><input id="running" type="checkbox" checked /> Active</label>
+      <label><input id="motion" type="checkbox" /> Animate</label>
+      <label><input id="shapes" type="checkbox" checked /> Selection shapes</label>
+    </form>
+    <main id="game-root" aria-label="Factory artwork preview"></main>
+    <script type="module" src="./preview.ts"></script>
+  </body>
+</html>
