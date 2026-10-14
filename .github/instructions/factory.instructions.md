@@ -75,7 +75,8 @@ current decision. Use compact labeled values rather than narrative paragraphs.
 Do not repeat a catalog purpose line or static instructions beside live data.
 For example: "Growing food", "Ready: 2 / 4", "Deliver to: Communal kitchen".
 Recipes and pace belong here, not on catalog cards. The homestead shows the
-resident count and individual activities, not a decorative population meter
+resident count, the work split ("2 at sites · 1 carrying · 1 free") and
+individual activities, not a decorative population meter
 or routine lifetime production totals.
 Houses show delivered/installed wood, occupancy and food readiness beside Invite.
 Installed wood is not available stock. Kitchens show demand for the current

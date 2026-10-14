@@ -6,24 +6,32 @@ Settlement is the only ruleset and starting layout. New settlement, Resume and a
 optional seed share one entry menu. Farming, hauling and industry are available
 without mission or project gates; extractor upgrades are optional. Depots
 automatically feed connected outputs and otherwise store goods. Saves use
-envelope version 4, `settlement-v7`, and settlement state version 6.
+envelope version 4, `settlement-v8`, and settlement state version 7.
 Earlier saves are rejected without migration or writes. Replacement requires
 confirmation and activates only after the new save commits.
 
 Woodcutting sites need clear land within four tiles of an accessible tree.
-Residents share a labor pool. Each producer and depot has Low / Normal / High
-work priority, defaulting to Normal, for both production and outgoing delivery
-jobs. Extractors and industry produce automatically; their priority only affects
-resident deliveries. Buildings share resident-time with Low / Normal / High
-weights of 1 / 2 / 3 within each connected walkable region. Useful production
-slots, available stock and destination space cap demand; spare labor is borrowed
-by other buildings. Travel and work both count, and new reservations count
-immediately. Idle residents favor underserved buildings, then shorter trips.
-Inactive buildings do not bank credit. These are soft effort shares, not assigned
-headcounts or staffing caps.
-One farmer or woodcutter works each site at a time; full buffers and inaccessible
-jobs do not hold residents. Contextual resident/home inspection shows activity
-without assignment controls.
+Each food plot and woodcutting site has one worker post. Residents keep their post
+until its priority changes, the layout changes, or it is removed; they do not
+re-choose a site after each harvest. Every building with resident work has
+Off / Low / Normal / High priority (Normal by default). Higher-priority sites are
+staffed first in stable tile order and may take the worker of a strictly lower
+priority site; equal priority never moves a worker. Off frees the worker and stops
+resident deliveries from that building. Extractors and industry produce
+automatically; their priority only affects resident deliveries.
+Residents without a post haul. Free carriers rank deliveries by priority, the
+unreserved fullness of the source buffer and kitchen need, minus walking distance,
+so nearby work wins among equals and neglected stock rises as it accumulates. Low
+waits while plentiful High work remains. A posted worker hauls (its own output
+first) only when its site cannot produce and no free resident in the same
+walkable region is idle. Meals draw from the best-stocked kitchen.
+Workplaces declare worker slots through `workerSlots()` in `game/machines.ts`
+(currently one per farm or woodcutting site); assignment fills slots by priority,
+so multi-worker processing posts need no new save shape. A full or inaccessible
+site lets its worker haul until it can produce again. The homestead's Work row
+splits the single labor pool into residents at sites, carrying and free, plus
+unstaffed slots; contextual inspection shows activity without assignment controls.
+A routed source with stock but no carrier reports "Waiting for a carrier".
 Workers enter their plot or tree tile while working, leaving neighboring land
 free for construction. Shared resident navigation protects the last clear exit
 of an occupied work tile and walks residents out when their work ends. Only the
@@ -34,7 +42,7 @@ The woodcutter gathers for two seconds, then carries
 one wood unit back to the site's four-unit output buffer. Choose a depot or house under
 Deliver to, or connect a conveyor. Trees remain renewable obstacles. Blocking
 access or removing a site recovers interrupted cargo without loss.
-Priorities, labor credits, gathering progress, reservations and cargo resume exactly.
+Priorities, posts, gathering progress, reservations and cargo resume exactly.
 
 House sites accept eight physical wood units through residents or conveyors.
 The eighth delivery completes a house with one resident place. Wood stays
@@ -68,7 +76,8 @@ saved incompatible routes remain loadable and are explicitly flagged on the
 card so the player can change or stop them without resetting the settlement.
 
 Resources replaces the header's People shortcut with an on-demand stock overview.
-Totals separate depot stock, building contents, goods in transit and recovery;
+Totals separate depot stock, building contents, goods in transit and recovery,
+and note unreserved routed stock still waiting to be carried;
 they are physical goods, not a shared spendable inventory. Resource details show
 stock locations, producers, consumers and their current machine or delivery state.
 House wood is labeled Construction or Installed, never shared spendable stock.
@@ -82,7 +91,6 @@ inspector. Residents remain inspectable on the map and at the homestead.
 | Machine state, recipes, capacities, production and transfers | `game/machines.ts` |
 | Authoritative state, fixed-step orchestration and inspection | `game/simulation.ts` |
 | Residents, jobs, navigation, reservations and food consumption | `game/settlement.ts` |
-| Demand-capped weighted labor targets | `game/labor.ts` |
 | Bounded grove access search | `game/gathering.ts` |
 | Save-state validation, error classification and conservation | `session/saveState.ts`, `session/saveErrors.ts` |
 | Save format and IndexedDB conflict protection | `session/persistence.ts` |

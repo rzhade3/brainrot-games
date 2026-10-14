@@ -18,7 +18,7 @@ const settlement = FactorySimulation.create();
 assert.deepEqual(settlement.buildings, createSettlement());
 assert.equal(settlement.residents.length, 4);
 assert.equal(settlement.getState({ c: 14, r: 12 })!.input['food-unit'], 8);
-assert.equal(settlement.serialize().ruleset, 'settlement-v7');
+assert.equal(settlement.serialize().ruleset, 'settlement-v8');
 for (const field of ['scenario', 'projects', 'delivered', 'stage', 'deliveryTicks']) {
   assert.equal(Object.hasOwn(settlement.serialize(), field), false);
   assert.equal(Object.hasOwn(settlement.summary(), field), false);

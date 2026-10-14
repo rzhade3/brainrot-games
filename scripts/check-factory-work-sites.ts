@@ -79,11 +79,12 @@ until(reassigned, () => reassigned.getState(plot)!.output['food-unit'] === 4);
 assert.ok(reassignedWorker.exit);
 assert.equal(reassigned.setHaulTarget(plot, kitchen), null);
 reassigned.step();
-assert.equal(reassignedWorker.job?.kind, 'collect');
-assert.ok(reassignedWorker.job.path.length > 0, 'Collection exits the plot before taking cargo');
-assert.equal(reassignedWorker.cargo, null);
+const collector = reassigned.residents.find(resident => resident.job?.kind === 'collect')!;
+assert.ok(collector && collector.id !== reassignedWorker.id, 'A free resident carries the full plot output');
+assert.equal(reassignedWorker.job, null, 'The site worker stays posted instead of hauling');
+assert.ok(reassignedWorker.post);
 replay(reassigned, WALK_TICKS);
-assert.equal(reassignedWorker.siteAccess, null);
+until(reassigned, () => reassignedWorker.siteAccess === null, 4 * WALK_TICKS);
 until(reassigned, () => reassigned.summary().settlement.producedFood > 4);
 
 const removed = farm();

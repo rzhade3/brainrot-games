@@ -203,9 +203,10 @@ for (const wood of [0, HOUSE_WOOD_COST - 1, HOUSE_WOOD_COST]) {
   save.machines.find(machine => tileKey(machine.building) === '16,10')!.input['food-unit'] = 14;
   const kitchens = FactorySimulation.restore(save);
   advanceTicks(kitchens, 25);
-  assert.equal(kitchens.getState(kitchen)!.input['food-unit'], 0, 'The first kitchen is served in deterministic tile order');
+  assert.equal(kitchens.getState({ c: 16, r: 10 })!.input['food-unit'], 13, 'Meals draw from the best-stocked kitchen');
+  assert.equal(kitchens.getState(kitchen)!.input['food-unit'], 1, 'A nearly empty kitchen is not drained first');
   advanceTicks(kitchens, 25);
-  assert.equal(kitchens.getState({ c: 16, r: 10 })!.input['food-unit'], 13);
+  assert.equal(kitchens.getState({ c: 16, r: 10 })!.input['food-unit'], 12);
   roundTrip(kitchens);
 }
 {

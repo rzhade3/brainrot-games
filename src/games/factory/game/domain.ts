@@ -5,7 +5,7 @@ export type Tool = 'inspect' | BuildableKind;
 export type Direction = 0 | 1 | 2 | 3;
 export interface Tile { c: number; r: number }
 export interface Point { x: number; y: number }
-export const WORK_PRIORITIES = ['low', 'normal', 'high'] as const;
+export const WORK_PRIORITIES = ['off', 'low', 'normal', 'high'] as const;
 export type WorkPriority = typeof WORK_PRIORITIES[number];
 export interface Building extends Tile {
   kind: BuildingKind;

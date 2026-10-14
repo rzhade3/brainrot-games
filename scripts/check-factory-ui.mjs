@@ -158,7 +158,8 @@ try {
     assert.equal(await page.locator('[data-command="choose-worker"]').count(), 0);
     assert.equal(await page.locator('[data-priority="normal"]').getAttribute('aria-pressed'), 'true');
     assert.equal(await page.locator('.factory-labor-card small').innerText(),
-      'Higher priority gives this work a larger share of available labor.');
+      'One resident works here. Higher priority is staffed first; Off frees the worker.');
+    assert.equal(await page.locator('[data-command="work-priority"]').count(), 4);
     assert.equal(await page.locator('#factory-machine-pace').innerText(), '2s');
     await page.locator('.factory-machine-help summary').click();
     assert.match(await page.locator('.factory-machine-help').innerText(), /Trees remain in place/);
@@ -183,7 +184,7 @@ try {
     });
     const carrier = carrying.settlement.residents.find(resident => resident.cargo === 'wood');
     assert.equal(carrier.job.kind, 'return-wood');
-    assert.match(await page.locator('#factory-staffing').innerText(), /Working/);
+    assert.match(await page.locator('#factory-staffing').innerText(), /^Worker: /);
     await page.locator('[data-priority="low"]').click();
     const reprioritized = await gameState(page);
     assert.deepEqual(reprioritized.settlement, carrying.settlement, 'Priority controls must not cancel work or reset cargo');
@@ -418,6 +419,9 @@ try {
           expectedCycle: building.kind === 'home' || building.kind === 'house' ? null
             : building.kind === 'kitchen' ? `${inspection.population} residents · ${inspection.population} food units / ${inspection.cycleTicks * STEP_MS / 1000}s`
               : `${inspection.cycleTicks * STEP_MS / 1000}s`,
+          work: document.getElementById('factory-home-work')?.textContent ?? null,
+          expectedWork: inspection.labor && `${inspection.labor.posted} at sites · ${inspection.labor.hauling} carrying · ${inspection.labor.free} free` +
+            (inspection.labor.openPosts ? ` · ${inspection.labor.openPosts} unstaffed` : ''),
         });
       }
       const plot = [...sim.buildings.values()].find(building => building.kind === 'food-plot');
@@ -461,6 +465,7 @@ try {
       assert.equal(row.progress, row.expectedProgress);
       assert.equal(row.progressName, row.expectedProgress, 'Visible and accessible progress labels agree');
       assert.equal(row.cycle, row.expectedCycle);
+      assert.equal(row.work, row.expectedWork, `${row.kind} work summary follows the labor pool`);
     }
     assert.deepEqual(result.overridden, {
       output: false, recipe: true, recipeText: '2 iron plates + 1 copper plate → 1 defense supply',
@@ -867,7 +872,7 @@ try {
     await page.waitForFunction(() => !document.querySelector('.factory-settlement-dialog').open);
     const saved = await storedSave(page);
     assert.equal(saved.version, 4);
-    assert.equal(saved.simulation.ruleset, 'settlement-v7');
+    assert.equal(saved.simulation.ruleset, 'settlement-v8');
     assert.equal(saved.simulation.world.seed, 'replacement-seed');
     assert.notEqual(saved.worldId, legacy.worldId);
     assert.deepEqual(errors, []);

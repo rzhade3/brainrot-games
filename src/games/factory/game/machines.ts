@@ -119,6 +119,11 @@ export function inputSlots(machine: Readonly<MachineState>, item: Item | null = 
   return capacity - used - reserved;
 }
 
+/** Resident posts a workplace offers; everyone without a post hauls. */
+export function workerSlots(kind: BuildingKind): number {
+  return kind === 'food-plot' || kind === 'woodcutting-site' ? 1 : 0;
+}
+
 export function outputCapacity(kind: BuildingKind): number {
   return kind === 'miner' || kind === 'furnace' || kind === 'assembler' || kind === 'food-plot' || kind === 'woodcutting-site' ? BUFFER_CAPACITY : 0;
 }

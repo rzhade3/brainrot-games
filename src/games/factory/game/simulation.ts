@@ -29,7 +29,7 @@ import {
 } from './model';
 import { assertConservation, copyMachine, requireSave, restoreMachine, saveCount, saveInventory, saveObject, saveTile } from '../session/saveState';
 import { requireCompatibleSave } from '../session/saveErrors';
-import { HousingInspection, Resident, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
+import { HousingInspection, LaborSummary, Resident, residentName, Settlement, SettlementSave, STARTER_FOOD } from './settlement';
 import { gatheringAccess } from './gathering';
 import { DEFAULT_WORLD, FactoryWorld, DEFAULT_SEED, restoreWorld, WorldIdentity } from './world';
 export { BELT_TICKS, EXTRACT_TICKS, inventory, inventoryText, ITEM_NAMES, itemCount, ITEMS, STEP_MS, UPGRADED_EXTRACT_TICKS } from './domain';
@@ -67,6 +67,7 @@ export interface MachineInspection {
   option: { enabled: boolean } | null;
   haul: HaulInspection | null;
   housing: HousingInspection | null;
+  labor: LaborSummary | null;
 }
 
 export interface FactorySummary {
@@ -93,6 +94,7 @@ export interface ResourceInspection {
   depots: number;
   buildings: number;
   inTransit: number;
+  waiting: number;
   recovered: number;
   locations: ResourceLocation[];
 }
@@ -108,7 +110,7 @@ export interface SimulationSave {
   smelted: Inventory;
   assembled: Inventory;
   recipeConsumed: Inventory;
-  ruleset: 'settlement-v7';
+  ruleset: 'settlement-v8';
   settlement: SettlementSave;
 }
 
@@ -168,14 +170,14 @@ export class FactorySimulation {
         .map(([key, source]) => [key, { ...source }]),
       recovered: { ...this.recovered }, mined: { ...this.productionLedger.mined }, smelted: { ...this.productionLedger.smelted },
       assembled: { ...this.productionLedger.assembled }, recipeConsumed: { ...this.productionLedger.recipeConsumed },
-      ruleset: 'settlement-v7',
+      ruleset: 'settlement-v8',
       settlement: this.settlement.serialize(),
     };
   }
 
   static restore(value: unknown): FactorySimulation {
     const source = saveObject(value);
-    requireCompatibleSave(source.ruleset === 'settlement-v7', 'unsupported settlement ruleset');
+    requireCompatibleSave(source.ruleset === 'settlement-v8', 'unsupported settlement ruleset');
     requireCompatibleSave(!['scenario', 'delivered', 'stage', 'orderStarted', 'orderCompleted', 'deliveryTicks', 'projects']
       .some(field => Object.hasOwn(source, field)), 'legacy factory fields');
     const world = restoreWorld(source.world);
@@ -272,6 +274,7 @@ export class FactorySimulation {
       option: kind === 'miner' ? { enabled: !!machine.building.upgraded } : null,
       haul: this.inspectHauling(machine),
       housing: kind === 'house' ? this.settlement.housing(tile) : null,
+      labor: kind === 'home' ? this.settlement.labor() : null,
     };
   }
 
@@ -301,22 +304,28 @@ export class FactorySimulation {
   setWorkPriority(tile: Tile, priority: WorkPriority): string | null {
     const machine = this.machines.get(tileKey(tile));
     if (!machine || !haulItems(machine.building, this.world).length) return 'Choose a building with resident work';
-    if (!WORK_PRIORITIES.includes(priority)) return 'Choose Low, Normal or High';
+    if (!WORK_PRIORITIES.includes(priority)) return 'Choose Off, Low, Normal or High';
     machine.building.workPriority = priority;
+    this.settlement.prioritiesChanged();
     return null;
   }
 
   private staffing(machine: MachineState): string {
-    const workers = this.residents.filter(resident => resident.job &&
-      tileKey(resident.job.source) === tileKey(machine.building));
-    if (workers.length) return `Working · ${workers.length} ${workers.length === 1 ? 'resident' : 'residents'}`;
+    const key = tileKey(machine.building);
     const { kind } = machine.building;
+    if (machine.building.workPriority === 'off') return kind === 'food-plot' || kind === 'woodcutting-site'
+      ? 'Off · no worker' : 'Off · no resident deliveries';
+    const workers = this.residents.filter(resident => resident.job && tileKey(resident.job.source) === key);
     if (kind === 'food-plot' || kind === 'woodcutting-site') {
+      const worker = this.residents.find(resident => resident.post && tileKey(resident.post) === key);
       const item = kind === 'food-plot' ? 'food-unit' : 'wood';
       if (machine.output[item] >= outputCapacity(kind)) return 'Output full';
       if (kind === 'woodcutting-site' && !gatheringAccess(machine.building, this.buildings, this.world).length) return 'Grove access blocked';
-      return 'Waiting for a resident or a clear path';
+      if (worker) return `Worker: ${residentName(worker.id)}`;
+      return workers.length ? `Working · ${workers.length} ${workers.length === 1 ? 'resident' : 'residents'}`
+        : 'No worker free. Raise priority or set another site to Off.';
     }
+    if (workers.length) return `Working · ${workers.length} ${workers.length === 1 ? 'resident' : 'residents'}`;
     if (this.settlementHost().automated(machine)) return 'Delivery handled by conveyors';
     const target = machine.building.haulTo;
     if (!target) return 'No delivery destination';
@@ -324,9 +333,10 @@ export class FactorySimulation {
     const stock = kind === 'storage' ? machine.input : machine.output;
     if (!destination || !ITEMS.some(item => stock[item] > 0 && acceptsInventoryItem(destination.building.kind, item)))
       return 'Waiting for matching goods';
-    if (!ITEMS.some(item => stock[item] > 0 && acceptsInventoryItem(destination.building.kind, item) &&
-      this.freeSlots(destination, item) > 0)) return 'Destination full';
-    return 'Waiting for a resident or a clear path';
+    const ready = ITEMS.find(item => stock[item] > 0 && acceptsInventoryItem(destination.building.kind, item) &&
+      this.freeSlots(destination, item) > 0);
+    if (!ready) return 'Destination full';
+    return `Waiting for a carrier · ${itemText(ready, stock[ready])}`;
   }
 
   private addMachine(building: Building): void {
@@ -562,7 +572,7 @@ export class FactorySimulation {
 
   inspectResources(): ResourceInspection[] {
     const resources: ResourceInspection[] = ITEMS.map(item => ({
-      item, total: 0, depots: 0, buildings: 0, inTransit: 0,
+      item, total: 0, depots: 0, buildings: 0, inTransit: 0, waiting: 0,
       recovered: this.recovered[item], locations: [],
     }));
     for (const machine of this.machines.values()) {
@@ -571,9 +581,13 @@ export class FactorySimulation {
       const status = this.status(building);
       const routeError = building.haulTo ? this.haulDestinationError(building, building.haulTo) : null;
       const haulTarget = building.haulTo ? this.machines.get(tileKey(building.haulTo)) : null;
+      const carried = haulTarget && !routeError && building.workPriority !== 'off' &&
+        !this.settlementHost().automated(machine) ? (building.kind === 'storage' ? machine.input : machine.output) : null;
       for (const resource of resources) {
         const item = resource.item;
         const quantity = machine.input[item] + machine.output[item] + (machine.item === item ? 1 : 0);
+        if (carried && haulItems(building, this.world).includes(item) && acceptsInventoryItem(haulTarget!.building.kind, item))
+          resource.waiting += Math.max(0, carried[item] - this.settlement.reservedSource(building, item));
         const produces = producesInventoryItem(building.kind, item, deposit);
         const consumes = building.kind !== 'storage' && acceptsInventoryItem(building.kind, item);
         if (building.kind === 'storage') resource.depots += quantity;

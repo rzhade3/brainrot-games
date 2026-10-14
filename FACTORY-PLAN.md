@@ -86,6 +86,19 @@ combine their production branches -> improve the settlement.
 Residents are participants, not animated scenery or arbitrary resource drains.
 Routine farming, hauling, processing, and eating run automatically once assigned.
 
+Labor model: one shared pool of residents, split between production posts,
+processing posts, and hauling. Posts are stable workplace slots filled by
+building priority; everyone without a post hauls. Automation (commissioned
+extractors) and conveyors are investments that remove posts or carrying work
+and return people to the pool. Growth and new production branches must give
+released residents useful work, so automation never turns people into scenery.
+Sites hold one worker today; multi-worker processing workplaces may later add
+a per-building worker count, with priority still deciding who is staffed when
+people are short. Make carrying backlogs visible where the player can act.
+Implemented: `workerSlots()` slot model, the homestead Work split, "Waiting for
+a carrier" on routed sources and waiting-to-carry counts in Resources.
+Processing posts (staffed smelters/workshops) remain for 8B.
+
 Conditional earned-construction experiment:
 
 Receive a viable starter kit -> produce plates -> invest in another machine ->
@@ -1240,14 +1253,19 @@ four-tile gathering area, one automatically delegated resident, two-second gathe
 at a reserved tree access tile, and a physical one-unit return trip to the
 four-unit output buffer. Existing hauling or conveyors take wood onward to a
 depot. Trees remain obstacles without felling, regrowth, or terrain rebaking.
-Building inspectors provide Low / Normal / High work priorities (Normal by
-default), read-only staffing, transport choices, and blocked/full feedback.
-Residents share production and outgoing deliveries. Priority, waiting age and
-travel distance choose new work; waiting jobs gain weight so Low does not starve.
-Priority weight diminishes as a building receives residents, allowing other
-sites to share labor without hard staffing quotas.
+Building inspectors provide Off / Low / Normal / High work priorities (Normal by
+default), the current worker, transport choices, and blocked/full feedback.
+Each production site has one stable worker post, filled by priority then tile
+order; a higher priority may take a strictly lower site's worker, and Off frees
+it. Residents without a post haul from a board ranked by priority, unreserved
+source fullness and kitchen need, minus distance; accumulating stock keeps Low
+from waiting indefinitely once higher work thins. Posted workers haul only when
+their site cannot produce and no free resident is idle. This replaced per-job
+fair-share credits, which made residents leave after each harvest or trip.
 Residents finish their current harvest or cargo trip before reassignment.
-Full buffers and inaccessible jobs release labor. People is inspection-only.
+Full buffers and inaccessible jobs release the worker to haul. People is inspection-only.
+Worker posts use `settlement-v8` and settlement version 7; earlier saves require a
+new settlement.
 Removal and blocked access recover carried wood; saves preserve priorities,
 queue ages, progress, routes and cargo with strict conservation and replay checks.
 
@@ -1487,7 +1505,7 @@ research, maintenance, departures, or broader construction costs in this slice.
 | House kind/catalog and shared quantities | `game/domain.ts`, `game/model.ts` |
 | Wood acceptance, bounded inventory, material recovery | `game/machines.ts` |
 | Placement/removal guards, inspection, invitation actions and transfers | `game/simulation.ts` |
-| Dynamic residents, homes, arrival access, scaled consumption and rolling readiness | `game/settlement.ts`, existing `game/labor.ts` where needed |
+| Dynamic residents, homes, arrival access, scaled consumption and rolling readiness | `game/settlement.ts` |
 | Conservation, schema validation and compatibility | `session/saveState.ts`, `session/persistence.ts` |
 | Selected-building actions, current lists and live resource details | `FactoryScene.ts`, `hud.ts`, `style.css` |
 | House appearance, icon, bounds and preview | `assets/`, state adapter `rendering/art.ts` |

@@ -651,6 +651,7 @@ export class FactoryHud {
           : building.kind === 'miner' ? 'Source'
             : building.kind === 'home' ? 'Residents' : building.kind === 'kitchen' ? 'Food' : building.kind === 'house' ? 'Construction' : 'Input'}</dt><dd id="factory-machine-input"></dd></div>
         `}
+        ${building.kind === 'home' ? '<div><dt>Work</dt><dd id="factory-home-work"></dd></div>' : ''}
         <div id="factory-machine-output-row" hidden><dt>Output</dt><dd id="factory-machine-output"></dd></div>
         <div id="factory-machine-recipe-row" hidden><dt>Recipe</dt><dd id="factory-machine-recipe"></dd></div>
         ${building.kind === 'home' || building.kind === 'house' ? ''
@@ -684,8 +685,8 @@ export class FactoryHud {
           </div>
           <p id="factory-staffing" role="status"></p>
           <small>${building.kind === 'food-plot' || building.kind === 'woodcutting-site'
-            ? 'Higher priority gives this work a larger share of available labor.'
-            : 'Priority affects resident deliveries. Production runs on its own.'}</small>
+            ? 'One resident works here. Higher priority is staffed first; Off frees the worker.'
+            : 'Priority orders resident deliveries. Production runs on its own.'}</small>
         </section>` : ''}
       ${this.settlement ? `
         <section class="factory-delivery-card factory-assignment-card" aria-label="Resident deliveries" hidden>
@@ -838,7 +839,8 @@ export class FactoryHud {
       return row;
     };
     const stockText = (resource: ResourceInspection) =>
-      `Depots: ${resource.depots} · Buildings: ${resource.buildings} · In transit: ${resource.inTransit} · Recovery: ${resource.recovered}`;
+      `Depots: ${resource.depots} · Buildings: ${resource.buildings} · In transit: ${resource.inTransit} · Recovery: ${resource.recovered}` +
+      (resource.waiting ? ` · Waiting to be carried: ${resource.waiting}` : '');
     if (this.resourceItem === null) {
       for (const resource of resources) {
         const row = rowFor(resource.item, 'resource-item');
@@ -1008,6 +1010,11 @@ export class FactoryHud {
       button.setAttribute('aria-pressed', String(button.dataset.priority === (machine.building.workPriority ?? 'normal')));
     }
     if (kind === 'home' && input) input.textContent = String(inspection.population);
+    const work = this.inspector.querySelector<HTMLElement>('#factory-home-work');
+    if (work && inspection.labor) {
+      const { posted, hauling, free, openPosts } = inspection.labor;
+      this.setText(work, `${posted} at sites · ${hauling} carrying · ${free} free${openPosts ? ` · ${openPosts} unstaffed` : ''}`);
+    }
     if (kind === 'house' && input) input.textContent = `${machine.input.wood}/${HOUSE_WOOD_COST} wood${inspection.housing?.complete ? ' · Installed' : ' delivered'}`;
     if (inspection.housing) {
       const housing = inspection.housing;
