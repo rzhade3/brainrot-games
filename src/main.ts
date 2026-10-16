@@ -15,6 +15,15 @@ type GameEntry = {
 
 const games: GameEntry[] = [
   {
+    title: 'Cube Lines',
+    emoji: '🧊',
+    description: 'Turn the cube, trace the arrows, and clear all six sides. Thirty puzzles. No rush.',
+    href: './games/cube-lines/',
+    ready: true,
+    scoreKey: 'cube-lines',
+    scoreLabel: 'levels',
+  },
+  {
     title: 'Untangle',
     emoji: '🧶',
     description: 'Untangle clusters so no strings cross. They collapse, zoom out, and never end.',
