@@ -4,6 +4,8 @@ A little arcade of browser games. Installable, offline-ready PWA built with Vite
 
 ## Games
 
+- 🧱 **Break Rot** — skill-based Breakout across eight cycling geometries with brick islands, permanent steel, ricochet bumpers, and earned multiball.
+
 - 🧶 **Untangle** — drag nodes so no strings cross.
 - 🏰 **Tower Defense** — mine ore, power turrets, defend your castle.
 - ⌨️ **Type Rot** — type the words before they escape.
@@ -177,3 +179,41 @@ npm run dev      # start dev server
 npm run build    # type-check + production build
 npm run preview  # preview the build
 ```
+
+### Break Rot
+
+Open `/games/breakout/`. Drag to position the paddle before launch, then steer with touch,
+mouse, or arrow keys / A and D. Space launches; P pauses. Paddle edges aim the rebound.
+Instructions and obstacle explanations live in Help; the play screen shows only the score,
+wave, lives, active effects, and multiball count. The phone layout fits the viewport, including small screens, and landscape puts the HUD
+beside the arena. Pause contains sound and restart; restarting uses an in-game confirmation.
+Backgrounding pauses automatically. Sound is opt-in; reduced motion disables trails/particles.
+
+Eight named layouts cycle with varied brick counts and geometry: Split decision, Diamond
+circuit, Slalom, The vault, Constellation, Hourglass, Switchback, and Orbit. Steel shelves and
+vault walls are indestructible, including during fireballs and explosions. Circular bumpers
+reflect balls radially and boost their speed by 8% up to the global cap. Permanent obstacles
+do not count toward clearing. Numbers on bricks show remaining hits; the last five targets
+receive a white outline. Later cycles increase armor (up to six hits), and wave/rally speed
+is bounded. Repeating long flights are gently redirected after 14 seconds without teleporting.
+
+Each serve starts with **one ball**. Eight spaced power tiles per layout activate on impact:
+×3 triples live balls, +3 adds three (48-ball cap), ↔ widens the paddle for ten seconds,
+F pierces bricks for four seconds, ✹ damages nearby bricks by two, S rescues one falling
+ball, and ~ slows motion for five seconds. Fire/slow timers cap at eight/ten seconds;
+wide refreshes rather than growing permanently, and saves do not stack. Rapid hits build a
+score combo up to ×10. Bombs may trigger fragile powers but never erase reinforced armor for free.
+
+A clear pauses on a summary screen; Next wave previews the new geometry before launch.
+Balls, upgrades, and rally speed reset between waves and after losing a life. A run has three
+lives with no per-wave regeneration. Scores use `breakout-v2` so the old runaway version's
+scores don't dominate this ruleset. No new runtime dependencies or external assets are needed.
+
+```bash
+npm run test:breakout       # physics, lifecycle, layout overlap/accessibility, and full-army tests
+npm run simulate:breakout   # seeded stationary, reactive, and predictive controllers
+SIM_WAVE=8 SIM_SEEDS=12 SIM_SECONDS=240 npm run simulate:breakout
+```
+
+See [the gameplay evaluation](docs/breakout-evaluation.md) for the old/new simulation results,
+controller limitations, tuning decisions, and reproducible commands.
