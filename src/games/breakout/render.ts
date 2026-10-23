@@ -51,7 +51,6 @@ export class Renderer {
     }
     if (g.shields) { c.strokeStyle = COLORS.shield; c.lineWidth = 3; c.beginPath(); c.moveTo(12, H - 34); c.lineTo(W - 12, H - 34); c.stroke(); }
     c.strokeStyle = '#363d4e'; c.lineWidth = 2; c.beginPath(); c.moveTo(12, PADDLE_Y + 30); c.lineTo(12, TOP); c.lineTo(W - 12, TOP); c.lineTo(W - 12, PADDLE_Y + 30); c.stroke();
-    this.text('DRAG TO STEER', W / 2, H - 28, 17, '#687386');
     for (const p of this.particles) { p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; c.globalAlpha = Math.max(0, p.life * 2.85); c.fillStyle = p.color; c.fillRect(p.x, p.y, 4, 4); }
     c.globalAlpha = 1; this.particles = this.particles.filter(p => p.life > 0);
     for (const t of this.toasts) { t.life -= dt; if (!reduced) t.y -= dt * 18; c.globalAlpha = Math.min(1, Math.max(0, t.life * 2)); this.text(t.text, Math.max(60, Math.min(W - 60, t.x)), t.y, 24, t.color); }

@@ -5,21 +5,17 @@ import { Renderer } from './render';
 const root = document.querySelector<HTMLDivElement>('#app')!;
 root.innerHTML = `
   <div class="br-shell">
-    <header><a href="/" aria-label="Back to arcade">←</a><h1>Break<span>rot</span></h1><div class="br-score"><small>SCORE</small><b id="score">0</b></div><button id="help" aria-label="How to play">?</button><button id="pause" aria-label="Pause game">Ⅱ</button></header>
+    <header><a href="/" aria-label="Back to arcade">←</a><h1>Break<span>rot</span></h1><div class="br-score"><b id="score" aria-label="Score: 0">0</b></div><button id="help" aria-label="How to play">?</button><button id="pause" aria-label="Pause game">Ⅱ</button></header>
     <main>
-      <div class="br-level"><div><small id="wave">WAVE 01</small><h2 id="level-name"></h2></div><span id="lives" role="img" aria-label="3 lives"></span></div>
+      <div class="br-level"><div class="br-wave"><span id="wave">01</span><h2 id="level-name"></h2></div><span id="lives" role="img" aria-label="3 lives"></span></div>
       <div class="br-arena"><canvas tabindex="0" aria-label="Breakout playfield. Drag to steer or use arrow keys. Space launches; P pauses."></canvas>
-        <div class="br-overlay" id="overlay"><section class="br-panel"><small id="eyebrow">ONE BALL. MAKE IT COUNT.</small><h2 id="title">Find your angle.</h2><p id="message"></p><button class="br-primary" id="launch">Launch</button><div id="menu" hidden><button id="sound" aria-pressed="false">Sound off</button><button id="restart">Restart run</button></div></section></div>
+        <div class="br-overlay" id="overlay"><section class="br-panel"><h2 id="title">Find your angle.</h2><p id="message"></p><button class="br-primary" id="launch">Launch</button><div id="menu" hidden><button id="sound" aria-pressed="false">Sound off</button><button id="restart">Restart run</button></div></section></div>
       </div>
-      <div class="br-progress" role="progressbar" aria-label="Wave cleared" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="progress"></i></div>
-      <div class="br-readout"><span id="remaining"></span><span id="balls">1 ball</span></div>
-      <div id="effects" class="br-effects"></div>
-      <div class="br-legend"><span><i class="br-steel"></i> Steel · permanent</span><span><i class="br-bumper"></i> Bumper · ricochet</span></div>
-      <p class="br-tip">Drag to steer <span>· ← → / A D · Space to launch · P to pause</span></p>
+      <div class="br-readout"><span id="effects"></span><span id="balls"></span></div>
       <div class="br-sr" id="announcement" aria-live="polite"></div>
     </main>
   </div>
-  <dialog aria-labelledby="help-title"><h2 id="help-title">Play the angles.</h2><p>Clear the numbered and colored bricks. Steel is permanent; round bumpers reflect and accelerate balls. Only breakable bricks count toward a clear.</p><p>Drag to position the paddle before launch. Hit near its edges to aim your return. A life is lost when every ball falls. You have three lives for the run; waves don’t award more.</p><dl>${Object.entries(LABELS).map(([k, v]) => `<dt style="color:${COLORS[k as keyof typeof COLORS]}">${v}</dt><dd>${({ triple: 'Triple live balls', add: 'Add three balls', wide: '↔ Wider paddle for 10 seconds', fire: 'F · Pierce bricks for 4 seconds; steel still blocks', bomb: '✹ Damage nearby bricks by two hits', shield: 'S · Save one falling ball', slow: '~ Slow motion for 5 seconds' })[k as keyof typeof LABELS]}</dd>`).join('')}</dl><p>Hit a power tile to activate it. Upgrades and balls reset each wave and after a lost life. The swarm caps at ${MAX_BALLS}. Numbers show hits remaining. Best scores save on this device.</p><button id="help-sound">Sound off</button><button id="close-help" class="br-primary">Got it</button></dialog>`;
+  <dialog aria-labelledby="help-title"><h2 id="help-title">How to play</h2><p>Drag or use ← → / A D to steer. Space launches; P pauses.</p><p>Clear the numbered and colored bricks. Steel is permanent; round bumpers reflect and accelerate balls. Only breakable bricks count toward a clear.</p><p>Drag to position the paddle before launch. Hit near its edges to aim your return. A life is lost when every ball falls. You have three lives for the run; waves don’t award more.</p><dl>${Object.entries(LABELS).map(([k, v]) => `<dt style="color:${COLORS[k as keyof typeof COLORS]}">${v}</dt><dd>${({ triple: 'Triple live balls', add: 'Add three balls', wide: '↔ Wider paddle for 10 seconds', fire: 'F · Pierce bricks for 4 seconds; steel still blocks', bomb: '✹ Damage nearby bricks by two hits', shield: 'S · Save one falling ball', slow: '~ Slow motion for 5 seconds' })[k as keyof typeof LABELS]}</dd>`).join('')}</dl><p>Hit a power tile to activate it. Upgrades and balls reset each wave and after a lost life. The swarm caps at ${MAX_BALLS}. Numbers show hits remaining. Best scores save on this device.</p><button id="help-sound">Sound off</button><button id="close-help" class="br-primary">Got it</button></dialog>`;
 const el = (id: string) => document.getElementById(id)!;
 const canvas = root.querySelector('canvas')!, renderer = new Renderer(canvas);
 const overlay = el('overlay'), dialog = root.querySelector('dialog')!;
@@ -38,10 +34,10 @@ function syncOverlay() {
   el('menu').hidden = !paused && game.status !== 'over';
   el('restart').textContent = confirmRestart ? 'Yes, restart run' : 'Restart run';
   const cleared = game.status === 'cleared', over = game.status === 'over';
-  el('eyebrow').textContent = confirmRestart ? 'START OVER?' : paused ? 'TAKE A BREATHER' : cleared ? `WAVE ${game.wave} CLEARED` : over ? 'RUN COMPLETE' : `WAVE ${game.wave} · ${game.name}`;
-  el('title').textContent = confirmRestart ? 'Reset this run?' : paused ? 'Paused.' : cleared ? 'Clean break.' : over ? 'One more run?' : game.elapsed > 0 ? 'Another chance.' : 'Find your angle.';
-  el('message').textContent = confirmRestart ? 'Your best score is kept. Current wave progress will reset.' : paused ? `Best ${best.toLocaleString()} · Sound and restart below.` : cleared ? `${game.score.toLocaleString()} points · Next wave starts with one ball and fresh upgrades.` : over ? `${game.score.toLocaleString()} points · Best ${best.toLocaleString()} · Reached wave ${game.wave}` : game.hint;
-  el('launch').textContent = confirmRestart ? 'Keep playing' : paused ? 'Resume' : cleared ? 'Next wave →' : over ? 'Play again' : 'Launch →';
+  el('title').textContent = confirmRestart ? 'Restart run?' : paused ? 'Paused' : cleared ? 'Wave cleared' : over ? 'Game over' : '';
+  el('message').textContent = confirmRestart ? 'Current progress will reset.' : over ? `${game.score.toLocaleString()} points · Best ${best.toLocaleString()}` : '';
+  el('message').hidden = !el('message').textContent;
+  el('launch').textContent = confirmRestart ? 'Keep playing' : paused ? 'Resume' : cleared ? 'Next wave' : over ? 'Play again' : 'Launch';
 }
 function start() {
   if (confirmRestart) { confirmRestart = false; paused = false; }
@@ -86,12 +82,12 @@ window.addEventListener('pagehide', persist);
 function resize() { const dpr = Math.min(2, devicePixelRatio || 1); canvas.width = Math.round(canvas.clientWidth * dpr); canvas.height = Math.round(canvas.clientHeight * dpr); }
 new ResizeObserver(resize).observe(canvas);
 function updateHUD() {
-  el('score').textContent = game.score.toLocaleString(); el('wave').textContent = `WAVE ${String(game.wave).padStart(2, '0')}`; el('level-name').textContent = game.name;
+  el('score').textContent = game.score.toLocaleString(); el('score').setAttribute('aria-label', `Score: ${game.score}`);
+  el('wave').textContent = String(game.wave).padStart(2, '0'); el('wave').setAttribute('aria-label', `Wave ${game.wave}`); el('level-name').textContent = game.name;
   el('lives').textContent = '●'.repeat(game.lives) + '○'.repeat(3 - game.lives); el('lives').setAttribute('aria-label', `${game.lives} lives remaining`);
-  const remaining = game.remaining, progress = Math.round((1 - remaining / game.initialBricks) * 100);
-  el('remaining').textContent = `${remaining} bricks left`; el('balls').textContent = `${game.status === 'ready' ? 1 : game.balls.length} ${game.balls.length === 1 || game.status === 'ready' ? 'ball' : 'balls'}`;
-  el('progress').style.width = `${progress}%`; root.querySelector('[role="progressbar"]')!.setAttribute('aria-valuenow', String(progress));
-  el('effects').textContent = game.status === 'ready' ? game.hint : [game.wide > 0 ? `↔ Wide ${Math.ceil(game.wide)}s` : '', game.fire > 0 ? `Fire ${Math.ceil(game.fire)}s` : '', game.slow > 0 ? `Slow ${Math.ceil(game.slow)}s` : '', game.shields ? '1 save' : '', game.comboTime > 0 && game.combo > 1 ? `Combo ×${Math.min(10, game.combo)}` : ''].filter(Boolean).join(' · ');
+  el('balls').textContent = game.balls.length > 1 ? `● ×${game.balls.length}` : '';
+  el('balls').setAttribute('aria-label', `${game.balls.length} balls`);
+  el('effects').textContent = [game.wide > 0 ? `↔ ${Math.ceil(game.wide)}s` : '', game.fire > 0 ? `F ${Math.ceil(game.fire)}s` : '', game.slow > 0 ? `~ ${Math.ceil(game.slow)}s` : '', game.shields ? 'S' : ''].filter(Boolean).join('  ·  ');
   const next = `${game.name}. Wave ${game.wave}. ${game.lives} lives. ${paused ? 'Paused' : game.status}.`;
   if (next !== announcement) { el('announcement').textContent = next; announcement = next; }
 }

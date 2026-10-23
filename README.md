@@ -184,7 +184,8 @@ npm run preview  # preview the build
 
 Open `/games/breakout/`. Drag to position the paddle before launch, then steer with touch,
 mouse, or arrow keys / A and D. Space launches; P pauses. Paddle edges aim the rebound.
-The phone layout fits the viewport, including small screens, and landscape puts the HUD
+Instructions and obstacle explanations live in Help; the play screen shows only the score,
+wave, lives, active effects, and multiball count. The phone layout fits the viewport, including small screens, and landscape puts the HUD
 beside the arena. Pause contains sound and restart; restarting uses an in-game confirmation.
 Backgrounding pauses automatically. Sound is opt-in; reduced motion disables trails/particles.
 

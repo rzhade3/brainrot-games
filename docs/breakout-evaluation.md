@@ -88,11 +88,13 @@ Raw per-seed results are in [breakout-simulations.json](breakout-simulations.jso
 ## UX and verification
 
 The pre-launch board remains visible, with one compact launch button below the geometry.
-The HUD shows wave/name, run lives, score, remaining bricks, live balls, and temporary effects.
+The HUD shows wave/name, run lives, and score. A compact secondary line appears for active
+effects and multiball; brick counters, progress bars, hints, legends, and steering instructions
+were removed from the play screen. Explanations remain in Help.
 A clear screen explicitly leads to a fresh board preview before the next launch. Sound and
 restart live in pause/help rather than occupying a permanent bottom toolbar; restart uses an
-in-game confirmation. Distinct hatching/rings and a persistent legend distinguish steel and
-bumpers from destructible targets. Larger numerals show remaining armor; power glyphs have
+in-game confirmation. Distinct hatching/rings distinguish steel and bumpers from destructible targets; Help
+explains their behavior. Larger numerals show remaining armor; power glyphs have
 full explanations in Help. Legacy scores are retained under their old key, while the revised
 rules use a fresh `breakout-v2` score category in the shared arcade store.
 
