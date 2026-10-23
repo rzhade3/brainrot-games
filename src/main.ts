@@ -17,10 +17,10 @@ const games: GameEntry[] = [
   {
     title: 'Break Rot',
     emoji: '🧱',
-    description: '210 bricks. Triple your balls, widen your paddle, chain explosions. Repeat forever.',
+    description: 'Play the angles through brick islands, steel vaults, and ricochet bumpers. Build a swarm. Start fresh each wave.',
     href: './games/breakout/',
     ready: true,
-    scoreKey: 'breakout',
+    scoreKey: 'breakout-v2',
     scoreLabel: 'pts',
   },
   {

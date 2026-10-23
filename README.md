@@ -4,7 +4,7 @@ A little arcade of browser games. Installable, offline-ready PWA built with Vite
 
 ## Games
 
-- 🧱 **Break Rot** — endless 210-brick Breakout waves, instant ×3/+3 ball tiles, stacking wider paddles, fireballs, chain bombs, saves, and slow motion.
+- 🧱 **Break Rot** — skill-based Breakout across eight cycling geometries with brick islands, permanent steel, ricochet bumpers, and earned multiball.
 
 - 🧶 **Untangle** — drag nodes so no strings cross.
 - 🏰 **Tower Defense** — mine ore, power turrets, defend your castle.
@@ -182,18 +182,37 @@ npm run preview  # preview the build
 
 ### Break Rot
 
-Open `/games/breakout/`. Drag or move the mouse to steer; arrow keys / A and D also work.
-Launch with the button or Space, pause with P or the Pause button. Backgrounding the page
-pauses automatically. Sound is opt-in; reduced-motion preferences disable particles and trails.
-Break a labeled tile to activate it immediately. ×3 triples all live balls; +3 adds three.
-The army caps at 128 balls. WIDE permanently adds 36 paddle units up to 300; FIRE and SLOW
-add ten seconds (up to 24); SAVE stacks up to five one-ball rescues. BOOM destroys nearby
-bricks and chains their powers. Rapid hits build a ×20 score combo.
+Open `/games/breakout/`. Drag to position the paddle before launch, then steer with touch,
+mouse, or arrow keys / A and D. Space launches; P pauses. Paddle edges aim the rebound.
+The phone layout fits the viewport, including small screens, and landscape puts the HUD
+beside the arena. Pause contains sound and restart; restarting uses an in-game confirmation.
+Backgrounding pauses automatically. Sound is opt-in; reduced motion disables trails/particles.
 
-Each wave has 14×15 bricks, with reinforced bricks increasing up to five hits in later waves.
-Clearing a wave keeps the surviving ball army and upgrades, awards a wave bonus and one life
-(up to five), then starts another wall. A life is lost only when all balls fall out. Runs start
-with three lives and each launch gives three balls. High scores use the shared arcade store.
-The game has no external assets or network requirements after the PWA has cached it.
+Eight named layouts cycle with varied brick counts and geometry: Split decision, Diamond
+circuit, Slalom, The vault, Constellation, Hourglass, Switchback, and Orbit. Steel shelves and
+vault walls are indestructible, including during fireballs and explosions. Circular bumpers
+reflect balls radially and boost their speed by 8% up to the global cap. Permanent obstacles
+do not count toward clearing. Numbers on bricks show remaining hits; the last five targets
+receive a white outline. Later cycles increase armor (up to six hits), and wave/rally speed
+is bounded. Repeating long flights are gently redirected after 14 seconds without teleporting.
 
-`npm run test:breakout` checks power arithmetic/caps, physics, wave progression, and life loss.
+Each serve starts with **one ball**. Eight spaced power tiles per layout activate on impact:
+×3 triples live balls, +3 adds three (48-ball cap), ↔ widens the paddle for ten seconds,
+F pierces bricks for four seconds, ✹ damages nearby bricks by two, S rescues one falling
+ball, and ~ slows motion for five seconds. Fire/slow timers cap at eight/ten seconds;
+wide refreshes rather than growing permanently, and saves do not stack. Rapid hits build a
+score combo up to ×10. Bombs may trigger fragile powers but never erase reinforced armor for free.
+
+A clear pauses on a summary screen; Next wave previews the new geometry before launch.
+Balls, upgrades, and rally speed reset between waves and after losing a life. A run has three
+lives with no per-wave regeneration. Scores use `breakout-v2` so the old runaway version's
+scores don't dominate this ruleset. No new runtime dependencies or external assets are needed.
+
+```bash
+npm run test:breakout       # physics, lifecycle, layout overlap/accessibility, and full-army tests
+npm run simulate:breakout   # seeded stationary, reactive, and predictive controllers
+SIM_WAVE=8 SIM_SEEDS=12 SIM_SECONDS=240 npm run simulate:breakout
+```
+
+See [the gameplay evaluation](docs/breakout-evaluation.md) for the old/new simulation results,
+controller limitations, tuning decisions, and reproducible commands.

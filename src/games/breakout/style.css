@@ -1,29 +1,52 @@
-:root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; background: #100e24; color: #f5f4ff; }
+:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #0c0e15; color: #eeeef4; }
 * { box-sizing: border-box; }
 body { margin: 0; }
-button, a { -webkit-tap-highlight-color: transparent; }
-button { font: inherit; color: inherit; cursor: pointer; background: #28233e; border: 1px solid #49405f; border-radius: 10px; padding: 10px 16px; min-height: 44px; }
-button:hover { background: #3b3354; }
-:focus-visible { outline: 3px solid #f5fc74; outline-offset: 3px; }
-.br-header { display: flex; align-items: center; justify-content: space-between; max-width: 760px; margin: auto; padding: max(12px, env(safe-area-inset-top)) 16px 8px; }
-.br-header a { color: #c2b9df; text-decoration: none; padding: 12px 0; }
-h1 { margin: 0; font-size: clamp(22px, 4vw, 30px); font-weight: 950; letter-spacing: -1px; } h1 span { color: #f5fc74; }
-.br-main { width: min(100%, 720px, calc((100dvh - 225px) * .75)); min-width: 280px; margin: auto; padding: 0 10px max(8px, env(safe-area-inset-bottom)); }
-.br-stats { display: flex; justify-content: space-between; gap: 8px; padding: 6px 2px 10px; color: #aaa4c4; font-size: 12px; }
-.br-stats b { display: block; color: #f5f4ff; font-size: 19px; }
-.br-arena { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid #49405f; }
+button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+button { font: inherit; color: inherit; cursor: pointer; background: #252a38; border: 1px solid #444c60; border-radius: 9px; padding: 10px 14px; min-height: 44px; }
+button:hover { background: #363e50; } button:disabled { opacity: .35; cursor: default; }
+:focus-visible { outline: 3px solid #bcf58b; outline-offset: 3px; }
+.br-shell { width: min(100%, 680px, calc((100dvh - 216px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) * .75)); min-width: 270px; margin: auto; padding: max(8px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom)); }
+header { display: flex; align-items: center; gap: 6px; height: 52px; }
+header a { color: #acb5c9; text-decoration: none; min-width: 32px; padding: 12px 0; font-size: 22px; }
+h1 { margin: 0; font-size: 23px; letter-spacing: -1px; } h1 span { color: #bcf58b; }
+.br-score { margin-left: auto; text-align: right; padding-right: 8px; } small { display: block; color: #939eb4; font-size: 10px; letter-spacing: 1.2px; font-weight: 650; } .br-score b { font-size: 18px; font-variant-numeric: tabular-nums; }
+header button { width: 44px; padding: 0; border-color: transparent; background: transparent; font-size: 20px; }
+.br-level { display: flex; justify-content: space-between; align-items: center; height: 48px; } .br-level small { font-size: 9px; } .br-level h2 { font-size: 15px; margin: 2px 0 0; font-weight: 550; } #lives { color: #bcf58b; letter-spacing: 5px; font-size: 15px; white-space: nowrap; }
+.br-arena { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #343c4f; background: #121420; }
 canvas { display: block; width: 100%; aspect-ratio: 3 / 4; touch-action: none; }
-.br-overlay { position: absolute; inset: 0; background: #100e24db; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 22px; }
+.br-overlay { position: absolute; inset: 0; background: #0c0e15d9; display: flex; justify-content: center; align-items: center; text-align: center; padding: 18px; }
+.br-preview { background: transparent; align-items: flex-end; padding: 0 30px 17%; pointer-events: none; }
+.br-panel { width: 100%; max-width: 330px; padding: 18px; border-radius: 14px; background: #171c2aec; border: 1px solid #424b61; box-shadow: 0 8px 28px #0004; pointer-events: auto; }
+.br-panel small { color: #bcf58b; font-size: 9px; letter-spacing: 1px; }
+.br-panel h2 { font-size: clamp(22px, 4vw, 30px); line-height: 1.05; letter-spacing: -.8px; margin: 8px 0; }
+.br-panel p { color: #b2bcd1; font-size: 12px; line-height: 1.5; margin: 8px 0 14px; }
+.br-primary { background: #bcf58b; color: #121820; font-weight: 750; border: 0; } .br-primary:hover { background: #d5ffaf; }
+#launch { width: 100%; } #menu { display: flex; gap: 8px; margin-top: 10px; } #menu button { flex: 1; font-size: 12px; padding: 8px; }
 [hidden] { display: none !important; }
-.br-overlay h2 { font-size: clamp(26px, 6vw, 50px); line-height: .98; letter-spacing: -1.5px; margin: 0 0 16px; }
-.br-overlay p { max-width: 280px; color: #c2b9df; line-height: 1.5; }
-.br-overlay button { background: #f5fc74; color: #100e24; font-weight: 900; border: 0; margin-top: 12px; }
-.br-status { min-height: 35px; padding: 8px 0 4px; color: #c2b9df; font-size: 11px; text-align: center; }
-.br-controls { display: flex; justify-content: center; gap: 8px; } .br-controls button { padding: 8px 12px; font-size: 12px; }
-.br-tip { color: #aaa4c4; font-size: 11px; text-align: center; margin: 8px 0; }
-dialog { max-width: min(480px, 92vw); max-height: 85dvh; border: 1px solid #49405f; border-radius: 16px; background: #1b1730; color: #f5f4ff; padding: 24px; line-height: 1.5; }
-dialog::backdrop { background: #080714b3; } dialog p, dd { color: #c2b9df; } dl { display: grid; grid-template-columns: 60px 1fr; gap: 12px; font-size: 14px; } dt { font-weight: 900; } dd { margin: 0; }
-@media (max-width: 540px) { .br-main { width: 100%; max-width: 540px; } .br-header { padding-bottom: 0; } .br-tip { font-size: 10px; } }
-@media (max-height: 500px) and (min-width: 541px) { .br-main { width: 320px; } }
-
+.br-progress { height: 3px; border-radius: 2px; background: #292f40; margin-top: 10px; overflow: hidden; } .br-progress i { display: block; height: 100%; background: #bcf58b; }
+.br-readout { display: flex; justify-content: space-between; padding-top: 7px; color: #b2bcd1; font-size: 11px; font-variant-numeric: tabular-nums; } #balls { color: #bcf58b; }
+.br-effects { min-height: 25px; padding-top: 5px; color: #a7dcff; font-size: 11px; text-align: center; }
+.br-legend { display: flex; justify-content: center; gap: 18px; font-size: 10px; color: #939eb4; } .br-legend span { display: flex; align-items: center; gap: 5px; }
+.br-steel { display: inline-block; width: 16px; height: 9px; background: repeating-linear-gradient(45deg,#272e3b 0 3px,#8a9bae 3px 4px); border: 1px solid #8a9bae; }
+.br-bumper { display: inline-block; width: 11px; height: 11px; border: 2px solid #ffac70; border-radius: 50%; }
+.br-tip { color: #939eb4; font-size: 10px; text-align: center; margin: 8px 0 0; }
+dialog { width: min(460px, 92vw); max-height: 85dvh; border: 1px solid #444c60; border-radius: 16px; background: #171c2a; color: #eeeef4; padding: 22px; line-height: 1.5; }
+dialog h2 { margin-top: 0; } dialog::backdrop { background: #080b13b3; } dialog p, dd { color: #b2bcd1; font-size: 13px; } dl { display: grid; grid-template-columns: 50px 1fr; gap: 10px; font-size: 13px; } dt { font-weight: 800; } dd { margin: 0; } dialog button { margin-right: 8px; }
 .br-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (pointer: coarse) { .br-tip span { display: none; } }
+@media (max-width: 340px) { .br-preview { padding: 0 12px 16%; } .br-panel { padding: 12px; } h1 { font-size: 20px; } header { gap: 2px; } header a { min-width: 26px; } }
+@media (max-height: 600px) and (min-width: 600px) and (orientation: landscape) {
+  .br-shell { width: min(850px, 100%); min-width: 0; }
+  header { height: 44px; }
+  main { display: grid; grid-template-columns: calc((100dvh - 72px) * .75) 1fr; column-gap: 24px; align-content: start; }
+  .br-arena { grid-column: 1; grid-row: 1 / 8; }
+  main > :not(.br-arena) { grid-column: 2; }
+  .br-level { height: 60px; }
+  .br-legend { flex-direction: column; gap: 8px; align-items: center; }
+  .br-preview { padding: 0 10px 15%; }
+  .br-panel { padding: 12px; }
+  .br-panel h2 { font-size: 22px; }
+}
+/* Keep the launch affordance below the geometry rather than covering the board. */
+.br-preview .br-panel { max-width: 240px; padding: 8px; border: 0; box-shadow: none; background: transparent; }
+.br-preview #eyebrow, .br-preview #title, .br-preview #message { display: none; }
