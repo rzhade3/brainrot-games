@@ -8,6 +8,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
+        breakout: resolve(__dirname, 'games/breakout/index.html'),
         untangle: resolve(__dirname, 'games/untangle/index.html'),
         towerDefense: resolve(__dirname, 'games/tower-defense/index.html'),
         topDown: resolve(__dirname, 'games/top-down/index.html'),

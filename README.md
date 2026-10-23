@@ -4,6 +4,8 @@ A little arcade of browser games. Installable, offline-ready PWA built with Vite
 
 ## Games
 
+- 🧱 **Break Rot** — endless 210-brick Breakout waves, instant ×3/+3 ball tiles, stacking wider paddles, fireballs, chain bombs, saves, and slow motion.
+
 - 🧶 **Untangle** — drag nodes so no strings cross.
 - 🏰 **Tower Defense** — mine ore, power turrets, defend your castle.
 - ⌨️ **Type Rot** — type the words before they escape.
@@ -177,3 +179,21 @@ npm run dev      # start dev server
 npm run build    # type-check + production build
 npm run preview  # preview the build
 ```
+
+### Break Rot
+
+Open `/games/breakout/`. Drag or move the mouse to steer; arrow keys / A and D also work.
+Launch with the button or Space, pause with P or the Pause button. Backgrounding the page
+pauses automatically. Sound is opt-in; reduced-motion preferences disable particles and trails.
+Break a labeled tile to activate it immediately. ×3 triples all live balls; +3 adds three.
+The army caps at 128 balls. WIDE permanently adds 36 paddle units up to 300; FIRE and SLOW
+add ten seconds (up to 24); SAVE stacks up to five one-ball rescues. BOOM destroys nearby
+bricks and chains their powers. Rapid hits build a ×20 score combo.
+
+Each wave has 14×15 bricks, with reinforced bricks increasing up to five hits in later waves.
+Clearing a wave keeps the surviving ball army and upgrades, awards a wave bonus and one life
+(up to five), then starts another wall. A life is lost only when all balls fall out. Runs start
+with three lives and each launch gives three balls. High scores use the shared arcade store.
+The game has no external assets or network requirements after the PWA has cached it.
+
+`npm run test:breakout` checks power arithmetic/caps, physics, wave progression, and life loss.

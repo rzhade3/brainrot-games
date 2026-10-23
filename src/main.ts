@@ -15,6 +15,15 @@ type GameEntry = {
 
 const games: GameEntry[] = [
   {
+    title: 'Break Rot',
+    emoji: '🧱',
+    description: '210 bricks. Triple your balls, widen your paddle, chain explosions. Repeat forever.',
+    href: './games/breakout/',
+    ready: true,
+    scoreKey: 'breakout',
+    scoreLabel: 'pts',
+  },
+  {
     title: 'Cube Lines',
     emoji: '🧊',
     description: 'Turn the cube, trace the arrows, and clear all six sides. Thirty puzzles. No rush.',
