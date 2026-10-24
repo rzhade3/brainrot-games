@@ -4,7 +4,7 @@ import { draw } from './render';
 import { getBestScore, submitScore } from '../../core/scores';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
-app.innerHTML = `<main class="shell"><header><a href="/" aria-label="Back to arcade">←</a><h1>GATE RUNNER</h1><button id="pause" aria-label="Pause game">Ⅱ</button></header><div class="hud"><span id="stage"></span><span id="squad"></span><span id="health"></span></div><div class="progress" aria-hidden="true"><div id="progress"></div></div><div class="arena"><canvas aria-label="Gate Runner. Drag to steer, or use arrow keys and A/D. Escape pauses." tabindex="0"></canvas><div class="overlay" id="overlay"><h2 id="title"></h2><p id="message"></p><div id="options"></div><button id="action">Run</button><div class="secondary"><button id="retry">Retry seed</button><button id="daily">Daily run</button></div><small id="seed"></small></div><div id="feedback" aria-live="polite"></div></div><div class="build" id="build"></div><footer><span id="score"></span><span id="best"></span></footer></main>`;
+app.innerHTML = `<main class="shell"><header><a href="/" aria-label="Back to arcade">←</a><h1>GATE RUNNER</h1><button id="pause" aria-label="Pause game">Ⅱ</button></header><div class="hud"><span id="stage"></span><span id="squad"></span><span id="health"></span></div><div class="progress" aria-hidden="true"><div id="progress"></div></div><div class="arena"><canvas aria-label="Gate Runner. Drag to steer, or use arrow keys and A/D. Escape pauses." tabindex="0"></canvas><div class="overlay" id="overlay"><div class="hero-art" aria-hidden="true"></div><span class="eyebrow" id="sector"></span><h2 id="title"></h2><p id="message"></p><div id="options"></div><button id="action">Run</button><div class="secondary"><button id="retry">Retry seed</button><button id="daily">Daily run</button></div><span class="control-hint" id="controls">DRAG TO STEER <b>·</b> ← → / A D</span><small id="seed"></small></div><div id="feedback" aria-live="polite"></div></div><div class="build" id="build"></div><footer><span id="score"></span><span id="best"></span></footer></main>`;
 const el = (id: string) => document.getElementById(id)!;
 const canvas = app.querySelector('canvas')!, ctx = canvas.getContext('2d')!;
 const params = new URLSearchParams(location.search), seedParam = params.get('seed');
@@ -23,12 +23,15 @@ function reset(seed?: number) {
 function updateOverlay() {
   const s = game.state, show = s.status !== 'playing' || paused;
   el('overlay').hidden = !show;
+  el('overlay').dataset.mode = paused ? 'paused' : s.status;
+  el('sector').textContent = `SECTOR ${String(s.stage).padStart(2, '0')} / 05`;
+  el('controls').hidden = s.status !== 'ready';
   el('pause').setAttribute('aria-label', paused ? 'Resume game' : 'Pause game');
   (el('pause') as HTMLButtonElement).disabled = s.status !== 'playing';
   el('pause').textContent = paused ? '▶' : 'Ⅱ';
-  el('title').textContent = paused ? 'Paused' : s.status === 'ready' ? `Stage ${s.stage}` : s.status === 'choice' ? 'Build your squad' : s.status === 'cleared' ? 'Run complete' : 'Squad lost';
-  el('message').textContent = paused ? 'Take your time.' : s.status === 'ready' ? 'Drag or use ← → to steer. Fire is automatic.' : s.status === 'choice' ? '+10 HP recovered. Choose one upgrade.' : `${s.score.toLocaleString()} points · ${s.kills} defeated · Stage ${s.stage}/5`;
-  el('action').textContent = paused ? 'Resume' : s.status === 'ready' ? 'Run' : 'New run';
+  el('title').textContent = paused ? 'Paused' : s.status === 'ready' ? (s.stage === 1 ? 'Gate Runner' : `Sector ${s.stage}`) : s.status === 'choice' ? 'Build your squad' : s.status === 'cleared' ? 'Run complete' : 'Squad lost';
+  el('message').textContent = paused ? 'Take your time.' : s.status === 'ready' ? 'Grow your squad. Break through.' : s.status === 'choice' ? '+10 HP recovered. Choose one upgrade.' : `${s.score.toLocaleString()} points · ${s.kills} defeated · Stage ${s.stage}/5`;
+  el('action').textContent = paused ? 'Resume' : s.status === 'ready' ? 'LET’S GO →' : 'New run';
   el('action').hidden = s.status === 'choice';
   el('retry').hidden = !['over', 'cleared'].includes(s.status);
   el('daily').hidden = paused || s.status === 'choice' || (s.status === 'ready' && s.stage > 1);
@@ -63,7 +66,7 @@ el('daily').onclick = () => reset(Number(new Date().toISOString().slice(0, 10).r
 el('pause').onclick = togglePause;
 function pointer(e: PointerEvent) {
   const r = canvas.getBoundingClientRect();
-  game.steer(((e.clientX - r.left) / r.width - .5) * 9);
+  game.steer(((e.clientX - r.left) / r.width - .5) * 11);
 }
 canvas.addEventListener('pointerdown', e => {
   if (paused || game.state.status !== 'playing' || activePointer !== null) return;
