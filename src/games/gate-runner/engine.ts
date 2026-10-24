@@ -58,7 +58,7 @@ export function generate(seed: number, stage: number): Level {
   let id = 0;
   const enemy = (kind: EnemyKind, x: number, z: number): Enemy => {
     const base = { grunt: 11, runner: 8, shield: 28, sniper: 12, bomber: 14, spawner: 24, boss: 260 }[kind];
-    const hp = base * (1 + (stage - 1) * .48) * (kind === 'boss' ? 1 + (stage - 1) * .7 : 1);
+    const hp = base * (1 + (stage - 1) * .65) * (kind === 'boss' ? 1 + (stage - 1) * .7 : 1);
     return { id: id++, x, z, kind, hp, maxHp: hp, cooldown: 1.2 + r(), warning: 0, aim: 0, spawned: 0 };
   };
   for (let i = 0; i < 3; i++) {
@@ -69,9 +69,9 @@ export function generate(seed: number, stage: number): Level {
     const build: Gate = { x: 2, z, kind, value: kind === 'armor' ? .18 : .35, used: false };
     if (r() < .5) [troop.x, build.x] = [build.x, troop.x];
     segments.push({ kind: 'gates', z, gates: [troop, build] });
-    const roster: EnemyKind[] = ['grunt', 'runner', 'shield', 'sniper', 'bomber', 'spawner'].slice(0, Math.min(6, stage + 2)) as EnemyKind[];
-    const count = 4 + stage;
-    const enemies = Array.from({ length: count }, (_, j) => enemy(roster[Math.floor(r() * roster.length)], (j % 3 - 1) * 2.3 + (r() - .5) * .5, z + 20 + Math.floor(j / 3) * 4));
+    const roster: EnemyKind[] = ['grunt', 'runner', 'shield', 'sniper', 'bomber', 'spawner'].slice(0, Math.min(6, stage + 3)) as EnemyKind[];
+    const count = 5 + stage;
+    const enemies = Array.from({ length: count }, (_, j) => enemy(j === 0 ? 'sniper' : roster[Math.floor(r() * roster.length)], (j % 3 - 1) * 2.3 + (r() - .5) * .5, z + 20 + Math.floor(j / 3) * 4));
     segments.push({ kind: 'wave', z: z + 20, enemies });
     // Mines follow combat, leaving two full lanes free and >2 seconds after each gate.
     segments.push({ kind: 'hazard', z: z + 34, hazards: [{ x: (Math.floor(r() * 3) - 1) * 2.3, z: z + 34, used: false }] });
@@ -168,18 +168,29 @@ export class GateRunner {
           e.spawned++; e.cooldown = 1.6;
         }
       }
-      if ((e.kind === 'sniper' || e.kind === 'boss') && e.z > s.z + 3) {
+      if ((e.kind === 'sniper' || e.kind === 'boss' || (e.kind === 'grunt' && s.stage >= 2)) && e.z > s.z + 3) {
         e.cooldown -= dt;
         if (e.warning > 0) {
           e.warning -= dt;
           if (e.warning <= 0) {
             const dz = s.z - e.z, dx = e.aim - e.x, distance = Math.hypot(dx, dz);
-            for (const offset of e.kind === 'boss' ? [-.15, 0, .15] : [0]) {
-              s.dangers.push({ x: e.x, z: e.z, vx: dx / distance * 18 + offset * 18, vz: dz / distance * 18, damage: e.kind === 'boss' ? 16 : 7 });
+            const speed = 23 + s.stage * 1.5;
+            if (e.kind === 'boss' && e.spawned % 2 === 1) {
+              // A lane barrage leaves one readable corridor; aimed fans prevent camping there.
+              for (let lane = 0; lane < 5; lane++) {
+                if (lane === e.spawned % 5) continue;
+                s.dangers.push({ x: -3 + lane * 1.5, z: e.z, vx: 0, vz: -speed, damage: 20 });
+              }
+            } else {
+              for (const offset of e.kind === 'boss' ? [-.24, -.12, 0, .12, .24] : [0]) {
+                s.dangers.push({ x: e.x, z: e.z, vx: dx / distance * speed + offset * speed, vz: dz / distance * speed, damage: e.kind === 'boss' ? 20 : 11 });
+              }
             }
-            e.cooldown = e.kind === 'boss' ? 1.0 : 2.2;
+            e.spawned++;
+            e.cooldown = e.kind === 'boss' ? Math.max(.45, .95 - s.stage * .1) : 1.9;
+
           }
-        } else if (e.cooldown <= 0) { e.warning = .85; e.aim = s.x; }
+        } else if (e.cooldown <= 0) { e.warning = e.kind === 'boss' ? .75 : .65; e.aim = s.x; }
       }
       if (e.z < s.z + 1) {
         if (Math.abs(e.x - s.x) < 1.05) {
@@ -190,11 +201,11 @@ export class GateRunner {
       }
     }
     if (s.nextShot <= s.elapsed) {
-      const target = s.enemies.filter(e => e.hp > 0 && e.z > s.z && e.z < s.z + 27)
+      const target = s.enemies.filter(e => e.hp > 0 && e.z > s.z && e.z < s.z + 21 && Math.abs(e.x - s.x) < 2.1)
         .sort((a, b) => (a.z - s.z + Math.abs(a.x - s.x) * 2) - (b.z - s.z + Math.abs(b.x - s.x) * 2))[0];
       if (target) {
         const dx = target.x - s.x, dz = target.z - s.z, distance = Math.hypot(dx, dz);
-        s.shots.push({ x: s.x, z: s.z + .6, vx: dx / distance * 43, vz: dz / distance * 43, damage: s.damage * Math.sqrt(s.soldiers) * .52, pierce: s.pierce, hits: [] });
+        s.shots.push({ x: s.x, z: s.z + .6, vx: dx / distance * 43, vz: dz / distance * 43, damage: s.damage * Math.sqrt(s.soldiers) * Math.pow(s.soldiers / 12, .1) * .52, pierce: s.pierce, hits: [] });
         s.nextShot = s.elapsed + 1 / s.rate;
       }
     }
@@ -214,13 +225,13 @@ export class GateRunner {
     s.shots = s.shots.filter(b => b.hits.length <= b.pierce && b.z < s.z + 32);
     s.dangers = s.dangers.filter(b => {
       b.x += b.vx * dt; b.z += b.vz * dt;
-      if (Math.abs(b.z - s.z) < .6 && Math.abs(b.x - s.x) < .55) { this.hurt(b.damage, 1, 'Hit · −1 squad'); return false; }
+      if (Math.abs(b.z - s.z) < .65 && Math.abs(b.x - s.x) < .72) { this.hurt(b.damage, 1, 'Hit · −1 squad'); return false; }
       return b.z > s.z - 2 && Math.abs(b.x) < 5;
     });
     if (s.hp <= 0 || s.soldiers <= 0) { s.status = 'over'; return; }
     if (s.z >= this.level.length) {
       s.score += Math.floor(s.hp) * 5 + s.soldiers * 8;
-      s.hp = Math.min(100, s.hp + 10);
+      s.hp = Math.min(100, s.hp + 4);
       s.status = s.stage === 5 ? 'cleared' : 'choice';
     }
   }

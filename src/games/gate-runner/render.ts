@@ -100,10 +100,23 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, game: 
     if (e.hp <= 0) continue;
     const p = screen(e.x, e.z); if (p.y < -65 || p.y > h + 65) continue;
     if (e.warning > 0) {
-      const aim = screen(e.aim, s.z);
       ctx.strokeStyle = '#ff655c'; ctx.lineWidth = 2; ctx.setLineDash([6, 7]);
-      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(aim.x, aim.y); ctx.stroke(); ctx.setLineDash([]);
-      ctx.beginPath(); ctx.ellipse(aim.x, aim.y, 15, 8, 0, 0, Math.PI * 2); ctx.stroke();
+      if (e.kind === 'boss' && e.spawned % 2 === 1) {
+        for (let lane = 0; lane < 5; lane++) {
+          const origin = screen(-3 + lane * 1.5, e.z), aim = screen(-3 + lane * 1.5, s.z);
+          const safe = lane === e.spawned % 5;
+          ctx.fillStyle = safe ? '#a4ee6626' : '#ff655c20';
+          ctx.fillRect(aim.x - scale * .6, origin.y, scale * 1.2, aim.y - origin.y);
+          ctx.strokeStyle = safe ? '#a4ee66' : '#ff655c';
+          ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(aim.x, aim.y); ctx.stroke();
+          if (safe) { ctx.fillStyle = '#d4ffad'; ctx.font = '800 10px system-ui'; ctx.fillText('GAP', aim.x, aim.y - 25); }
+        }
+      } else {
+        const aim = screen(e.aim, s.z);
+        ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(aim.x, aim.y); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(aim.x, aim.y, 15, 8, 0, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.setLineDash([]);
     }
     const big = e.kind === 'boss', heavy = e.kind === 'shield' || e.kind === 'spawner';
     const size = big ? scale * 2.25 : heavy ? scale * 1.12 : scale * .8;

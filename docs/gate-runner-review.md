@@ -1,5 +1,7 @@
 # Gate Runner gameplay review
 
+**Historical review:** the difficulty and simulation figures below describe the initial revision. See [the current difficulty revision](gate-runner-difficulty.md) and `gate-runner-simulations.json` for the latest balance.
+
 ## Findings and changes
 
 Reviewed PR #12's Cloudflare preview and the engine at `42ee488`.

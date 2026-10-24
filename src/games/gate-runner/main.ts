@@ -30,7 +30,7 @@ function updateOverlay() {
   (el('pause') as HTMLButtonElement).disabled = s.status !== 'playing';
   el('pause').textContent = paused ? '▶' : 'Ⅱ';
   el('title').textContent = paused ? 'Paused' : s.status === 'ready' ? (s.stage === 1 ? 'Gate Runner' : `Sector ${s.stage}`) : s.status === 'choice' ? 'Build your squad' : s.status === 'cleared' ? 'Run complete' : 'Squad lost';
-  el('message').textContent = paused ? 'Take your time.' : s.status === 'ready' ? 'Grow your squad. Break through.' : s.status === 'choice' ? '+10 HP recovered. Choose one upgrade.' : `${s.score.toLocaleString()} points · ${s.kills} defeated · Stage ${s.stage}/5`;
+  el('message').textContent = paused ? 'Take your time.' : s.status === 'ready' ? 'Line up your shots. Dodge to survive.' : s.status === 'choice' ? '+4 HP recovered. Choose one upgrade.' : `${s.score.toLocaleString()} points · ${s.kills} defeated · Stage ${s.stage}/5`;
   el('action').textContent = paused ? 'Resume' : s.status === 'ready' ? 'LET’S GO →' : 'New run';
   el('action').hidden = s.status === 'choice';
   el('retry').hidden = !['over', 'cleared'].includes(s.status);

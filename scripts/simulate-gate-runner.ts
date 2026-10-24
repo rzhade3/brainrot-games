@@ -1,6 +1,6 @@
 import { GateRunner, offers, rng, type Upgrade } from '../src/games/gate-runner/engine';
 import { writeFileSync } from 'node:fs';
-export type Policy = 'idle' | 'random' | 'squad' | 'damage' | 'balanced' | 'reactive';
+export type Policy = 'idle' | 'random' | 'squad' | 'damage' | 'balanced' | 'reactive' | 'sweep';
 export function simulate(seed: number, policy: Policy) {
   const game = new GateRunner(seed), random = rng(seed + 13);
   let ticks = 0, target = 0, choices = 0;
@@ -13,7 +13,8 @@ export function simulate(seed: number, policy: Policy) {
       game.choose(offers(seed, s.stage).sort((a, b) => priority.indexOf(a) - priority.indexOf(b))[0]); choices++;
     }
     if (ticks % (policy === 'reactive' ? 24 : 12) === 0) {
-      if (policy === 'random') target = (random() - .5) * 6.4;
+      if (policy === 'sweep') target = Math.sin(ticks / 60 * 2) * 3.2;
+      else if (policy === 'random') target = (random() - .5) * 6.4;
       else if (policy !== 'idle') {
         const gates = s.gates.filter(g => !g.used && g.z - s.z < 13);
         if (gates.length) {
@@ -29,7 +30,7 @@ export function simulate(seed: number, policy: Policy) {
           const enemy = s.enemies.find(e => e.hp > 0 && e.z > s.z + 7 && e.z - s.z < 26);
           const candidates = [-3, -2, -1, 0, 1, 2, 3];
           const cost = (x: number) => {
-            let cost = Math.abs(x - s.x) * .3 + (enemy ? Math.abs(x - enemy.x) * .08 : 0);
+            let cost = Math.abs(x - s.x) * .3 + (enemy ? Math.abs(x - enemy.x) * 1.4 : 0);
             for (const b of threats) {
               const reachable = s.x + Math.max(-8 * b.t, Math.min(8 * b.t, x - s.x));
               cost += Math.max(0, 1.1 - Math.abs(reachable - b.x)) * 30;
@@ -50,7 +51,7 @@ export function simulate(seed: number, policy: Policy) {
   return { seed, policy, cleared: game.state.status === 'cleared', stage: game.state.stage, hp: Math.round(game.state.hp), score: game.state.score, seconds: Math.round(ticks / 60), choices };
 }
 const count = Number(process.env.SEEDS || 100);
-const policies: Policy[] = ['idle', 'random', 'squad', 'damage', 'balanced', 'reactive'];
+const policies: Policy[] = ['idle', 'random', 'squad', 'damage', 'balanced', 'reactive', 'sweep'];
 const results = policies.map(policy => {
   const runs = Array.from({ length: count }, (_, i) => simulate(i + 1, policy));
   const avg = (key: 'stage' | 'score' | 'seconds') => +(runs.reduce((n, r) => n + r[key], 0) / count).toFixed(1);
@@ -62,5 +63,7 @@ if (process.argv.includes('--write')) writeFileSync('docs/gate-runner-simulation
 
 if (process.argv.includes('--check')) {
   const wins = (policy: Policy) => results.find(r => r.policy === policy)!.wins / count;
-  if (count < 100 || wins('idle') > .2 || wins('balanced') < .85 || wins('squad') < .85 || wins('damage') < .85) throw new Error('Balance regression: use >=100 seeds; idle <=20%, active >=85%');
+  if (count < 100 || wins('idle') > .01 || wins('random') > .05 || wins('sweep') > .1 || wins('reactive') > .3 || wins('balanced') < .75 || wins('damage') < .6 || wins('squad') < .15 || wins('balanced') - wins('reactive') < .5) {
+    throw new Error('Balance regression: >=100 seeds; idle <=1%, random <=5%, sweep <=10%, reactive <=30%; balanced >=75%, damage >=60%, squad >=15%; precision gap >=50 points');
+  }
 }
