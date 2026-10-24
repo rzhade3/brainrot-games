@@ -13,6 +13,7 @@
     "build:cube-lines-catalog": "tsx scripts/build-cube-lines-catalog.ts",
     "test:cube-lines": "tsx --test src/games/cube-lines/*.test.ts",
     "preview": "vite preview",
+    "test:gate-runner": "node --import tsx --test src/games/gate-runner/*.test.ts",
     "test:breakout": "node --import tsx --test src/games/breakout/*.test.ts",
     "simulate:breakout": "node --import tsx scripts/simulate-breakout.ts"
   },
