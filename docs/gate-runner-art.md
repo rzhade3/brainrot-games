@@ -18,3 +18,9 @@ Use case: stylized-concept. Production asset: transparent game sprite atlas for 
 Use case: stylized-concept. Production game background for a top-down arcade robot squad runner. Portrait 1024x1536. A straight vertical futuristic industrial causeway, orthographic overhead camera, parallel sides, NO perspective convergence, no horizon. The central 78 percent is smooth desaturated blue-gray concrete road with subtle large panel seams, restrained surface wear and tiny inset cyan guide lights near its edges, absolutely unobstructed. Narrow raised safety curbs with amber markings at both sides. Beyond the curbs, rich teal deep water and a few chunky industrial pipes and dock details confined to the outermost 8 percent edges. Premium stylized 3D mobile game diorama aesthetic, soft daylight, clean beveled geometry, delicate material texture, strong clear playfield, cohesive with blue armored toy soldiers and coral robot enemies. No units, no gates, no text, no UI, no logos. Low contrast middle ensures colorful sprites and gates read clearly. Road must extend all the way through top and bottom edges with matching colors for vertical looping. Flat overhead reusable game terrain texture, not a promotional scene.
 
 The generator returned a 1254px-square atlas and 1024×1536 terrain; the renderer uses normalized source rectangles, not assumed 512px cells. The terrain is delivered at 768×1152. Generated texture matching is approximate at the vertical tile boundary.
+
+## Deployed visual check
+
+Cloudflare deployed `3759474` successfully. Checked the start screen and live gameplay in the cloud browser, including sprite/terrain loading, framed gate labels, pointer steering with the revised camera scale, aimed projectiles, hit particles, and score updates. The production build and 12 engine regression tests passed. Mobile device emulation remains unavailable in this browser.
+
+![Live gameplay with the new assets](gate-runner-art.jpg)
