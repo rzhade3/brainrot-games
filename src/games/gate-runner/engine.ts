@@ -213,7 +213,7 @@ export class GateRunner {
           this.hurt(e.kind === 'bomber' ? 8 : 4, 'collision', e.x, e.z); e.hp = 0;
         } else if (e.z < s.z - 1.5) {
           const penalty = Math.min(s.score, 50); s.score -= penalty;
-          this.emit('breach', e.x, e.z, `Escaped · −${penalty} score`, { score: -penalty });
+          this.emit('breach', e.x, e.z, penalty ? `Escaped · −${penalty} score` : 'Enemy escaped', { score: -penalty });
           s.breaches++; e.hp = 0;
         }
       }

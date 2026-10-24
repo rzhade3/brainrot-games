@@ -150,7 +150,8 @@ function handleEvents(events: GameEvent[]) {
     const signed = `${value > 0 ? '+' : '−'}${Math.ceil(Math.abs(value))}`;
     text(`${id}-delta`, signed); el(`${id}-delta`).dataset.tone = value > 0 ? 'gain' : 'loss'; badges.set(id, feedback.time + 1.15); pulse(id, value > 0);
   }
-  if (events.some(e => e.score > 0)) pulse('score', true);
+  const score = events.reduce((sum, event) => sum + event.score, 0);
+  if (score) pulse('score', score > 0);
   const upgrade = events.find(e => e.type === 'upgrade');
   if (upgrade) { text('notice', `${upgrade.text} equipped`); noticeUntil = feedback.time + 1.4; }
   const announcement = announce(events); if (announcement) text('announcement', announcement);

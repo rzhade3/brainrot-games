@@ -189,7 +189,7 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, game: 
       const spread = reducedMotion ? 0 : age * 35;
       rounded(ctx, p.x - scale * 1.85 - spread, p.y - 30 - spread / 2, scale * 3.7 + spread * 2, 60 + spread, 5); ctx.stroke();
     }
-    if (['gate', 'kill', 'damage', 'breach'].includes(event.type)) {
+    if (['gate', 'kill', 'damage'].includes(event.type)) {
       const label = event.type === 'damage' ? `−${-event.squad} ${event.squad === -1 ? 'soldier' : 'soldiers'}` : event.text;
       ctx.font = `600 ${event.type === 'kill' ? 12 : 14}px system-ui`;
       const tw = Math.min(w - 24, ctx.measureText(label).width + 20);
