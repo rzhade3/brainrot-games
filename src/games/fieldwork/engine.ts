@@ -20,7 +20,6 @@ export type Field = {
   mask: Uint8Array;
   total: number;
   obstacles: Obstacle[];
-  limit: number;
 };
 export function random(seed: number) {
   let a = seed >>> 0;
@@ -79,7 +78,6 @@ export function makeField(level: number, seed = level * 7919): Field {
     mask,
     total,
     obstacles,
-    limit: Math.max(140, 240 - level * 10),
   };
 }
 export type Input = {
@@ -93,6 +91,9 @@ export class Farm {
   angle = -Math.PI / 2;
   speed = 0;
   elapsed = 0;
+  distance = 0;
+  readonly fuelCapacity: number;
+  fuel: number;
   covered = 0;
   worked = 0;
   hits = 0;
@@ -109,6 +110,12 @@ export class Farm {
     public tool = 1,
     public practice = false,
   ) {
+    // Normalize the tank to implement width, with headland/obstacle allowances.
+    this.fuelCapacity =
+      ((field.total * CELL * CELL) / TOOLS[tool].width) * 2 +
+      Math.ceil(470 / TOOLS[tool].width) * 90 +
+      field.obstacles.length * 650;
+    this.fuel = this.fuelCapacity;
     this.soil = new Uint8Array(field.mask.length);
     this.directions = new Float32Array(field.mask.length);
   }
@@ -118,27 +125,41 @@ export class Farm {
   get efficiency() {
     return this.worked ? this.covered / this.worked : 1;
   }
+  get fuelFraction() {
+    return this.fuel / this.fuelCapacity;
+  }
   get score() {
-    return Math.max(
-      0,
-      Math.round(
-        this.coverage * 1000 +
-          this.efficiency * 500 +
-          Math.max(0, this.field.limit - this.elapsed) * 5 -
-          this.hits * 40,
-      ),
-    );
+    return Math.round(this.coverage * 1000 + this.fuelFraction * 1000);
   }
   get stars() {
     return this.status !== "won"
       ? 0
       : 1 +
-          Number(this.efficiency >= 0.7 && this.hits <= 3) +
-          Number(
-            this.efficiency >= 0.84 &&
-              this.hits === 0 &&
-              this.elapsed < this.field.limit * 0.85,
-          );
+          Number(this.fuelFraction >= 0.15) +
+          Number(this.fuelFraction >= 0.3);
+  }
+  private bladeOnField(x: number, y: number) {
+    const c = Math.cos(this.angle),
+      s = Math.sin(this.angle);
+    const bx = x - c * 22,
+      by = y - s * 22;
+    for (
+      let offset = -TOOLS[this.tool].width / 2;
+      offset <= TOOLS[this.tool].width / 2;
+      offset += CELL / 2
+    ) {
+      const col = Math.floor((bx - s * offset) / CELL),
+        row = Math.floor((by + c * offset) / CELL);
+      if (
+        col >= 0 &&
+        col < COLS &&
+        row >= 0 &&
+        row < ROWS &&
+        this.field.mask[row * COLS + col]
+      )
+        return true;
+    }
+    return false;
   }
   step(dt: number, input: Input) {
     if (this.status !== "playing" || !Number.isFinite(dt) || dt <= 0) return;
@@ -171,8 +192,16 @@ export class Farm {
       dt *
       Math.min(1, Math.abs(this.speed) / 25) *
       (this.speed < 0 ? -1 : 1);
-    const nx = this.x + Math.cos(this.angle) * this.speed * dt,
-      ny = this.y + Math.sin(this.angle) * this.speed * dt;
+    const proposedX = this.x + Math.cos(this.angle) * this.speed * dt;
+    const proposedY = this.y + Math.sin(this.angle) * this.speed * dt;
+    // Ploughing costs 25% extra, including repeated passes. Reverse lifts the blade.
+    const rate =
+      this.speed > 3 && this.bladeOnField(proposedX, proposedY) ? 1.25 : 1;
+    const travel = this.practice
+      ? Math.abs(this.speed * dt)
+      : Math.min(Math.abs(this.speed * dt), this.fuel / rate);
+    const nx = this.x + Math.cos(this.angle) * travel * Math.sign(this.speed),
+      ny = this.y + Math.sin(this.angle) * travel * Math.sign(this.speed);
     const blocked =
       nx < 22 ||
       nx > W - 22 ||
@@ -191,6 +220,8 @@ export class Farm {
       this.lastBrush = undefined;
       this.colliding = true;
     } else {
+      this.distance += travel;
+      if (!this.practice) this.fuel = Math.max(0, this.fuel - travel * rate);
       this.x = nx;
       this.y = ny;
       this.colliding = false;
@@ -214,8 +245,11 @@ export class Farm {
       this.lastBrush = brush;
     } else this.lastBrush = undefined;
     if (this.coverage >= 0.98) this.status = "won";
-    else if (!this.practice && this.elapsed >= this.field.limit)
+    else if (!this.practice && this.fuel <= 1e-8) {
+      this.fuel = 0;
+      this.speed = 0;
       this.status = "lost";
+    }
   }
   private paint(bx: number, by: number) {
     const half = TOOLS[this.tool].width / 2,

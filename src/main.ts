@@ -20,7 +20,7 @@ const games: GameEntry[] = [
     description: 'Neat furrows. Tight turns. Work every acre with three ploughs and six increasingly tricky fields.',
     href: './games/fieldwork/',
     ready: true,
-    scoreKey: 'fieldwork',
+    scoreKey: 'fieldwork-fuel',
     scoreLabel: 'pts',
   },
   {

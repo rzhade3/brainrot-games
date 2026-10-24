@@ -28,14 +28,15 @@ test("fields are deterministic and workable cells exclude obstacle safety margin
       });
     }
 });
-test("stationary and reverse driving never plough; contracts time out, practice does not", () => {
+test("standing still costs nothing; reversing burns fuel without ploughing", () => {
   const game = new Farm(makeField(1));
-  tick(game, 20);
+  tick(game, 300);
+  assert.equal(game.fuel, game.fuelCapacity);
   assert.equal(game.covered, 0);
   tick(game, 5, { throttle: -1, steer: 0 });
   assert.equal(game.covered, 0);
-  tick(game, 240);
-  assert.equal(game.status, "lost");
+  assert.ok(game.fuel < game.fuelCapacity);
+  assert.equal(game.status, "playing");
   const practice = new Farm(makeField(1), 1, true);
   tick(practice, 260);
   assert.equal(practice.status, "playing");
@@ -91,6 +92,76 @@ test("seeded random controls preserve bounds and coverage invariants", () => {
           game.covered <= game.field.total && game.worked >= game.covered,
         );
         assert.ok(Number.isFinite(game.score));
+        assert.ok(game.fuel >= 0 && game.fuel <= game.fuelCapacity);
       }
     }
+});
+
+test("fuel follows actual distance, with a working surcharge and no blocked burn", () => {
+  const grass = new Farm(makeField(1));
+  grass.x = 40;
+  grass.y = 650;
+  tick(grass, 2, { throttle: 1, steer: 0 });
+  assert.ok(Math.abs(grass.fuelCapacity - grass.fuel - grass.distance) < 1e-7);
+  const soil = new Farm(makeField(1));
+  soil.x = 300;
+  soil.y = 600;
+  tick(soil, 2, { throttle: 1, steer: 0 });
+  assert.ok(
+    Math.abs(soil.fuelCapacity - soil.fuel - soil.distance * 1.25) < 1e-7,
+  );
+  soil.x = 22;
+  soil.angle = Math.PI;
+  soil.speed = 0;
+  const fuel = soil.fuel;
+  tick(soil, 3, { throttle: 1, steer: 0 });
+  assert.equal(soil.fuel, fuel);
+});
+test("empty tanks end the contract and practice can continue the same field", () => {
+  const game = new Farm(makeField(1));
+  game.fuel = 0.2;
+  tick(game, 1, { throttle: 1, steer: 0 });
+  assert.equal(game.status, "lost");
+  assert.equal(game.fuel, 0);
+  const x = game.x,
+    y = game.y;
+  tick(game, 3, { throttle: 1, steer: 0 });
+  assert.deepEqual([game.x, game.y], [x, y]);
+  game.practice = true;
+  game.status = "playing";
+  tick(game, 4, { throttle: 1, steer: 0 });
+  assert.equal(game.status, "playing");
+  assert.ok(game.covered > 0);
+  assert.equal(game.fuel, 0);
+});
+test("stars and scores reward fuel remaining, never speed or waiting", () => {
+  const game = new Farm(makeField(1));
+  game.status = "won";
+  game.covered = game.field.total;
+  for (const [fuel, stars] of [
+    [0, 1],
+    [0.149, 1],
+    [0.15, 2],
+    [0.299, 2],
+    [0.3, 3],
+  ]) {
+    game.fuel = game.fuelCapacity * fuel;
+    assert.equal(game.stars, stars);
+  }
+  const score = game.score;
+  game.elapsed = 99999;
+  game.hits = 10;
+  assert.equal(game.score, score);
+});
+test("fuel burn is stable across fixed step frequencies", () => {
+  const results = [30, 60, 120].map((hz) => {
+    const game = new Farm(makeField(1));
+    game.x = 300;
+    game.y = 600;
+    game.speed = TOOLS[1].speed;
+    for (let i = 0; i < hz * 2; i++)
+      game.step(1 / hz, { throttle: 1, steer: 0 });
+    return game.fuel;
+  });
+  assert.ok(Math.max(...results) - Math.min(...results) < 1e-6);
 });

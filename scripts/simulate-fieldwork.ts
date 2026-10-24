@@ -1,6 +1,6 @@
 import { Farm, makeField, TOOLS } from "../src/games/fieldwork/engine";
 // A deliberately simple lane driver: long passes and turns in the headlands.
-// It does not plan around obstacles or hunt missed patches.
+// The optional detour driver adds island avoidance and cleanup loops.
 export function simulate(
   level: number,
   tool: number,
@@ -64,8 +64,10 @@ export function simulate(
     coverage: Math.round(game.coverage * 1000) / 10,
     efficiency: Math.round(game.efficiency * 100),
     collisions: game.hits,
-    seconds: Math.round(game.elapsed),
-    outcome: game.status,
+    fuel: Math.round(game.fuelFraction * 100),
+    stars: game.stars,
+    distance: Math.round(game.distance),
+    outcome: game.status === "playing" ? "bot stalled / step cap" : game.status,
   };
 }
 console.table(

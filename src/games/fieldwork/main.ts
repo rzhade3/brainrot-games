@@ -4,11 +4,11 @@ import { Renderer } from "./render";
 import { submitScore } from "../../core/scores";
 const root = document.querySelector<HTMLDivElement>("#app")!;
 root.innerHTML = `<main><header><a href="/" aria-label="Back to arcade">←</a><h1>Fieldwork<span>take the long way</span></h1><button id="help" aria-label="How to play">?</button><button id="pause" aria-label="Pause game">Ⅱ</button></header>
-<div class="hud"><div><small id="field-label">Field 01</small><strong id="coverage">0.0%</strong></div><div><small>Clean passes</small><strong id="efficiency">100%</strong></div><div><small id="clock-label">Remaining</small><strong id="clock">3:50</strong></div></div>
+<div class="hud"><div><small id="field-label">Field 01</small><strong id="coverage">0.0%</strong></div><div id="fuel-readout"><small id="fuel-label">Fuel</small><strong id="fuel-value">100%</strong><meter id="fuel" min="0" max="100" low="20" high="100" optimum="100" value="100" aria-label="Fuel remaining"></meter></div></div>
 <div class="stage"><canvas tabindex="0" aria-label="Tractor field. Arrow keys or WASD to drive. Hold and drag on the field to steer. P pauses."></canvas><div class="overlay" id="overlay"><section class="panel" id="panel" aria-labelledby="title"></section></div></div>
 <div class="progress" role="progressbar" aria-label="Field coverage" aria-valuemin="0" aria-valuemax="98" aria-valuenow="0"><div id="bar"></div></div>
 <div class="footer"><span id="feedback">Leave nothing but neat rows.</span><button id="reverse" aria-label="Hold to reverse">↶ Reverse</button><span class="desktop-hint">WASD / arrows · P pause</span><span class="mobile-hint">Hold & drag to drive</span></div><div class="sr" id="announcement" aria-live="polite"></div></main>
-<dialog aria-labelledby="help-title"><h2 id="help-title">Make your mark.</h2><p>Work 98% of the field before time runs out. Hold and drag toward where you want to drive; release to brake. On a keyboard, use ↑ / W to drive, ↓ / S to reverse and ← → / A D to steer. Hold Reverse on touch screens to back out. Reversing lifts the plough.</p><p>Worked soil turns dark. Repeated passes lower efficiency. Grass gives you turning room; trees, turbines and fences stop your tractor. Missed patches glow near the finish.</p><p>Finish for one star. Earn two with at least 70% efficiency and no more than three collisions. Three needs 84% efficiency, no collisions and at least 15% time remaining. Practice has no deadline and does not unlock contracts.</p><button id="close-help">Back to the field</button></dialog>`;
+<dialog aria-labelledby="help-title"><h2 id="help-title">Make your mark.</h2><p>Work 98% of the field on one tank. Hold and drag toward where you want to drive; release to brake. On a keyboard, use ↑ / W to drive, ↓ / S to reverse and ← → / A D to steer. Hold Reverse on touch screens to back out. Reversing lifts the plough.</p><p>Worked soil turns dark. Fuel burns as you drive, with a little extra while ploughing. Stopping costs nothing; repeated passes waste fuel. Grass gives you turning room; trees, turbines and fences stop your tractor. Missed patches glow near the finish.</p><p>Finish for one star. Save 15% fuel for two stars, or 30% for three. Each plough gets a tank sized to its working width. Practice has unlimited fuel and does not unlock contracts.</p><button id="close-help">Back to the field</button></dialog>`;
 const el = (id: string) => document.getElementById(id)!;
 const canvas = root.querySelector("canvas")!,
   renderer = new Renderer(canvas),
@@ -16,7 +16,7 @@ const canvas = root.querySelector("canvas")!,
 const reduced = matchMedia("(prefers-reduced-motion: reduce)");
 let records: Record<string, number> = {};
 try {
-  const stored = JSON.parse(localStorage.getItem("fieldwork-v1") ?? "{}");
+  const stored = JSON.parse(localStorage.getItem("fieldwork-fuel-v2") ?? "{}");
   if (stored && typeof stored === "object")
     for (const [k, v] of Object.entries(stored))
       if (
@@ -40,11 +40,8 @@ let previous = 0,
   accumulator = 0,
   oldHits = 0,
   lastMilestone = 0;
+let lowFuelWarned = false;
 const keys = new Set<string>();
-const timeText = (t: number) => {
-  const seconds = Math.ceil(Math.max(0, t));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-};
 function announce(message: string) {
   el("announcement").textContent = message;
   el("feedback").textContent = message;
@@ -65,10 +62,10 @@ function showMenu() {
   clearInput();
   el("overlay").hidden = false;
   el("panel").innerHTML =
-    `<div class="eyebrow">A small patch of peace</div><h2 id="title">One more row.</h2><p>Neat furrows. Tight turns. Work 98% before the clock runs out.</p>
+    `<div class="eyebrow">A small patch of peace</div><h2 id="title">One more row.</h2><p>Neat furrows. Tight turns. Work 98% on one tank.</p>
   <label class="field-select">Field<select id="field">${Array.from({ length: practice ? 6 : maxLevel() }, (_, i) => `<option value="${i + 1}" ${level === i + 1 ? "selected" : ""}>${i + 1}. ${makeField(i + 1).name}${records[i + 1] ? ` · ${"★".repeat(records[i + 1])}` : ""}</option>`).join("")}</select></label>
   <div class="choices" aria-label="Choose plough">${TOOLS.map((t, i) => `<button data-tool="${i}" aria-pressed="${tool === i}">${t.name}<small>${["Quick turns", "Balanced", "Slow turns"][i]}</small></button>`).join("")}</div>
-  <label class="mode"><input id="practice" type="checkbox" ${practice ? "checked" : ""}/>Practice · no clock</label><button class="primary" id="start">Start engine</button>`;
+  <label class="mode"><input id="practice" type="checkbox" ${practice ? "checked" : ""}/>Practice · unlimited fuel</label><button class="primary" id="start">Start engine</button>`;
   root.querySelectorAll<HTMLButtonElement>("[data-tool]").forEach(
     (b) =>
       (b.onclick = () => {
@@ -95,6 +92,7 @@ function start() {
   accumulator = 0;
   oldHits = 0;
   lastMilestone = 0;
+  lowFuelWarned = false;
   clearInput();
   el("overlay").hidden = true;
   announce("Wide turns. Clean rows.");
@@ -124,16 +122,16 @@ function finish() {
   if (won && !practice) {
     records[level] = Math.max(records[level] ?? 0, game.stars);
     try {
-      localStorage.setItem("fieldwork-v1", JSON.stringify(records));
+      localStorage.setItem("fieldwork-fuel-v2", JSON.stringify(records));
     } catch {
       /* Session progress still works. */
     }
-    submitScore("fieldwork", game.score);
+    submitScore("fieldwork-fuel", game.score);
   }
-  announce(won ? "Field finished." : "Time is up.");
+  announce(won ? "Field finished." : "Tank empty.");
   el("overlay").hidden = false;
   el("panel").innerHTML =
-    `<div class="eyebrow">${practice ? "Practice" : `Contract ${String(level).padStart(2, "0")}`}</div><h2 id="title">${won ? "Beautifully done." : "A little left to do."}</h2>${won && !practice ? `<div class="stars" aria-label="${game.stars} of 3 stars">${"★".repeat(game.stars)}${"☆".repeat(3 - game.stars)}</div>` : ""}<div class="stats"><div><b>${(game.coverage * 100).toFixed(1)}%</b>worked</div><div><b>${Math.round(game.efficiency * 100)}%</b>clean passes</div><div><b>${timeText(game.elapsed)}</b>elapsed</div><div><b>${game.hits}</b>collisions</div></div><p>${won ? (practice ? "A good day in the field." : level === 6 ? "All six fields are yours. Chase three stars with a different plough." : "The next field is ready.") : "Try wider passes, or use practice to find your route."}</p><button id="again" class="primary">${won && !practice && level < 6 ? "Next field →" : "Try again"}</button>${!won ? '<button id="continue" class="secondary">Finish in practice</button>' : ""}<button id="choose" class="secondary">Choose a field</button>`;
+    `<div class="eyebrow">${practice ? "Practice" : `Contract ${String(level).padStart(2, "0")}`}</div><h2 id="title">${won ? "Beautifully done." : "Out of fuel."}</h2>${won && !practice ? `<div class="stars" aria-label="${game.stars} of 3 stars">${"★".repeat(game.stars)}${"☆".repeat(3 - game.stars)}</div>` : ""}<div class="stats"><div><b>${(Math.floor(game.coverage * 1000) / 10).toFixed(1)}%</b>worked</div><div><b>${practice ? "∞" : `${Math.ceil(game.fuelFraction * 100)}%`}</b>fuel left</div></div><p>${won ? (practice ? "A good day in the field." : level === 6 ? "All six fields are yours. Chase three stars with a different plough." : "The next field is ready.") : "Keep passes close and turns short, or finish this field in practice."}</p><button id="again" class="primary">${won && !practice && level < 6 ? "Next field →" : "Try again"}</button>${!won ? '<button id="continue" class="secondary">Finish in practice</button>' : ""}<button id="choose" class="secondary">Choose a field</button>`;
   el("again").onclick = () => {
     if (won && !practice && level < 6) level++;
     start();
@@ -260,16 +258,28 @@ function frame(now: number) {
             : `${milestone * 25}% worked.`,
         );
       }
+      if (!practice && !lowFuelWarned && game.fuelFraction <= 0.2) {
+        lowFuelWarned = true;
+        announce("Fuel low — make each pass count.");
+      }
       if (game.status !== "playing") finish();
     }
   }
   renderer.draw(game, now, reduced.matches || mode !== "playing", target);
-  el("coverage").textContent = `${(game.coverage * 100).toFixed(1)}%`;
-  el("efficiency").textContent = `${Math.round(game.efficiency * 100)}%`;
-  el("clock").textContent = practice
-    ? timeText(game.elapsed)
-    : timeText(game.field.limit - game.elapsed);
-  el("clock-label").textContent = practice ? "Elapsed" : "Remaining";
+  el("coverage").textContent =
+    `${(Math.floor(game.coverage * 1000) / 10).toFixed(1)}%`;
+  const fuelPercent = Math.ceil(game.fuelFraction * 100);
+  el("fuel-value").textContent = practice ? "∞" : `${fuelPercent}%`;
+  el("fuel-label").textContent = practice ? "Unlimited fuel" : "Fuel";
+  (el("fuel") as HTMLMeterElement).value = practice ? 100 : fuelPercent;
+  el("fuel").setAttribute(
+    "aria-valuetext",
+    practice ? "Unlimited fuel" : `${fuelPercent}% remaining`,
+  );
+  el("fuel-readout").classList.toggle(
+    "low",
+    !practice && game.fuelFraction <= 0.2,
+  );
   el("field-label").textContent = `Field ${String(level).padStart(2, "0")}`;
   el("bar").style.width = `${Math.min(100, (game.coverage / 0.98) * 100)}%`;
   root

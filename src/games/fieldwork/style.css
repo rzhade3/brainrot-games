@@ -348,3 +348,32 @@ dialog p {
 .panel {
   margin: auto;
 }
+
+#fuel {
+  display: block;
+  width: 110px;
+  height: 10px;
+  margin-top: 5px;
+  border: 0;
+  border-radius: 5px;
+  background: #45513e;
+}
+#fuel::-webkit-meter-bar {
+  background: #45513e;
+  border: 0;
+}
+#fuel::-webkit-meter-optimum-value {
+  background: #bccc8c;
+}
+#fuel::-webkit-meter-suboptimum-value {
+  background: #e4b75f;
+}
+#fuel::-moz-meter-bar {
+  background: #bccc8c;
+}
+.low #fuel::-moz-meter-bar {
+  background: #e4b75f;
+}
+#fuel-readout.low {
+  color: #e4b75f;
+}
