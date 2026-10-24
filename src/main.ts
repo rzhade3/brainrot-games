@@ -15,6 +15,15 @@ type GameEntry = {
 
 const games: GameEntry[] = [
   {
+    title: 'Fieldwork',
+    emoji: '🚜',
+    description: 'Neat furrows. Tight turns. Work every acre with three ploughs and six increasingly tricky fields.',
+    href: './games/fieldwork/',
+    ready: true,
+    scoreKey: 'fieldwork',
+    scoreLabel: 'pts',
+  },
+  {
     title: 'Break Rot',
     emoji: '🧱',
     description: 'Play the angles through brick islands, steel vaults, and ricochet bumpers. Build a swarm. Start fresh each wave.',
