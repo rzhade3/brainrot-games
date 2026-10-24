@@ -59,3 +59,16 @@ footer { display: flex; justify-content: space-between; padding: 10px 20px max(1
 @media (hover: hover) { button:hover { background: #2a4256; } .primary:hover { background: #c2f0df; } #options button:hover { background: #ffffff09; } a:hover { color: var(--text); } }
 @media (max-height: 540px) { header { min-height: 44px; } .hud { padding-block: 0 8px; } .stat strong { font-size: 24px; } .overlay { padding: 12px 24px; } .menu { padding: 8px 0; } .menu h2 { font-size: 30px; } .menu p { margin-bottom: 14px; } #options { margin-block: 12px; } #options button { padding-block: 12px; } .controls { margin-top: 12px !important; } }
 @media (prefers-reduced-motion: reduce) { button, .health-track div { transition: none; } }
+
+/* Upgrade selection stays on the battlefield instead of becoming a results page. */
+.overlay[data-mode='choice'] { align-items: safe flex-end; padding: 16px; background: #07121b59; }
+.overlay[data-mode='choice'] .menu { width: 100%; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: 0 12px 40px #0005; }
+.overlay[data-mode='choice'] h2 { font-size: 30px; margin-bottom: 6px; }
+.overlay[data-mode='choice'] #message { margin-bottom: 16px; font-size: 13px; }
+.overlay[data-mode='choice'] #options { display: grid; gap: 8px; border: 0; margin: 0; }
+.overlay[data-mode='choice'] #options button { position: relative; min-height: 66px; padding: 12px 42px 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.overlay[data-mode='choice'] #options button::after { content: '→'; position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--accent); }
+.overlay[data-mode='choice'] #options button span { margin-top: 3px; }
+.overlay[data-mode='choice'] .secondary { display: none; }
+@media (hover: hover) { .overlay[data-mode='choice'] #options button:hover { border-color: var(--accent); background: #243d4b; } }
+@media (max-height: 540px) { .overlay[data-mode='choice'] { padding: 8px; } .overlay[data-mode='choice'] .menu { padding: 12px; } .overlay[data-mode='choice'] h2 { font-size: 26px; } .overlay[data-mode='choice'] #message { margin-bottom: 10px; } .overlay[data-mode='choice'] #options { gap: 6px; } .overlay[data-mode='choice'] #options button { min-height: 56px; padding-block: 8px; } }
