@@ -1,5 +1,5 @@
 import './style.css';
-import {GateRunner,offers,type Upgrade} from './engine';
+import {GateRunner,offers} from './engine';
 import {submitScore} from '../../core/scores';
 const app=document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML=`<div class="shell"><header><a href="/" aria-label="Back to arcade">←</a><h1>GATE RUNNER</h1><button id="pause">Ⅱ</button></header><div class="hud"><span id="stage"></span><span id="squad"></span><span id="health"></span></div><div class="arena"><canvas aria-label="Drag to steer your army" tabindex="0"></canvas><div class="overlay" id="overlay"><h2 id="title">Build your army.</h2><p id="message">Drag left or right. Shoot automatically. Choose your gates.</p><div id="options"></div><button id="action">Run</button></div></div><footer><span id="score"></span><span id="best"></span></footer></div>`;
