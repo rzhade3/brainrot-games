@@ -24,7 +24,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/*.png'],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webp}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,woff2}'],
       },
       manifest: {
         name: 'Brainrot Games',

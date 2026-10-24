@@ -11,13 +11,19 @@ export interface Danger { x: number; z: number; vx: number; vz: number; damage: 
 export interface Hazard { x: number; z: number; used: boolean }
 export interface Segment { kind: 'gates' | 'wave' | 'hazard' | 'elite'; z: number; gates?: Gate[]; enemies?: Enemy[]; hazards?: Hazard[] }
 export interface Level { seed: number; stage: number; segments: Segment[]; length: number }
+export type DamageCause = 'mine' | 'collision' | 'breach' | 'projectile';
+export interface GameEvent {
+  type: 'shot' | 'hit' | 'kill' | 'damage' | 'gate' | 'upgrade' | 'clear';
+  x: number; z: number; text: string; health: number; squad: number; score: number;
+  targetId?: number; gateKind?: GateKind; enemyKind?: EnemyKind;
+}
 export interface State {
   x: number; targetX: number; z: number; soldiers: number; hp: number; damage: number;
   rate: number; armor: number; pierce: number; score: number; stage: number;
   status: 'ready' | 'playing' | 'choice' | 'cleared' | 'over'; upgrades: Upgrade[];
   enemies: Enemy[]; gates: Gate[]; shots: Shot[]; dangers: Danger[]; hazards: Hazard[];
   kills: number; breaches: number; elapsed: number; nextShot: number; seed: number;
-  feedback: string; feedbackUntil: number;
+  lastDamage: DamageCause | null;
 }
 const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
 export const WIDTH = 8, SPEED = 7, MAX_SOLDIERS = 180, STEP = 1 / 60;
@@ -84,6 +90,13 @@ export class GateRunner {
   level: Level;
   private accumulator = 0;
   private nextId = 1000;
+  private events: GameEvent[] = [];
+  drainEvents(): GameEvent[] { return this.events.splice(0); }
+  private emit(type: GameEvent['type'], x: number, z: number, text = '', details: Partial<GameEvent> = {}) {
+    // Presentation is observational; simulations need not consume this bounded queue.
+    if (this.events.length >= 256) this.events.shift();
+    this.events.push({ type, x, z, text, health: 0, squad: 0, score: 0, ...details });
+  }
   constructor(seed = Math.floor(Math.random() * 4294967296)) {
     seed >>>= 0;
     this.level = generate(seed, 1);
@@ -91,7 +104,7 @@ export class GateRunner {
       x: 0, targetX: 0, z: 0, soldiers: 12, hp: 100, damage: 2.7, rate: 3.5,
       armor: 0, pierce: 0, score: 0, stage: 1, status: 'ready', upgrades: [],
       enemies: [], gates: [], shots: [], dangers: [], hazards: [], kills: 0,
-      breaches: 0, elapsed: 0, nextShot: 0, seed, feedback: '', feedbackUntil: 0,
+      breaches: 0, elapsed: 0, nextShot: 0, seed, lastDamage: null,
     };
     this.load();
   }
@@ -102,7 +115,7 @@ export class GateRunner {
     s.enemies = this.level.segments.flatMap(seg => seg.enemies?.map(e => ({ ...e })) ?? []);
     s.gates = this.level.segments.flatMap(seg => seg.gates?.map(g => ({ ...g })) ?? []);
     s.hazards = this.level.segments.flatMap(seg => seg.hazards?.map(h => ({ ...h })) ?? []);
-    s.shots = []; s.dangers = []; s.feedback = ''; s.feedbackUntil = 0;
+    s.shots = []; s.dangers = []; s.lastDamage = null; this.events = [];
     this.accumulator = 0;
   }
   start() { if (this.state.status === 'ready') this.state.status = 'playing'; }
@@ -110,6 +123,7 @@ export class GateRunner {
   choose(upgrade: Upgrade) {
     const s = this.state;
     if (s.status !== 'choice' || !offers(s.seed, s.stage).includes(upgrade)) return;
+    const beforeHp = s.hp, beforeSquad = s.soldiers;
     s.upgrades.push(upgrade);
     switch (upgrade) {
       case 'reinforcements': s.soldiers = Math.min(MAX_SOLDIERS, s.soldiers + 18); break;
@@ -120,6 +134,7 @@ export class GateRunner {
       case 'medic': s.hp = Math.min(100, s.hp + 35); s.soldiers = Math.min(MAX_SOLDIERS, s.soldiers + 5); break;
     }
     s.stage++; this.load(); s.status = 'ready';
+    this.emit('upgrade', s.x, s.z, UPGRADE_INFO[upgrade].name, { health: s.hp - beforeHp, squad: s.soldiers - beforeSquad });
   }
   step(dt: number) {
     if (this.state.status !== 'playing' || !Number.isFinite(dt) || dt <= 0) return;
@@ -130,12 +145,13 @@ export class GateRunner {
     }
     if (this.state.status !== 'playing') this.accumulator = 0;
   }
-  private feedback(text: string) { this.state.feedback = text; this.state.feedbackUntil = this.state.elapsed + 1.5; }
-  private hurt(damage: number, loss: number, reason: string) {
-    const s = this.state;
+  private hurt(damage: number, loss: number, cause: DamageCause, x = this.state.x, z = this.state.z) {
+    const s = this.state, hp = s.hp, squad = s.soldiers;
     s.hp = Math.max(0, s.hp - damage * (1 - s.armor));
     s.soldiers = Math.max(0, s.soldiers - loss);
-    this.feedback(reason);
+    if (hp > 0 && squad > 0) s.lastDamage = cause;
+    const label = { mine: 'Mine', collision: 'Collision', breach: 'Enemy escaped', projectile: 'Incoming fire' }[cause];
+    this.emit('damage', x, z, label, { health: s.hp - hp, squad: s.soldiers - squad });
   }
   private tick(dt: number) {
     const s = this.state;
@@ -153,7 +169,7 @@ export class GateRunner {
     for (const h of s.hazards) {
       if (!h.used && s.z >= h.z) {
         h.used = true;
-        if (Math.abs(s.x - h.x) < .85) this.hurt(12, 3, 'Mine · −3 squad');
+        if (Math.abs(s.x - h.x) < .85) this.hurt(12, 3, 'mine', h.x, h.z);
       }
     }
     for (const e of [...s.enemies]) {
@@ -194,9 +210,9 @@ export class GateRunner {
       }
       if (e.z < s.z + 1) {
         if (Math.abs(e.x - s.x) < 1.05) {
-          this.hurt(e.kind === 'bomber' ? 16 : 8, e.kind === 'bomber' ? 4 : 2, 'Collision'); e.hp = 0;
+          this.hurt(e.kind === 'bomber' ? 16 : 8, e.kind === 'bomber' ? 4 : 2, 'collision', e.x, e.z); e.hp = 0;
         } else if (e.z < s.z - 1.5) {
-          this.hurt(3, 0, 'Enemy escaped · −3 HP'); s.breaches++; e.hp = 0;
+          this.hurt(3, 0, 'breach', e.x, e.z); s.breaches++; e.hp = 0;
         }
       }
     }
@@ -206,6 +222,7 @@ export class GateRunner {
       if (target) {
         const dx = target.x - s.x, dz = target.z - s.z, distance = Math.hypot(dx, dz);
         s.shots.push({ x: s.x, z: s.z + .6, vx: dx / distance * 43, vz: dz / distance * 43, damage: s.damage * Math.sqrt(s.soldiers) * Math.pow(s.soldiers / 12, .1) * .52, pierce: s.pierce, hits: [] });
+        this.emit('shot', s.x, s.z);
         s.nextShot = s.elapsed + 1 / s.rate;
       }
     }
@@ -217,26 +234,33 @@ export class GateRunner {
         const t = clamp(((e.x - ox) * (b.x - ox) + (e.z - oz) * (b.z - oz)) / ((b.x - ox) ** 2 + (b.z - oz) ** 2), 0, 1);
         if (Math.hypot(e.x - ox - t * (b.x - ox), e.z - oz - t * (b.z - oz)) > (e.kind === 'boss' ? 1.15 : .65)) continue;
         e.hp -= b.damage * (e.kind === 'shield' && s.pierce === 0 ? .65 : 1);
+        this.emit('hit', e.x, e.z, '', { targetId: e.id, enemyKind: e.kind });
         b.hits.push(e.id);
-        if (e.hp <= 0) { s.kills++; s.score += e.kind === 'boss' ? 600 : 100; }
+        if (e.hp <= 0) {
+          const reward = e.kind === 'boss' ? 600 : 100;
+          s.kills++; s.score += reward;
+          this.emit('kill', e.x, e.z, `+${reward}`, { score: reward, targetId: e.id, enemyKind: e.kind });
+        }
         if (b.hits.length > b.pierce) break;
       }
     }
     s.shots = s.shots.filter(b => b.hits.length <= b.pierce && b.z < s.z + 32);
     s.dangers = s.dangers.filter(b => {
       b.x += b.vx * dt; b.z += b.vz * dt;
-      if (Math.abs(b.z - s.z) < .65 && Math.abs(b.x - s.x) < .72) { this.hurt(b.damage, 1, 'Hit · −1 squad'); return false; }
+      if (Math.abs(b.z - s.z) < .65 && Math.abs(b.x - s.x) < .72) { this.hurt(b.damage, 1, 'projectile'); return false; }
       return b.z > s.z - 2 && Math.abs(b.x) < 5;
     });
     if (s.hp <= 0 || s.soldiers <= 0) { s.status = 'over'; return; }
     if (s.z >= this.level.length) {
-      s.score += Math.floor(s.hp) * 5 + s.soldiers * 8;
+      const reward = Math.floor(s.hp) * 5 + s.soldiers * 8, hp = s.hp;
+      s.score += reward;
       s.hp = Math.min(100, s.hp + 4);
+      this.emit('clear', s.x, s.z, `Stage ${s.stage} cleared`, { score: reward, health: s.hp - hp });
       s.status = s.stage === 5 ? 'cleared' : 'choice';
     }
   }
   private applyGate(g: Gate) {
-    const s = this.state;
+    const s = this.state, squad = s.soldiers, rate = s.rate, armor = s.armor;
     switch (g.kind) {
       case 'add': s.soldiers = Math.min(MAX_SOLDIERS, s.soldiers + g.value); break;
       case 'multiply': s.soldiers = Math.min(MAX_SOLDIERS, Math.floor(s.soldiers * g.value)); break;
@@ -245,7 +269,13 @@ export class GateRunner {
       case 'armor': s.armor = 1 - (1 - s.armor) * (1 - g.value); break;
       case 'sacrifice': s.soldiers = Math.max(1, Math.floor(s.soldiers * .7)); s.damage *= 1.8; break;
     }
-    this.feedback(g.kind === 'sacrifice' ? '−30% squad · +80% damage' : gateLabel(g));
+    const delta = s.soldiers - squad;
+    let text = gateLabel(g);
+    if (g.kind === 'add' || g.kind === 'multiply') text = delta ? `+${delta} soldiers` : 'Squad full';
+    if (g.kind === 'rapid' && s.rate === rate) text = 'Fire rate maxed';
+    if (g.kind === 'armor') text = `Armor ${Math.round(armor * 100)}% → ${Math.round(s.armor * 100)}%`;
+    if (g.kind === 'sacrifice') text = `+80% damage · ${delta} soldiers`;
+    this.emit('gate', g.x, g.z, text, { squad: delta, gateKind: g.kind });
   }
   snapshot(): State { return JSON.parse(JSON.stringify(this.state)) as State; }
 }
