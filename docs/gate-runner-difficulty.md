@@ -1,3 +1,5 @@
+> Survival mechanics and balance figures below are historical. See [squad-only survival](gate-runner-squad-balance.md) for the current system.
+
 # Difficulty revision
 
 The previous balance was too forgiving in actual play. Exact-state bots clearing nearly every run established solvability, but did not establish a satisfying challenge. The prior reactive controller also cleared 300/300 seeds, exposing the missing skill requirement.

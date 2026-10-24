@@ -7,56 +7,112 @@
       "runs": 300,
       "wins": 0,
       "meanStage": 1,
-      "meanScore": 652.7,
-      "meanSeconds": 20.3
+      "meanScore": 147.5,
+      "meanSeconds": 22.9,
+      "meanSurvivors": 0,
+      "reachedStage": [
+        300,
+        0,
+        0,
+        0,
+        0
+      ]
     },
     {
       "policy": "random",
       "runs": 300,
       "wins": 0,
       "meanStage": 1,
-      "meanScore": 1113.1,
-      "meanSeconds": 25
+      "meanScore": 707.8,
+      "meanSeconds": 21.5,
+      "meanSurvivors": 0,
+      "reachedStage": [
+        300,
+        4,
+        0,
+        0,
+        0
+      ]
     },
     {
       "policy": "squad",
       "runs": 300,
-      "wins": 69,
-      "meanStage": 4.6,
-      "meanScore": 17028.9,
-      "meanSeconds": 170.2
+      "wins": 283,
+      "meanStage": 5,
+      "meanScore": 14254,
+      "meanSeconds": 264.7,
+      "meanSurvivors": 97.5,
+      "reachedStage": [
+        300,
+        300,
+        300,
+        300,
+        297
+      ]
     },
     {
       "policy": "damage",
       "runs": 300,
-      "wins": 247,
-      "meanStage": 4.6,
-      "meanScore": 14737.9,
-      "meanSeconds": 153.4
+      "wins": 285,
+      "meanStage": 4.8,
+      "meanScore": 16702,
+      "meanSeconds": 144,
+      "meanSurvivors": 95.1,
+      "reachedStage": [
+        300,
+        290,
+        285,
+        285,
+        285
+      ]
     },
     {
       "policy": "balanced",
       "runs": 300,
-      "wins": 292,
-      "meanStage": 4.9,
-      "meanScore": 18239,
-      "meanSeconds": 159.6
+      "wins": 300,
+      "meanStage": 5,
+      "meanScore": 17052.2,
+      "meanSeconds": 160.4,
+      "meanSurvivors": 103.6,
+      "reachedStage": [
+        300,
+        300,
+        300,
+        300,
+        300
+      ]
     },
     {
       "policy": "reactive",
       "runs": 300,
-      "wins": 30,
-      "meanStage": 2.7,
-      "meanScore": 6876.8,
-      "meanSeconds": 82.6
+      "wins": 61,
+      "meanStage": 3.5,
+      "meanScore": 8009.5,
+      "meanSeconds": 122.8,
+      "meanSurvivors": 7.7,
+      "reachedStage": [
+        300,
+        292,
+        229,
+        137,
+        88
+      ]
     },
     {
       "policy": "sweep",
       "runs": 300,
       "wins": 0,
-      "meanStage": 1.2,
-      "meanScore": 1733.9,
-      "meanSeconds": 36.3
+      "meanStage": 1.1,
+      "meanScore": 1156.8,
+      "meanSeconds": 32.1,
+      "meanSurvivors": 0,
+      "reachedStage": [
+        300,
+        31,
+        0,
+        0,
+        0
+      ]
     }
   ]
 }

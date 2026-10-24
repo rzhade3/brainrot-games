@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generate, GateRunner, offers, STEP, type Enemy, type Upgrade } from './engine';
+import { generate, GateRunner, offers, STEP, squadPower, type Enemy, type Upgrade } from './engine';
 
 const enemy = (id: number, z: number, kind: Enemy['kind'] = 'grunt'): Enemy => ({ id, x: 0, z, kind, hp: 100, maxHp: 100, cooldown: 0, warning: 0, aim: 0, spawned: 0 });
 function emptyGame() {
@@ -25,7 +25,7 @@ test('generation varies across seeds but remains deterministic and navigable', (
 test('one frame awards completion once and stops ticking', () => {
   const g = emptyGame(); g.state.z = g.level.length - .01;
   g.step(.1);
-  assert.equal(g.state.status, 'choice'); assert.equal(g.state.score, 596);
+  assert.equal(g.state.status, 'choice'); assert.equal(g.state.score, 346);
   const state = g.snapshot(); g.step(.1); assert.deepEqual(g.state, state);
 });
 test('reject invalid time and steering; clamp movement speed', () => {
@@ -54,9 +54,9 @@ test('shots aim toward off-axis targets', () => {
 test('collision and breach each resolve once without kill rewards', () => {
   const g = emptyGame(); g.state.nextShot = 999;
   g.state.enemies = [enemy(1, 0), { ...enemy(2, -2), x: 3 }];
-  g.step(.1); assert.equal(g.state.hp, 89); assert.equal(g.state.soldiers, 10);
+  g.step(.1); assert.equal(g.state.soldiers, 8);
   assert.equal(g.state.kills, 0); assert.equal(g.state.breaches, 1);
-  g.step(.1); assert.equal(g.state.hp, 89);
+  g.step(.1); assert.equal(g.state.soldiers, 8);
 });
 test('boss stops scrolling until defeated', () => {
   const g = emptyGame(); g.state.z = 149.99; g.state.enemies = [enemy(1, 166, 'boss')];
@@ -74,13 +74,13 @@ test('sniper telegraphs before shooting; spawner has bounded offspring', () => {
 test('all offered upgrades have effects; forged/repeated choices rejected', () => {
   const covered = new Set<Upgrade>();
   for (let seed = 1; seed < 30; seed++) for (const upgrade of offers(seed, 1)) {
-    const g = new GateRunner(seed); g.state.status = 'choice'; g.state.hp = 40;
-    const before = [g.state.soldiers, g.state.hp, g.state.damage, g.state.rate, g.state.armor, g.state.pierce];
+    const g = new GateRunner(seed); g.state.status = 'choice';
+    const before = [g.state.soldiers, g.state.damage, g.state.rate, g.state.pierce];
     g.choose(upgrade); covered.add(upgrade);
-    assert.notDeepEqual([g.state.soldiers, g.state.hp, g.state.damage, g.state.rate, g.state.armor, g.state.pierce], before);
+    assert.notDeepEqual([g.state.soldiers, g.state.damage, g.state.rate, g.state.pierce], before);
     assert.equal(g.state.stage, 2); g.choose(upgrade); assert.equal(g.state.stage, 2);
   }
-  assert.equal(covered.size, 6);
+  assert.equal(covered.size, 4);
   const g = new GateRunner(3); g.state.status = 'choice'; g.choose('invalid' as Upgrade); assert.equal(g.state.stage, 1);
 });
 test('offers are reproducible with three unique upgrades', () => {
@@ -115,5 +115,52 @@ test('first-stage waves contain ranged pressure and late stages increase it', ()
     const early = generate(seed, 1), late = generate(seed, 5);
     for (const segment of early.segments.filter(s => s.kind === 'wave')) assert.ok(segment.enemies?.some(e => e.kind === 'sniper'));
     assert.ok(late.segments.flatMap(s => s.enemies ?? []).length > early.segments.flatMap(s => s.enemies ?? []).length);
+  }
+});
+
+test('squad is the only survival pool; last casualty ends the run once', () => {
+  const g = emptyGame(); g.state.soldiers = 1; g.state.nextShot = 999;
+  assert.equal('hp' in g.state, false);
+  g.state.dangers = [{ x: 0, z: .5, vx: 0, vz: -24, damage: 2 }];
+  g.step(STEP);
+  assert.equal(g.state.soldiers, 0); assert.equal(g.state.status, 'over');
+  const events = g.drainEvents().filter(e => e.type === 'damage');
+  assert.equal(events.length, 1); assert.equal(events[0].squad, -1);
+  const state = g.snapshot(); g.step(.1); assert.deepEqual(g.snapshot(), state);
+  assert.deepEqual(g.drainEvents(), []);
+});
+test('breaches cost score once but never remove unseen soldiers', () => {
+  const g = emptyGame(); g.state.score = 25; g.state.nextShot = 999;
+  g.state.enemies = [{ ...enemy(1, -2), x: 3 }];
+  g.step(STEP);
+  assert.equal(g.state.soldiers, 12); assert.equal(g.state.score, 0);
+  assert.equal(g.state.kills, 0); assert.equal(g.state.breaches, 1);
+  const event = g.drainEvents().find(e => e.type === 'breach')!;
+  assert.equal(event.score, -25); assert.equal(event.squad, 0);
+  g.step(.1); assert.equal(g.state.breaches, 1);
+});
+test('recruitment saves a depleted squad and caps the actual gain', () => {
+  for (const count of [1, 179, 180]) {
+    const g = emptyGame(); g.state.soldiers = count;
+    g.state.gates = [{ x: 2, z: 0, kind: 'add', value: 14, used: false }];
+    g.step(STEP);
+    assert.equal(g.state.soldiers, Math.min(180, count + 14));
+    assert.equal(g.drainEvents().find(e => e.type === 'gate')!.squad, Math.min(14, 180 - count));
+  }
+});
+test('stage completion does not invisibly heal or resurrect the squad', () => {
+  const g = emptyGame(); g.state.soldiers = 3; g.state.z = g.level.length - .01;
+  g.step(STEP);
+  assert.equal(g.state.status, 'choice'); assert.equal(g.state.soldiers, 3);
+  assert.equal(g.drainEvents().find(e => e.type === 'clear')!.squad, 0);
+});
+
+test('small squads keep useful firepower without large squads scaling linearly', () => {
+  assert.equal(squadPower(0), 0);
+  assert.ok(squadPower(1) / squadPower(12) > .5);
+  assert.ok(squadPower(180) / squadPower(12) < 3);
+  for (let n = 2; n < 180; n++) {
+    assert.ok(squadPower(n) > squadPower(n - 1));
+    assert.ok(squadPower(n + 1) - squadPower(n) < squadPower(n) - squadPower(n - 1));
   }
 });

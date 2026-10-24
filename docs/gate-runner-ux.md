@@ -1,3 +1,5 @@
+> Survival mechanics and balance figures below are historical. See [squad-only survival](gate-runner-squad-balance.md) for the current system.
+
 # Gate Runner UX pass
 
 Applied the official pbakaus/impeccable skill (4.7.1): critique, distill, clarify, animate and polish guidance. Two independent assessments identified weak event feedback, ambiguous automatic firing, tiny secondary copy, inconsistent stage terminology and misleading enemy-removal effects. Initial heuristic assessment: 21/40. Questions were skipped because implementation scope was already authorized.

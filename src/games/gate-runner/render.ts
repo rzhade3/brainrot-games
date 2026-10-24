@@ -139,7 +139,7 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, game: 
   for (const b of s.dangers) {
     const p = screen(b.x, b.z);
     ctx.fillStyle = '#ff563b35'; ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#ff654d'; ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff654d'; ctx.beginPath(); ctx.arc(p.x, p.y, b.damage > 2 ? 9 : 6, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#ffe7b0'; ctx.beginPath(); ctx.arc(p.x - 1, p.y - 1, 2.5, 0, Math.PI * 2); ctx.fill();
   }
   const removed = feedback.formation.sync(s.soldiers);
@@ -189,8 +189,8 @@ export function draw(ctx: CanvasRenderingContext2D, w: number, h: number, game: 
       const spread = reducedMotion ? 0 : age * 35;
       rounded(ctx, p.x - scale * 1.85 - spread, p.y - 30 - spread / 2, scale * 3.7 + spread * 2, 60 + spread, 5); ctx.stroke();
     }
-    if (['gate', 'kill', 'damage'].includes(event.type)) {
-      const label = event.type === 'damage' ? `${event.text} · −${Math.ceil(-event.health)} health` : event.text;
+    if (['gate', 'kill', 'damage', 'breach'].includes(event.type)) {
+      const label = event.type === 'damage' ? `−${-event.squad} ${event.squad === -1 ? 'soldier' : 'soldiers'}` : event.text;
       ctx.font = `600 ${event.type === 'kill' ? 12 : 14}px system-ui`;
       const tw = Math.min(w - 24, ctx.measureText(label).width + 20);
       const x = Math.max(tw / 2 + 8, Math.min(w - tw / 2 - 8, p.x));

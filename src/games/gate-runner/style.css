@@ -13,16 +13,12 @@ button:active { background: #345064; }
 button:disabled { opacity: .4; cursor: default; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 header button, header a { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: transparent; color: var(--text); }
-.hud { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; padding: 3px 20px 12px; }
+.hud { display: grid; grid-template-columns: 1fr; gap: 0; padding: 3px 20px 12px; }
 .stat { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: 10px; }
 .stat > span:first-child { color: var(--muted); font-size: 12px; }
 .stat strong { display: inline-block; font: 700 30px/1 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums; transform-origin: center; }
 .delta { position: absolute; right: 0; top: -12px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .delta[data-tone='gain'] { color: var(--accent); } .delta[data-tone='loss'] { color: var(--loss); }
-.health-track { grid-column: 1/-1; height: 3px; margin-top: 7px; background: var(--line); }
-.health-track div { height: 100%; background: var(--accent); transform-origin: left; transition: transform 180ms var(--ease); }
-.health-stat[data-low='true'] strong, .health-stat[data-low='true'] > span:first-child { color: var(--loss); }
-.health-stat[data-low='true'] .health-track div { background: var(--loss); }
 .progress { height: 2px; background: #243849; }
 .progress > div { height: 100%; background: #9bb8cf; transform-origin: left; }
 .arena { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
@@ -58,7 +54,7 @@ footer { display: flex; justify-content: space-between; padding: 10px 20px max(1
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (hover: hover) { button:hover { background: #2a4256; } .primary:hover { background: #c2f0df; } #options button:hover { background: #ffffff09; } a:hover { color: var(--text); } }
 @media (max-height: 540px) { header { min-height: 44px; } .hud { padding-block: 0 8px; } .stat strong { font-size: 24px; } .overlay { padding: 12px 24px; } .menu { padding: 8px 0; } .menu h2 { font-size: 30px; } .menu p { margin-bottom: 14px; } #options { margin-block: 12px; } #options button { padding-block: 12px; } .controls { margin-top: 12px !important; } }
-@media (prefers-reduced-motion: reduce) { button, .health-track div { transition: none; } }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
 
 /* Upgrade selection stays on the battlefield instead of becoming a results page. */
 .overlay[data-mode='choice'] { align-items: safe flex-end; padding: 16px; background: #07121b59; }
@@ -72,3 +68,5 @@ footer { display: flex; justify-content: space-between; padding: 10px 20px max(1
 .overlay[data-mode='choice'] .secondary { display: none; }
 @media (hover: hover) { .overlay[data-mode='choice'] #options button:hover { border-color: var(--accent); background: #243d4b; } }
 @media (max-height: 540px) { .overlay[data-mode='choice'] { padding: 8px; } .overlay[data-mode='choice'] .menu { padding: 12px; } .overlay[data-mode='choice'] h2 { font-size: 26px; } .overlay[data-mode='choice'] #message { margin-bottom: 10px; } .overlay[data-mode='choice'] #options { gap: 6px; } .overlay[data-mode='choice'] #options button { min-height: 56px; padding-block: 8px; } }
+
+#squad-stat[data-low="true"] { color: var(--loss); }

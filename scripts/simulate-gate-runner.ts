@@ -8,8 +8,8 @@ export function simulate(seed: number, policy: Policy) {
     const s = game.state;
     if (s.status === 'ready') game.start();
     if (s.status === 'choice') {
-      const priority: Upgrade[] = policy === 'squad' ? ['rapid', 'pierce', 'damage', 'reinforcements', 'armor', 'medic'] : ['damage', 'rapid', 'pierce', 'reinforcements', 'armor', 'medic'];
-      if (s.hp < 55) priority.unshift('medic');
+      const priority: Upgrade[] = policy === 'squad' ? ['rapid', 'pierce', 'damage', 'reinforcements'] : ['damage', 'rapid', 'pierce', 'reinforcements'];
+      if (s.soldiers < 18) priority.unshift('reinforcements');
       game.choose(offers(seed, s.stage).sort((a, b) => priority.indexOf(a) - priority.indexOf(b))[0]); choices++;
     }
     if (ticks % (policy === 'reactive' ? 24 : 12) === 0) {
@@ -45,19 +45,20 @@ export function simulate(seed: number, policy: Policy) {
       if (policy !== 'reactive' || random() > .15) game.steer(target + (policy === 'reactive' ? (random() - .5) * .7 : 0));
     }
     game.step(1 / 60); ticks++;
-    if (![s.hp, s.soldiers, s.score, s.x, s.z].every(Number.isFinite) || s.hp < 0 || s.soldiers < 0 || s.soldiers > 180) throw new Error(`Invalid state ${seed}/${policy}`);
+    if (![s.soldiers, s.score, s.x, s.z].every(Number.isFinite) || !Number.isInteger(s.soldiers) || s.soldiers < 0 || s.soldiers > 180 || (s.status === 'over' && s.soldiers !== 0) || (s.status === 'cleared' && s.soldiers === 0)) throw new Error(`Invalid state ${seed}/${policy}`);
   }
   if (ticks >= 60 * 360) throw new Error(`Stalled ${seed}/${policy}`);
-  return { seed, policy, cleared: game.state.status === 'cleared', stage: game.state.stage, hp: Math.round(game.state.hp), score: game.state.score, seconds: Math.round(ticks / 60), choices };
+  return { seed, policy, cleared: game.state.status === 'cleared', stage: game.state.stage, soldiers: game.state.soldiers, score: game.state.score, seconds: Math.round(ticks / 60), choices };
 }
 const count = Number(process.env.SEEDS || 100);
+const firstSeed = Number(process.env.FIRST_SEED || 1);
 const policies: Policy[] = ['idle', 'random', 'squad', 'damage', 'balanced', 'reactive', 'sweep'];
 const results = policies.map(policy => {
-  const runs = Array.from({ length: count }, (_, i) => simulate(i + 1, policy));
-  const avg = (key: 'stage' | 'score' | 'seconds') => +(runs.reduce((n, r) => n + r[key], 0) / count).toFixed(1);
-  return { policy, runs: count, wins: runs.filter(r => r.cleared).length, meanStage: avg('stage'), meanScore: avg('score'), meanSeconds: avg('seconds') };
+  const runs = Array.from({ length: count }, (_, i) => simulate(i + firstSeed, policy));
+  const avg = (key: 'stage' | 'score' | 'seconds' | 'soldiers') => +(runs.reduce((n, r) => n + r[key], 0) / count).toFixed(1);
+  return { policy, runs: count, wins: runs.filter(r => r.cleared).length, meanStage: avg('stage'), meanScore: avg('score'), meanSeconds: avg('seconds'), meanSurvivors: avg('soldiers'), reachedStage: [1, 2, 3, 4, 5].map(stage => runs.filter(r => r.stage >= stage).length) };
 });
-const report = { seeds: `1–${count}`, timestep: '1/60 s; decisions every 200 ms (reactive: 400 ms, 15% missed inputs, ±0.35 steering error)', results };
+const report = { seeds: `${firstSeed}–${firstSeed + count - 1}`, timestep: '1/60 s; decisions every 200 ms (reactive: 400 ms, 15% missed inputs, ±0.35 steering error)', results };
 console.log(JSON.stringify(report, null, 2));
 if (process.argv.includes('--write')) writeFileSync('docs/gate-runner-simulations.json', JSON.stringify(report, null, 2) + '\n');
 

@@ -15,7 +15,6 @@ app.innerHTML = `<main class="shell">
   <header><a href="/" aria-label="Back to arcade">${icon('back')}</a><h1 id="stage">Stage 1 / 5</h1><button id="pause" aria-label="Pause game">${icon('pause')}</button></header>
   <div class="hud">
     <div class="stat" id="squad-stat"><span>Soldiers</span><strong id="squad">12</strong><span class="delta" id="squad-delta" aria-hidden="true"></span></div>
-    <div class="stat health-stat" id="health-stat"><span id="health-label">Health</span><strong id="health">100</strong><span class="delta" id="health-delta" aria-hidden="true"></span><div class="health-track" aria-hidden="true"><div id="health-fill"></div></div></div>
   </div>
   <div class="progress" id="progress" role="progressbar" aria-label="Stage progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-fill"></div></div>
   <div class="arena"><canvas aria-label="Drag or use arrow keys to steer. Shots fire automatically when you line up with an enemy. Escape pauses." tabindex="0"></canvas>
@@ -39,7 +38,7 @@ const feedback = new Feedback(), sound = new GameSound();
 const params = new URLSearchParams(location.search), seedParam = params.get('seed');
 let game = new GateRunner(seedParam && /^\d{1,10}$/.test(seedParam) ? Number(seedParam) : undefined);
 let paused = false, last = 0, shown = '', best = getBestScore('gate-runner'), activePointer: number | null = null;
-let transitionAt = 0, recovered = 0, isDaily = false, noticeUntil = 0;
+let transitionAt = 0, isDaily = false, noticeUntil = 0;
 const keys = new Set<string>(), badges = new Map<string, number>();
 const text = (id: string, value: string) => { if (el(id).textContent !== value) el(id).textContent = value; };
 const resize = () => {
@@ -48,15 +47,14 @@ const resize = () => {
 };
 new ResizeObserver(resize).observe(canvas);
 function reset(seed?: number, daily = false) {
-  game = new GateRunner(seed); feedback.reset(); paused = false; recovered = 0; transitionAt = 0;
+  game = new GateRunner(seed); feedback.reset(); paused = false; transitionAt = 0;
   isDaily = daily; keys.clear(); activePointer = null; badges.clear();
-  for (const id of ['squad-delta', 'health-delta', 'notice']) text(id, '');
+  for (const id of ['squad-delta', 'notice']) text(id, '');
   game.start(); updateOverlay(); canvas.focus({ preventScroll: true });
 }
 const defeat = {
   mine: 'A mine took out your squad. Stay clear of the marked circles.',
   collision: 'An enemy reached your squad. Line up your shots, then move clear.',
-  breach: 'Too many enemies got through. Enemies that escape cost health.',
   projectile: 'Enemy fire stopped your run. Move when the red aiming lines appear.',
 };
 function updateOverlay() {
@@ -70,7 +68,7 @@ function updateOverlay() {
   (el('pause') as HTMLButtonElement).disabled = s.status !== 'playing';
   el('pause').innerHTML = icon(paused ? 'play' : 'pause');
   text('title', paused ? 'Paused' : s.status === 'ready' ? 'Gate Runner' : s.status === 'choice' ? 'Choose an upgrade' : s.status === 'cleared' ? 'All five cleared' : 'Run over');
-  text('message', paused ? 'Resume when you’re ready.' : s.status === 'ready' ? 'Move beneath enemies to shoot automatically. Choose gates to grow stronger.' : s.status === 'choice' ? `Next: stage ${s.stage + 1} of 5${recovered > 0 ? ` · +${Math.ceil(recovered)} health` : ''}` : s.status === 'cleared' ? 'Try a new course, or beat your score on this one.' : defeat[s.lastDamage ?? 'projectile']);
+  text('message', paused ? 'Resume when you’re ready.' : s.status === 'ready' ? 'Your squad is your life. Dodge attacks and recruit soldiers at gates. Shots fire automatically.' : s.status === 'choice' ? `Next: stage ${s.stage + 1} of 5` : s.status === 'cleared' ? 'Try a new course, or beat your score on this one.' : defeat[s.lastDamage ?? 'projectile']);
   text('action', paused ? 'Resume' : s.status === 'ready' ? 'Start run' : 'Retry this run');
   el('action').hidden = s.status === 'choice';
   el('retry').hidden = !['over', 'cleared'].includes(s.status) || paused;
@@ -80,7 +78,7 @@ function updateOverlay() {
   el('details').hidden = !paused;
   app.querySelector<HTMLElement>('.menu-back')!.hidden = s.status === 'choice';
   text('course', `${isDaily ? 'Daily challenge · ' : ''}Course ${s.seed}`);
-  const stats = [['Damage', s.damage.toFixed(1)], ['Fire rate', `${s.rate.toFixed(1)} / sec`], ['Damage blocked', `${Math.round(s.armor * 100)}%`], ['Targets per shot', String(s.pierce + 1)]];
+  const stats = [['Damage', s.damage.toFixed(1)], ['Fire rate', `${s.rate.toFixed(1)} / sec`], ['Targets per shot', String(s.pierce + 1)]];
   el('build').replaceChildren();
   for (const [name, value] of stats) { const dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = name; dd.textContent = value; el('build').append(dt, dd); }
   text('best', best > 0 && s.status !== 'choice' ? `Personal best ${best.toLocaleString()}` : '');
@@ -147,13 +145,12 @@ function pulse(id: string, positive: boolean) {
 }
 function handleEvents(events: GameEvent[]) {
   feedback.accept(events); sound.play(events);
-  const health = events.reduce((n, e) => n + e.health, 0), squad = events.reduce((n, e) => n + e.squad, 0);
-  for (const [id, value] of [['health', health], ['squad', squad]] as const) if (value !== 0) {
+  const squad = events.reduce((n, e) => n + e.squad, 0);
+  for (const [id, value] of [['squad', squad]] as const) if (value !== 0) {
     const signed = `${value > 0 ? '+' : '−'}${Math.ceil(Math.abs(value))}`;
     text(`${id}-delta`, signed); el(`${id}-delta`).dataset.tone = value > 0 ? 'gain' : 'loss'; badges.set(id, feedback.time + 1.15); pulse(id, value > 0);
   }
   if (events.some(e => e.score > 0)) pulse('score', true);
-  const clear = events.find(e => e.type === 'clear'); if (clear) recovered = clear.health;
   const upgrade = events.find(e => e.type === 'upgrade');
   if (upgrade) { text('notice', `${upgrade.text} equipped`); noticeUntil = feedback.time + 1.4; }
   const announcement = announce(events); if (announcement) text('announcement', announcement);
@@ -178,10 +175,8 @@ function frame(t: number) {
     } else updateOverlay();
   }
   draw(ctx, canvas.clientWidth, canvas.clientHeight, game, feedback);
-  text('stage', `Stage ${s.stage} / 5`); text('squad', String(s.soldiers)); text('health', String(Math.ceil(s.hp)));
-  el('health-stat').dataset.low = String(s.hp <= 25);
-  text('health-label', s.hp <= 25 ? 'Low health' : 'Health');
-  el('health-fill').style.transform = `scaleX(${s.hp / 100})`;
+  el('squad-stat').dataset.low = String(s.soldiers <= 5);
+  text('stage', `Stage ${s.stage} / 5`); text('squad', String(s.soldiers));
   text('score', s.score.toLocaleString());
   const percent = Math.round(s.z / game.level.length * 100);
   el('progress-fill').style.transform = `scaleX(${percent / 100})`;
