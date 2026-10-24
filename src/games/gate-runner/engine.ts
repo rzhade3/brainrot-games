@@ -1,53 +1,240 @@
-export type GateKind = 'add'|'multiply'|'damage'|'rapid'|'armor'|'sacrifice';
-export type EnemyKind = 'grunt'|'runner'|'shield'|'sniper'|'bomber'|'spawner';
-export type Upgrade = 'reinforcements'|'damage'|'rapid'|'armor'|'pierce'|'lastStand'|'interest';
-export interface Gate { x:number; z:number; kind:GateKind; value:number; used:boolean }
-export interface Enemy { id:number; x:number; z:number; hp:number; maxHp:number; kind:EnemyKind; cooldown:number }
-export interface Shot { x:number; z:number; damage:number; pierce:number }
-export interface Segment { kind:'gates'|'wave'|'hazard'|'elite'; z:number; gates?:Gate[]; enemies?:Enemy[]; hazardX?:number }
-export interface Level { seed:number; stage:number; segments:Segment[]; length:number }
-export interface State { x:number; z:number; soldiers:number; hp:number; damage:number; rate:number; armor:number; pierce:number; currency:number; score:number; stage:number; status:'ready'|'playing'|'choice'|'cleared'|'over'; upgrades:Upgrade[]; enemies:Enemy[]; gates:Gate[]; shots:Shot[]; kills:number; elapsed:number; nextShot:number; spawnTimer:number; seed:number }
-const clamp=(n:number,a:number,b:number)=>Math.max(a,Math.min(b,n));
-export function rng(seed:number){let s=seed>>>0;return ()=>{s=(s+0x6D2B79F5)|0;let t=Math.imul(s^(s>>>15),1|s);t^=t+Math.imul(t^(t>>>7),61|t);return ((t^(t>>>14))>>>0)/4294967296}}
-export const WIDTH=8, SPEED=7, MAX_SOLDIERS=180;
-export function generate(seed:number,stage:number):Level {
- const r=rng((seed^Math.imul(stage,0x9e3779b9))>>>0),segments:Segment[]=[];
- const kinds:EnemyKind[]=['grunt','runner','shield','sniper','bomber','spawner'];
- let id=0;
- for(let i=0;i<6;i++){
-  const z=15+i*24;
-  if(i===0||i===2||i===4){
-   const gateA:Gate={x:-2.1,z,kind:i===0?'multiply':i===2?'add':'damage',value:i===0?2: i===2?8+stage*2:0.35,used:false};
-   const gateB:Gate={x:2.1,z,kind:i===0?'damage':i===2?'rapid':'armor',value:i===0?0.6:i===2?0.35:0.3,used:false};
-   segments.push({kind:'gates',z,gates:[gateA,gateB]});
-  }else{
-   const elite=i===5, count=elite?2+Math.floor(stage/3):3+Math.floor(stage*0.8)+Math.floor(r()*3);
-   const enemies:Enemy[]=Array.from({length:count},(_,j)=>{const kind=elite?'shield':kinds[Math.floor(r()*Math.min(kinds.length,2+stage))];const hp=(kind==='shield'?10:kind==='runner'?3:6)*(1+stage*.22)*(elite?3:1);return {id:id++,x:-3+r()*6,z:z+j*1.7,hp,maxHp:hp,kind,cooldown:0}});
-   segments.push({kind:elite?'elite':'wave',z,enemies});
+export type GateKind = 'add' | 'multiply' | 'damage' | 'rapid' | 'armor' | 'sacrifice';
+export type EnemyKind = 'grunt' | 'runner' | 'shield' | 'sniper' | 'bomber' | 'spawner' | 'boss';
+export type Upgrade = 'reinforcements' | 'damage' | 'rapid' | 'armor' | 'pierce' | 'medic';
+export interface Gate { x: number; z: number; kind: GateKind; value: number; used: boolean }
+export interface Enemy {
+  id: number; x: number; z: number; hp: number; maxHp: number; kind: EnemyKind;
+  cooldown: number; warning: number; aim: number; spawned: number;
+}
+export interface Shot { x: number; z: number; vx: number; vz: number; damage: number; pierce: number; hits: number[] }
+export interface Danger { x: number; z: number; vx: number; vz: number; damage: number }
+export interface Hazard { x: number; z: number; used: boolean }
+export interface Segment { kind: 'gates' | 'wave' | 'hazard' | 'elite'; z: number; gates?: Gate[]; enemies?: Enemy[]; hazards?: Hazard[] }
+export interface Level { seed: number; stage: number; segments: Segment[]; length: number }
+export interface State {
+  x: number; targetX: number; z: number; soldiers: number; hp: number; damage: number;
+  rate: number; armor: number; pierce: number; score: number; stage: number;
+  status: 'ready' | 'playing' | 'choice' | 'cleared' | 'over'; upgrades: Upgrade[];
+  enemies: Enemy[]; gates: Gate[]; shots: Shot[]; dangers: Danger[]; hazards: Hazard[];
+  kills: number; breaches: number; elapsed: number; nextShot: number; seed: number;
+  feedback: string; feedbackUntil: number;
+}
+const clamp = (n: number, a: number, b: number) => Math.max(a, Math.min(b, n));
+export const WIDTH = 8, SPEED = 7, MAX_SOLDIERS = 180, STEP = 1 / 60;
+export function rng(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+export const UPGRADE_INFO: Record<Upgrade, { name: string; detail: string }> = {
+  reinforcements: { name: 'Reinforce', detail: '+18 soldiers' },
+  damage: { name: 'Heavy rounds', detail: '+30% damage' },
+  rapid: { name: 'Rapid fire', detail: '+25% fire rate' },
+  armor: { name: 'Armor', detail: '20% less incoming damage' },
+  pierce: { name: 'Piercing rounds', detail: 'Hit one extra enemy per shot' },
+  medic: { name: 'Field medic', detail: 'Restore 35 HP · +5 soldiers' },
+};
+export const UPGRADES = Object.keys(UPGRADE_INFO) as Upgrade[];
+export function offers(seed: number, stage: number): Upgrade[] {
+  const r = rng(seed ^ Math.imul(stage, 971)), pool = [...UPGRADES];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
   }
- }
- return {seed,stage,segments,length:164};
+  return pool.slice(0, 3);
+}
+export function gateLabel(g: Gate): string {
+  if (g.kind === 'add') return `+${g.value} squad`;
+  if (g.kind === 'multiply') return `×${g.value} squad`;
+  if (g.kind === 'sacrifice') return '−30% squad';
+  return `+${Math.round(g.value * 100)}% ${g.kind === 'rapid' ? 'fire rate' : g.kind}`;
+}
+export function generate(seed: number, stage: number): Level {
+  const r = rng(seed ^ Math.imul(stage, 0x9e3779b9)), segments: Segment[] = [];
+  let id = 0;
+  const enemy = (kind: EnemyKind, x: number, z: number): Enemy => {
+    const base = { grunt: 11, runner: 8, shield: 28, sniper: 12, bomber: 14, spawner: 24, boss: 260 }[kind];
+    const hp = base * (1 + (stage - 1) * .48) * (kind === 'boss' ? 1 + (stage - 1) * .7 : 1);
+    return { id: id++, x, z, kind, hp, maxHp: hp, cooldown: 1.2 + r(), warning: 0, aim: 0, spawned: 0 };
+  };
+  for (let i = 0; i < 3; i++) {
+    const z = 16 + i * 48;
+    const troop: Gate = { x: -2, z, kind: i === 0 ? 'multiply' : 'add', value: i === 0 ? 1.7 : 12 + stage * 2, used: false };
+    const kinds: GateKind[] = stage === 1 ? ['damage', 'rapid', 'armor'] : ['damage', 'rapid', 'armor', 'sacrifice'];
+    const kind = kinds[Math.floor(r() * kinds.length)];
+    const build: Gate = { x: 2, z, kind, value: kind === 'armor' ? .18 : .35, used: false };
+    if (r() < .5) [troop.x, build.x] = [build.x, troop.x];
+    segments.push({ kind: 'gates', z, gates: [troop, build] });
+    const roster: EnemyKind[] = ['grunt', 'runner', 'shield', 'sniper', 'bomber', 'spawner'].slice(0, Math.min(6, stage + 2)) as EnemyKind[];
+    const count = 4 + stage;
+    const enemies = Array.from({ length: count }, (_, j) => enemy(roster[Math.floor(r() * roster.length)], (j % 3 - 1) * 2.3 + (r() - .5) * .5, z + 20 + Math.floor(j / 3) * 4));
+    segments.push({ kind: 'wave', z: z + 20, enemies });
+    // Mines follow combat, leaving two full lanes free and >2 seconds after each gate.
+    segments.push({ kind: 'hazard', z: z + 34, hazards: [{ x: (Math.floor(r() * 3) - 1) * 2.3, z: z + 34, used: false }] });
+  }
+  segments.push({ kind: 'elite', z: 166, enemies: [enemy('boss', 0, 166)] });
+  return { seed, stage, segments, length: 174 };
 }
 export class GateRunner {
- state:State; level:Level; private accumulator=0;
- constructor(seed=12345){this.level=generate(seed,1);this.state={x:0,z:0,soldiers:12,hp:100,damage:2,rate:3,armor:0,pierce:0,currency:0,score:0,stage:1,status:'ready',upgrades:[],enemies:[],gates:[],shots:[],kills:0,elapsed:0,nextShot:0,spawnTimer:0,seed};this.load();}
- private load(){this.level=generate(this.state.seed,this.state.stage);this.state.z=0;this.state.x=0;this.state.enemies=this.level.segments.flatMap(s=>s.enemies?.map(e=>({...e}))??[]);this.state.gates=this.level.segments.flatMap(s=>s.gates?.map(g=>({...g}))??[]);this.state.shots=[];this.state.nextShot=0;this.state.elapsed=0;this.accumulator=0}
- start(){if(this.state.status==='ready')this.state.status='playing'}
- steer(x:number){this.state.x=clamp(x,-3.35,3.35)}
- choose(upgrade:Upgrade){if(this.state.status!=='choice')return;this.state.upgrades.push(upgrade);const s=this.state;if(upgrade==='reinforcements')s.soldiers=Math.min(MAX_SOLDIERS,s.soldiers+12);if(upgrade==='damage')s.damage*=1.35;if(upgrade==='rapid')s.rate*=1.25;if(upgrade==='armor')s.armor=1-(1-s.armor)*.8;if(upgrade==='pierce')s.pierce++;if(upgrade==='interest')s.currency+=Math.round(s.currency*.3);s.stage++;this.load();s.status='ready'}
- step(dt:number){if(this.state.status!=='playing')return;this.accumulator+=Math.min(dt,.1);while(this.accumulator>=1/60){this.tick(1/60);this.accumulator-=1/60}}
- private tick(dt:number){
-  const s=this.state;s.elapsed+=dt;s.z+=SPEED*dt;
-  for(const g of s.gates){if(!g.used&&s.z>=g.z){g.used=true;if(Math.abs(s.x-g.x)<1.5)this.applyGate(g)}}
-  if(s.nextShot<=s.elapsed){const target=s.enemies.filter(e=>e.hp>0&&e.z>=s.z-1&&e.z<s.z+21&&Math.abs(e.x-s.x)<3.6).sort((a,b)=>a.z-b.z)[0];if(target){const strength=Math.max(1,Math.sqrt(s.soldiers));s.shots.push({x:s.x,z:s.z+1,damage:s.damage*strength*.48,pierce:s.pierce});s.nextShot=s.elapsed+1/s.rate}}
-  for(const shot of s.shots){shot.z+=38*dt;const hit=s.enemies.find(e=>e.hp>0&&Math.abs(e.z-shot.z)<.9&&Math.abs(e.x-shot.x)<1.35);if(hit){hit.hp-=shot.damage;shot.pierce--;if(shot.pierce<0)shot.z=Infinity;if(hit.hp<=0){s.kills++;s.score+=100;s.currency+=2}}}
-  s.shots=s.shots.filter(b=>b.z<s.z+24);
-  for(const e of s.enemies){if(e.hp<=0)continue;if(e.z<s.z+1.2&&e.z>s.z-2.2){if(Math.abs(e.x-s.x)<1.4){const damage=e.kind==='bomber'?13:e.kind==='shield'?6:4;s.hp-=damage*(1-s.armor);s.soldiers=Math.max(0,s.soldiers-(e.kind==='bomber'?5:1));e.hp=0}else if(e.z<s.z-1.6)e.hp=0}}
-  if(s.hp<=0||s.soldiers<=0){s.status='over';return}
-  if(s.z>=this.level.length){s.score+=Math.floor(s.hp)*10+s.soldiers*15;s.status=s.stage>=5?'cleared':'choice'}
- }
- private applyGate(g:Gate){const s=this.state;switch(g.kind){case 'add':s.soldiers=Math.min(MAX_SOLDIERS,s.soldiers+g.value);break;case 'multiply':s.soldiers=Math.min(MAX_SOLDIERS,Math.floor(s.soldiers*g.value));break;case 'damage':s.damage*=1+g.value;break;case 'rapid':s.rate*=1+g.value;break;case 'armor':s.armor=1-(1-s.armor)*(1-g.value);break;case 'sacrifice':s.soldiers=Math.max(1,Math.floor(s.soldiers*.7));s.damage*=2;break}}
- snapshot(){return JSON.parse(JSON.stringify(this.state)) as State}
+  state: State;
+  level: Level;
+  private accumulator = 0;
+  private nextId = 1000;
+  constructor(seed = Math.floor(Math.random() * 4294967296)) {
+    seed >>>= 0;
+    this.level = generate(seed, 1);
+    this.state = {
+      x: 0, targetX: 0, z: 0, soldiers: 12, hp: 100, damage: 2.7, rate: 3.5,
+      armor: 0, pierce: 0, score: 0, stage: 1, status: 'ready', upgrades: [],
+      enemies: [], gates: [], shots: [], dangers: [], hazards: [], kills: 0,
+      breaches: 0, elapsed: 0, nextShot: 0, seed, feedback: '', feedbackUntil: 0,
+    };
+    this.load();
+  }
+  private load() {
+    const s = this.state;
+    this.level = generate(s.seed, s.stage);
+    s.z = s.x = s.targetX = s.elapsed = s.nextShot = 0;
+    s.enemies = this.level.segments.flatMap(seg => seg.enemies?.map(e => ({ ...e })) ?? []);
+    s.gates = this.level.segments.flatMap(seg => seg.gates?.map(g => ({ ...g })) ?? []);
+    s.hazards = this.level.segments.flatMap(seg => seg.hazards?.map(h => ({ ...h })) ?? []);
+    s.shots = []; s.dangers = []; s.feedback = ''; s.feedbackUntil = 0;
+    this.accumulator = 0;
+  }
+  start() { if (this.state.status === 'ready') this.state.status = 'playing'; }
+  steer(x: number) { if (Number.isFinite(x) && this.state.status === 'playing') this.state.targetX = clamp(x, -3.2, 3.2); }
+  choose(upgrade: Upgrade) {
+    const s = this.state;
+    if (s.status !== 'choice' || !offers(s.seed, s.stage).includes(upgrade)) return;
+    s.upgrades.push(upgrade);
+    switch (upgrade) {
+      case 'reinforcements': s.soldiers = Math.min(MAX_SOLDIERS, s.soldiers + 18); break;
+      case 'damage': s.damage *= 1.3; break;
+      case 'rapid': s.rate = Math.min(14, s.rate * 1.25); break;
+      case 'armor': s.armor = 1 - (1 - s.armor) * .8; break;
+      case 'pierce': s.pierce++; break;
+      case 'medic': s.hp = Math.min(100, s.hp + 35); s.soldiers = Math.min(MAX_SOLDIERS, s.soldiers + 5); break;
+    }
+    s.stage++; this.load(); s.status = 'ready';
+  }
+  step(dt: number) {
+    if (this.state.status !== 'playing' || !Number.isFinite(dt) || dt <= 0) return;
+    this.accumulator += Math.min(dt, .1);
+    while (this.accumulator + 1e-10 >= STEP && this.state.status === 'playing') {
+      this.accumulator -= STEP;
+      this.tick(STEP);
+    }
+    if (this.state.status !== 'playing') this.accumulator = 0;
+  }
+  private feedback(text: string) { this.state.feedback = text; this.state.feedbackUntil = this.state.elapsed + 1.5; }
+  private hurt(damage: number, loss: number, reason: string) {
+    const s = this.state;
+    s.hp = Math.max(0, s.hp - damage * (1 - s.armor));
+    s.soldiers = Math.max(0, s.soldiers - loss);
+    this.feedback(reason);
+  }
+  private tick(dt: number) {
+    const s = this.state;
+    s.elapsed += dt;
+    s.x += clamp(s.targetX - s.x, -8 * dt, 8 * dt);
+    const boss = s.enemies.find(e => e.kind === 'boss' && e.hp > 0);
+    s.z = Math.min(s.z + SPEED * dt, boss ? 150 : this.level.length);
+    for (const g of s.gates) {
+      if (!g.used && s.z >= g.z) {
+        g.used = true;
+        // Entire road belongs to one of the pair: the old center gap silently missed both.
+        if ((s.x < 0) === (g.x < 0)) this.applyGate(g);
+      }
+    }
+    for (const h of s.hazards) {
+      if (!h.used && s.z >= h.z) {
+        h.used = true;
+        if (Math.abs(s.x - h.x) < .85) this.hurt(12, 3, 'Mine · −3 squad');
+      }
+    }
+    for (const e of [...s.enemies]) {
+      if (e.hp <= 0 || e.z - s.z > 29) continue;
+      if (e.kind === 'runner') e.z -= 2.2 * dt;
+      if (e.kind === 'bomber' && e.z - s.z < 12) e.x += clamp(s.x - e.x, -dt * 1.25, dt * 1.25);
+      if (e.kind === 'boss') e.x = Math.sin(s.elapsed * .65) * 2.2;
+      if (e.kind === 'spawner' && e.spawned < 2 && e.z - s.z < 23) {
+        e.cooldown -= dt;
+        if (e.cooldown <= 0) {
+          s.enemies.push({ ...e, id: this.nextId++, kind: 'runner', x: clamp(e.x + (e.spawned ? .7 : -.7), -3, 3), z: e.z - 1, hp: 6 + s.stage * 2, maxHp: 6 + s.stage * 2, warning: 0 });
+          e.spawned++; e.cooldown = 1.6;
+        }
+      }
+      if ((e.kind === 'sniper' || e.kind === 'boss') && e.z > s.z + 3) {
+        e.cooldown -= dt;
+        if (e.warning > 0) {
+          e.warning -= dt;
+          if (e.warning <= 0) {
+            const dz = s.z - e.z, dx = e.aim - e.x, distance = Math.hypot(dx, dz);
+            for (const offset of e.kind === 'boss' ? [-.15, 0, .15] : [0]) {
+              s.dangers.push({ x: e.x, z: e.z, vx: dx / distance * 18 + offset * 18, vz: dz / distance * 18, damage: e.kind === 'boss' ? 16 : 7 });
+            }
+            e.cooldown = e.kind === 'boss' ? 1.0 : 2.2;
+          }
+        } else if (e.cooldown <= 0) { e.warning = .85; e.aim = s.x; }
+      }
+      if (e.z < s.z + 1) {
+        if (Math.abs(e.x - s.x) < 1.05) {
+          this.hurt(e.kind === 'bomber' ? 16 : 8, e.kind === 'bomber' ? 4 : 2, 'Collision'); e.hp = 0;
+        } else if (e.z < s.z - 1.5) {
+          this.hurt(3, 0, 'Enemy escaped · −3 HP'); s.breaches++; e.hp = 0;
+        }
+      }
+    }
+    if (s.nextShot <= s.elapsed) {
+      const target = s.enemies.filter(e => e.hp > 0 && e.z > s.z && e.z < s.z + 27)
+        .sort((a, b) => (a.z - s.z + Math.abs(a.x - s.x) * 2) - (b.z - s.z + Math.abs(b.x - s.x) * 2))[0];
+      if (target) {
+        const dx = target.x - s.x, dz = target.z - s.z, distance = Math.hypot(dx, dz);
+        s.shots.push({ x: s.x, z: s.z + .6, vx: dx / distance * 43, vz: dz / distance * 43, damage: s.damage * Math.sqrt(s.soldiers) * .52, pierce: s.pierce, hits: [] });
+        s.nextShot = s.elapsed + 1 / s.rate;
+      }
+    }
+    for (const b of s.shots) {
+      const ox = b.x, oz = b.z;
+      b.x += b.vx * dt; b.z += b.vz * dt;
+      for (const e of s.enemies) {
+        if (e.hp <= 0 || b.hits.includes(e.id)) continue;
+        const t = clamp(((e.x - ox) * (b.x - ox) + (e.z - oz) * (b.z - oz)) / ((b.x - ox) ** 2 + (b.z - oz) ** 2), 0, 1);
+        if (Math.hypot(e.x - ox - t * (b.x - ox), e.z - oz - t * (b.z - oz)) > (e.kind === 'boss' ? 1.15 : .65)) continue;
+        e.hp -= b.damage * (e.kind === 'shield' && s.pierce === 0 ? .65 : 1);
+        b.hits.push(e.id);
+        if (e.hp <= 0) { s.kills++; s.score += e.kind === 'boss' ? 600 : 100; }
+        if (b.hits.length > b.pierce) break;
+      }
+    }
+    s.shots = s.shots.filter(b => b.hits.length <= b.pierce && b.z < s.z + 32);
+    s.dangers = s.dangers.filter(b => {
+      b.x += b.vx * dt; b.z += b.vz * dt;
+      if (Math.abs(b.z - s.z) < .6 && Math.abs(b.x - s.x) < .55) { this.hurt(b.damage, 1, 'Hit · −1 squad'); return false; }
+      return b.z > s.z - 2 && Math.abs(b.x) < 5;
+    });
+    if (s.hp <= 0 || s.soldiers <= 0) { s.status = 'over'; return; }
+    if (s.z >= this.level.length) {
+      s.score += Math.floor(s.hp) * 5 + s.soldiers * 8;
+      s.hp = Math.min(100, s.hp + 10);
+      s.status = s.stage === 5 ? 'cleared' : 'choice';
+    }
+  }
+  private applyGate(g: Gate) {
+    const s = this.state;
+    switch (g.kind) {
+      case 'add': s.soldiers = Math.min(MAX_SOLDIERS, s.soldiers + g.value); break;
+      case 'multiply': s.soldiers = Math.min(MAX_SOLDIERS, Math.floor(s.soldiers * g.value)); break;
+      case 'damage': s.damage *= 1 + g.value; break;
+      case 'rapid': s.rate = Math.min(14, s.rate * (1 + g.value)); break;
+      case 'armor': s.armor = 1 - (1 - s.armor) * (1 - g.value); break;
+      case 'sacrifice': s.soldiers = Math.max(1, Math.floor(s.soldiers * .7)); s.damage *= 1.8; break;
+    }
+    this.feedback(g.kind === 'sacrifice' ? '−30% squad · +80% damage' : gateLabel(g));
+  }
+  snapshot(): State { return JSON.parse(JSON.stringify(this.state)) as State; }
 }
-export const UPGRADES:Upgrade[]=['reinforcements','damage','rapid','armor','pierce','lastStand','interest'];
-export function offers(seed:number,stage:number):Upgrade[]{const r=rng(seed+stage*971);return [...UPGRADES].sort(()=>r()-.5).slice(0,3)}

@@ -1,0 +1,54 @@
+{
+  "seeds": "1–300",
+  "timestep": "1/60 s; decisions every 200 ms (reactive: 400 ms, 15% missed inputs, ±0.35 steering error)",
+  "results": [
+    {
+      "policy": "idle",
+      "runs": 300,
+      "wins": 10,
+      "meanStage": 2.1,
+      "meanScore": 4125.6,
+      "meanSeconds": 59.3
+    },
+    {
+      "policy": "random",
+      "runs": 300,
+      "wins": 101,
+      "meanStage": 3.1,
+      "meanScore": 8602.3,
+      "meanSeconds": 94.4
+    },
+    {
+      "policy": "squad",
+      "runs": 300,
+      "wins": 300,
+      "meanStage": 5,
+      "meanScore": 21163.4,
+      "meanSeconds": 195.7
+    },
+    {
+      "policy": "damage",
+      "runs": 300,
+      "wins": 299,
+      "meanStage": 5,
+      "meanScore": 16992.5,
+      "meanSeconds": 155.4
+    },
+    {
+      "policy": "balanced",
+      "runs": 300,
+      "wins": 300,
+      "meanStage": 5,
+      "meanScore": 18299.2,
+      "meanSeconds": 155
+    },
+    {
+      "policy": "reactive",
+      "runs": 300,
+      "wins": 300,
+      "meanStage": 5,
+      "meanScore": 18137.1,
+      "meanSeconds": 155.2
+    }
+  ]
+}
