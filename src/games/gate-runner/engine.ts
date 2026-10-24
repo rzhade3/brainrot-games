@@ -29,7 +29,7 @@ export function generate(seed:number,stage:number):Level {
  return {seed,stage,segments,length:164};
 }
 export class GateRunner {
- state:State; level:Level; private accumulator=0; private nextId=10000;
+ state:State; level:Level; private accumulator=0;
  constructor(seed=12345){this.level=generate(seed,1);this.state={x:0,z:0,soldiers:12,hp:100,damage:2,rate:3,armor:0,pierce:0,currency:0,score:0,stage:1,status:'ready',upgrades:[],enemies:[],gates:[],shots:[],kills:0,elapsed:0,nextShot:0,spawnTimer:0,seed};this.load();}
  private load(){this.level=generate(this.state.seed,this.state.stage);this.state.z=0;this.state.x=0;this.state.enemies=this.level.segments.flatMap(s=>s.enemies?.map(e=>({...e}))??[]);this.state.gates=this.level.segments.flatMap(s=>s.gates?.map(g=>({...g}))??[]);this.state.shots=[];this.state.nextShot=0;this.state.elapsed=0;this.accumulator=0}
  start(){if(this.state.status==='ready')this.state.status='playing'}
