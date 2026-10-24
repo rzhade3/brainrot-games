@@ -9,6 +9,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         breakout: resolve(__dirname, 'games/breakout/index.html'),
+        gateRunner: resolve(__dirname, 'games/gate-runner/index.html'),
         untangle: resolve(__dirname, 'games/untangle/index.html'),
         towerDefense: resolve(__dirname, 'games/tower-defense/index.html'),
         topDown: resolve(__dirname, 'games/top-down/index.html'),
