@@ -59,3 +59,8 @@ const results = policies.map(policy => {
 const report = { seeds: `1–${count}`, timestep: '1/60 s; decisions every 200 ms (reactive: 400 ms, 15% missed inputs, ±0.35 steering error)', results };
 console.log(JSON.stringify(report, null, 2));
 if (process.argv.includes('--write')) writeFileSync('docs/gate-runner-simulations.json', JSON.stringify(report, null, 2) + '\n');
+
+if (process.argv.includes('--check')) {
+  const wins = (policy: Policy) => results.find(r => r.policy === policy)!.wins / count;
+  if (count < 100 || wins('idle') > .2 || wins('balanced') < .85 || wins('squad') < .85 || wins('damage') < .85) throw new Error('Balance regression: use >=100 seeds; idle <=20%, active >=85%');
+}
