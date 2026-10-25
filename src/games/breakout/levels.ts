@@ -1,7 +1,8 @@
+import { makeChambers, CHAMBER_NAMES, type Chamber } from './chambers';
 export type Power = 'triple' | 'add' | 'wide' | 'fire' | 'bomb' | 'shield' | 'slow';
-export interface Brick { x: number; y: number; w: number; h: number; hp: number; maxHp: number; power?: Power }
-export type Obstacle = { kind: 'steel'; x: number; y: number; w: number; h: number } | { kind: 'bumper'; x: number; y: number; radius: number };
-export interface Level { name: string; hint: string; bricks: Brick[]; obstacles: Obstacle[] }
+export interface Brick { x: number; y: number; w: number; h: number; hp: number; maxHp: number; power?: Power; chamber?: number; gate?: boolean; color?: string }
+export type Obstacle = { kind: 'steel'; vent?: number; x: number; y: number; w: number; h: number } | { kind: 'bumper'; x: number; y: number; radius: number };
+export interface Level { name: string; hint: string; bricks: Brick[]; obstacles: Obstacle[]; chambers?: Chamber[] }
 const powers: Power[] = ['add', 'wide', 'triple', 'fire', 'bomb', 'shield', 'slow', 'add'];
 const steel = (x: number, y: number, w: number, h = 18): Obstacle => ({ kind: 'steel', x, y, w, h });
 const bumper = (x: number, y: number, radius = 24): Obstacle => ({ kind: 'bumper', x, y, radius });
@@ -31,14 +32,16 @@ const designs = [
     mask: (r: number, c: number) => { const d = Math.hypot((c - 6.5) / 7, (r - 9.5) / 10); return d < 1 && d > .46; },
     obstacles: [bumper(360, 370, 42), steel(112, 660, 96), steel(512, 660, 96)] },
 ];
-export const LEVEL_NAMES = designs.map(d => d.name);
+export const LEVEL_NAMES = [...CHAMBER_NAMES, ...designs.map(d => d.name)];
 export function makeLevel(wave: number): Level {
-  const index = (Math.max(1, Math.floor(wave)) - 1) % designs.length;
+  const stage = (Math.max(1, Math.floor(wave)) - 1) % LEVEL_NAMES.length;
+  if (stage < 3) return makeChambers(stage, Math.floor((wave - 1) / LEVEL_NAMES.length));
+  const index = stage - 3;
   const design = designs[index];
   const bricks: Brick[] = [];
   for (let row = 0; row < 20; row++) for (let col = 0; col < 14; col++) {
     if (!design.mask(row, col)) continue;
-    const hp = 1 + Math.min(5, Math.floor((wave - 1) / 8) + ((row * 7 + col * 3 + index) % 5 === 0 ? 2 : (row + col) % 3 === 0 ? 1 : 0));
+    const hp = 1 + Math.min(5, Math.floor((wave - 1) / LEVEL_NAMES.length) + ((row * 7 + col * 3 + index) % 5 === 0 ? 2 : (row + col) % 3 === 0 ? 1 : 0));
     bricks.push({ x: 31 + col * 47, y: 90 + row * 28, w: 42, h: 23, hp, maxHp: hp });
   }
   // Eight spaced rewards, not a dense carpet that can auto-trigger itself.

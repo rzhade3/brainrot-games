@@ -17,10 +17,10 @@ const games: GameEntry[] = [
   {
     title: 'Break Rot',
     emoji: '🧱',
-    description: 'Play the angles through brick islands, steel vaults, and ricochet bumpers. Build a swarm. Start fresh each wave.',
+    description: 'Breach packed chambers, multiply your swarm, and catch the fallout. A fresh ball every wave.',
     href: './games/breakout/',
     ready: true,
-    scoreKey: 'breakout-v2',
+    scoreKey: 'breakout-v3',
     scoreLabel: 'pts',
   },
   {

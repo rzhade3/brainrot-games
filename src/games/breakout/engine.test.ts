@@ -1,26 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Breakout, MAX_BALLS, PADDLE_Y, H, W, R, TOP, BASE_WIDTH } from './engine';
-import { makeLevel } from './levels';
+import { Breakout, MAX_BALLS, PADDLE_Y, H, W, R, TOP } from './engine';
+import { makeLevel, LEVEL_NAMES } from './levels';
 const dt = 1 / 240;
 const origin = { x: 360, y: 740, vx: 60, vy: -520 };
 function running(wave = 1) { const g = new Breakout(wave); g.launch(); return g; }
 function isolate() { const g = running(); g.obstacles = []; return g; }
 
-test('eight distinct layouts vary counts, contain every power, and bound armor', () => {
+test('eleven distinct layouts vary counts and bound armor', () => {
   const signatures = new Set<string>(), counts = new Set<number>();
-  for (let wave = 1; wave <= 24; wave++) {
+  for (let wave = 1; wave <= 33; wave++) {
     const l = makeLevel(wave);
-    assert.equal(new Set(l.bricks.flatMap(b => b.power ? [b.power] : [])).size, 7);
-    assert.equal(l.bricks.filter(b => b.power).length, 8);
+    if (!l.chambers) assert.equal(new Set(l.bricks.flatMap(b => b.power ? [b.power] : [])).size, 7);
+    if (!l.chambers) assert.equal(l.bricks.filter(b => b.power).length, 8);
     assert.ok(l.bricks.every(b => b.hp > 0 && b.hp <= 6 && b.x >= 12 && b.x + b.w <= W - 12 && b.y + b.h < PADDLE_Y - 120));
-    if (wave <= 8) { signatures.add(JSON.stringify(l.bricks.map(b => [b.x, b.y]))); counts.add(l.bricks.length); }
+    if (wave <= LEVEL_NAMES.length) { signatures.add(JSON.stringify(l.bricks.map(b => [b.x, b.y]))); counts.add(l.bricks.length); }
     assert.deepEqual(makeLevel(wave), l);
   }
-  assert.equal(signatures.size, 8); assert.ok(counts.size >= 6);
+  assert.equal(signatures.size, LEVEL_NAMES.length); assert.ok(counts.size >= 6);
 });
 test('bricks never overlap each other or permanent obstacles', () => {
-  for (let wave = 1; wave <= 8; wave++) {
+  for (let wave = 1; wave <= LEVEL_NAMES.length; wave++) {
     const { bricks, obstacles } = makeLevel(wave);
     for (const [i, b] of bricks.entries()) {
       for (const other of bricks.slice(i + 1)) assert.ok(b.x + b.w <= other.x || other.x + other.w <= b.x || b.y + b.h <= other.y || other.y + other.h <= b.y, `Overlapping bricks in ${wave}`);
@@ -35,7 +35,7 @@ test('all targets are accessible from below around obstacles for a ball-sized ce
   // Conservative 6-unit flood: remove destructible bricks, expand permanent solids by R+2.
   // Proves no sealed steel/bumper enclosure; gameplay controllers assess practical reachability.
   const size = 6, nx = Math.floor(W / size), ny = Math.floor(H / size);
-  for (let wave = 1; wave <= 8; wave++) {
+  for (let wave = 1; wave <= LEVEL_NAMES.length; wave++) {
     const { bricks, obstacles } = makeLevel(wave);
     const seen = new Uint8Array(nx * ny), queue: number[] = [];
     function free(x: number, y: number) {
@@ -70,7 +70,7 @@ test('temporary buffs expire, repeated wide/save cannot compound, and timers fre
   for (let i = 0; i < 20; i++) for (const kind of ['wide', 'shield', 'slow', 'fire'] as const) g.power(kind, origin);
   assert.equal(g.width, 162); assert.equal(g.shields, 1); assert.equal(g.slow, 10); assert.equal(g.fire, 8);
   g.wide = dt / 2; g.fire = dt / 2; g.slow = dt / 2; g.step(dt);
-  assert.equal(g.width, BASE_WIDTH); assert.equal(g.fire, 0); assert.equal(g.slow, 0);
+  assert.equal(g.width, g.baseWidth); assert.equal(g.fire, 0); assert.equal(g.slow, 0);
   g.status = 'ready'; g.fire = 4; g.step(dt); assert.equal(g.fire, 4);
 });
 test('paddle edges aim returns, center avoids a vertical loop, and speed stays bounded', () => {
@@ -117,7 +117,7 @@ test('only final ball loss costs a life, loss resets all upgrades, and runs have
   g.balls = [{ x: 30, y: H - 33, vx: 0, vy: 500 }, { ...origin }];
   g.step(dt); assert.equal(g.shields, 0); assert.ok(g.balls[0].vy < 0);
   g.balls[0].y = H + 20; g.step(dt); assert.equal(g.lives, 3);
-  g.balls[0].y = H + 20; g.step(dt); assert.equal(g.lives, 2); assert.equal(g.width, BASE_WIDTH); assert.equal(g.status, 'ready');
+  g.balls[0].y = H + 20; g.step(dt); assert.equal(g.lives, 2); assert.equal(g.width, g.baseWidth); assert.equal(g.status, 'ready');
   for (let i = 0; i < 2; i++) { g.launch(); g.balls.forEach(b => b.y = H + 20); g.step(dt); }
   assert.equal(g.status, 'over'); assert.equal(g.lives, 0);
 });
@@ -125,20 +125,66 @@ test('clear excludes permanent obstacles, empties the swarm, resets buffs, and n
   const g = running(); g.power('triple', origin); g.power('wide', origin); g.power('fire', origin); g.power('shield', origin);
   g.bricks.forEach(b => b.hp = 0); g.step(dt);
   assert.equal(g.status, 'cleared'); assert.equal(g.wave, 1); assert.equal(g.lives, 3); assert.equal(g.balls.length, 0);
-  assert.equal(g.width, BASE_WIDTH); assert.equal(g.fire, 0); assert.equal(g.shields, 0); assert.ok(g.obstacles.length > 0);
+  assert.equal(g.width, g.baseWidth); assert.equal(g.fire, 0); assert.equal(g.shields, 0); assert.ok(g.obstacles.length > 0);
   g.nextWave(); assert.equal(g.wave, 2); assert.equal(g.status, 'ready'); assert.equal(g.balls.length, 0); assert.equal(g.lives, 3);
-  g.launch(); assert.equal(g.balls.length, 1); assert.equal(g.name, 'Diamond circuit');
+  g.launch(); assert.equal(g.balls.length, 1); assert.equal(g.name, 'Nested rings');
   g.nextWave(); assert.equal(g.wave, 2);
 });
 test('repeating flights are nudged without a teleport or speed explosion', () => {
   const g = isolate(); g.balls = [{ x: 300, y: 700, vx: 700, vy: 0, flight: 14.1 }]; g.step(dt);
   assert.ok(g.balls[0].vy > 0); assert.ok(Math.abs(g.balls[0].x - 300) < 5); assert.ok(g.balls[0].y - 700 < 5);
 });
-test('full-army simulation is finite and bounded across all eight geometries', () => {
-  for (let wave = 1; wave <= 8; wave++) {
+test('full-army simulation is finite and bounded across all eleven geometries', () => {
+  for (let wave = 1; wave <= LEVEL_NAMES.length; wave++) {
     const g = running(wave); for (let i = 0; i < 4; i++) g.power('triple', origin);
     for (let i = 0; i < 2400 && g.status === 'playing'; i++) { g.move(g.balls.find(b => b.vy > 0)?.x ?? W / 2); g.step(dt); g.hits = []; }
     assert.ok(g.balls.length <= MAX_BALLS);
     assert.ok(g.balls.every(b => [b.x, b.y, b.vx, b.vy].every(Number.isFinite) && b.x >= 12 && b.x <= W - 12 && b.y > 0));
+  }
+});
+
+test('breaking a chamber gate sends the original and bonus balls into the room', () => {
+  const g = running(); const gate = g.bricks.find(b => b.gate && b.power === 'add')!;
+  g.balls = [{ x: gate.x + gate.w / 2, y: gate.y + gate.h + R + 1, vx: 0, vy: -520 }];
+  const before = g.chambers[gate.chamber!].remaining;
+  g.step(dt);
+  assert.equal(gate.hp, 0); assert.equal(g.balls.length, 4);
+  assert.ok(g.balls.every(b => b.vy < 0));
+  assert.equal(g.chambers[gate.chamber!].remaining, before - 1);
+  assert.ok(g.hits.some(h => h.text === 'BREACH'));
+});
+test('floor release is one-shot, keeps permanent walls, freezes outside play, and survives life loss', () => {
+  const g = running(); const room = g.chambers[0];
+  room.remaining--; room.activeTime = 28 - dt / 2;
+  const solids = g.obstacles.filter(o => o.kind !== 'steel' || o.vent === undefined);
+  g.status = 'ready'; g.step(dt); assert.equal(room.opened, false);
+  g.launch(); g.step(dt); assert.equal(room.opened, true);
+  assert.ok(!g.obstacles.some(o => o.kind === 'steel' && o.vent === 0));
+  assert.ok(solids.every(o => g.obstacles.includes(o)));
+  const count = g.hits.filter(h => h.text === 'OPEN').length;
+  g.step(dt); assert.equal(g.hits.filter(h => h.text === 'OPEN').length, count);
+  g.balls.forEach(b => b.y = H + 20); g.step(dt);
+  assert.equal(g.status, 'ready'); assert.equal(room.opened, true);
+  g.launch(); assert.ok(!g.obstacles.some(o => o.kind === 'steel' && o.vent === 0));
+});
+test('mostly emptied chambers release early, while undamaged rooms stay closed', () => {
+  const g = running(); g.chambers[0].remaining = Math.floor(g.chambers[0].initial * .18);
+  g.step(dt); assert.equal(g.chambers[0].opened, true); assert.equal(g.chambers[1].opened, false);
+});
+test('chamber state and walls reset on a new wave with exactly one served ball', () => {
+  const g = running(); g.chambers[0].remaining = 0; g.step(dt);
+  g.bricks.forEach(b => b.hp = 0); g.step(dt); g.nextWave();
+  assert.equal(g.chambers.length, 3);
+  assert.ok(g.chambers.every(c => !c.opened && c.activeTime === 0 && c.remaining === c.initial));
+  assert.equal(g.balls.length, 0); g.launch(); assert.equal(g.balls.length, 1);
+});
+test('fresh chamber generation has independent mutable state and readable rewards', () => {
+  for (let wave = 1; wave <= 3; wave++) {
+    const a = makeLevel(wave), b = makeLevel(wave);
+    assert.ok(a.bricks.length > 300);
+    assert.ok(a.bricks.filter(b => b.power).every(b => b.w >= 38));
+    assert.ok(a.chambers!.every(c => c.initial === a.bricks.filter(b => b.chamber === c.id).length));
+    a.chambers![0].opened = true; a.bricks[0].hp = 0;
+    assert.equal(b.chambers![0].opened, false); assert.ok(b.bricks[0].hp > 0);
   }
 });

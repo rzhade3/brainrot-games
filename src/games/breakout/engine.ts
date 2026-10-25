@@ -1,3 +1,4 @@
+import type { Chamber } from './chambers';
 import { makeLevel, type Brick, type Power, type Obstacle } from './levels';
 export { type Brick, type Power, type Obstacle } from './levels';
 export const W = 720, H = 960, R = 6, TOP = 24, PADDLE_Y = 848, MAX_BALLS = 48, BASE_WIDTH = 114;
@@ -10,6 +11,7 @@ export class Breakout {
   balls: Ball[] = [];
   bricks: Brick[] = [];
   obstacles: Obstacle[] = [];
+  chambers: Chamber[] = [];
   hits: Hit[] = [];
   paddle = W / 2;
   width = BASE_WIDTH;
@@ -32,14 +34,16 @@ export class Breakout {
   private loadLevel() {
     const level = makeLevel(this.wave);
     this.bricks = level.bricks; this.obstacles = level.obstacles; this.name = level.name; this.hint = level.hint;
+    this.chambers = level.chambers ?? [];
     this.initialBricks = this.bricks.length; this.elapsed = 0; this.resetServe();
   }
   private resetServe() {
     this.balls = []; this.fire = 0; this.slow = 0; this.wide = 0; this.shields = 0;
-    this.width = BASE_WIDTH; this.combo = 0; this.comboTime = 0; this.rally = 0;
+    this.width = this.baseWidth; this.combo = 0; this.comboTime = 0; this.rally = 0;
     this.paddle = W / 2; this.status = 'ready';
   }
   nextWave() { if (this.status === 'cleared') { this.wave++; this.loadLevel(); } }
+  get baseWidth() { return this.chambers.length ? 138 : BASE_WIDTH; }
   get remaining() { return this.bricks.filter(b => b.hp > 0).length; }
   move(x: number) { this.paddle = clamp(x, 12 + this.width / 2, W - 12 - this.width / 2); }
   launch(aim = .24) {
@@ -48,7 +52,7 @@ export class Breakout {
     const angle = clamp(aim, -.9, .9);
     this.balls.push({ x: this.paddle, y: PADDLE_Y - R - 1, vx: Math.sin(angle) * this.speed(), vy: -Math.cos(angle) * this.speed(), flight: 0 });
   }
-  speed() { return Math.min(980, 520 + Math.min(12, this.wave - 1) * 18 + Math.min(160, this.rally * 4)); }
+  speed() { return Math.min(this.chambers.length ? 780 : 980, (this.chambers.length ? 480 : 520) + Math.min(12, this.wave - 1) * 18 + Math.min(160, this.rally * 4)); }
   private split(origin: Ball, count: number) {
     count = Math.min(count, MAX_BALLS - this.balls.length);
     const speed = Math.hypot(origin.vx, origin.vy) || this.speed();
@@ -73,9 +77,11 @@ export class Breakout {
   }
   private destroy(brick: Brick, ball: Ball) {
     brick.hp = 0;
+    if (brick.chamber !== undefined) this.chambers[brick.chamber].remaining--;
+    if (brick.gate) this.hits.push({ x: brick.x + brick.w / 2, y: brick.y, color: '#ffe5a3', text: 'BREACH' });
     this.combo = this.comboTime > 0 ? this.combo + 1 : 1; this.comboTime = 1.5;
     this.score += 10 * Math.min(10, this.combo);
-    this.hits.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, color: brick.power ? COLORS[brick.power] : '#b1a2e0' });
+    this.hits.push({ x: brick.x + brick.w / 2, y: brick.y + brick.h / 2, color: brick.power ? COLORS[brick.power] : brick.color ?? '#b1a2e0' });
     if (!brick.power) return;
     this.power(brick.power, ball);
     if (brick.power === 'bomb') for (const other of this.bricks) {
@@ -90,7 +96,7 @@ export class Breakout {
     if (this.status !== 'playing') return;
     this.elapsed += dt;
     this.fire = Math.max(0, this.fire - dt); this.slow = Math.max(0, this.slow - dt); this.wide = Math.max(0, this.wide - dt);
-    if (this.wide === 0) this.width = BASE_WIDTH;
+    if (this.wide === 0) this.width = this.baseWidth;
     this.comboTime = Math.max(0, this.comboTime - dt);
     const motion = dt * (this.slow > 0 ? .72 : 1);
     for (const b of [...this.balls]) {
@@ -136,18 +142,32 @@ export class Breakout {
       for (const brick of this.bricks) {
         if (brick.hp <= 0 || !overlaps(b, brick)) continue;
         // Reflect before spawning split balls so new balls start outside the hit brick.
-        const piercing = this.fire > 0;
+        const piercing = this.fire > 0 || brick.gate === true && brick.hp === 1;
         if (!piercing) this.rectBounce(b, brick, ox, oy);
         if (piercing || --brick.hp <= 0) this.destroy(brick, b);
         break;
       }
     }
     this.balls = this.balls.filter(b => b.y < H + R);
+    this.updateChambers(dt);
     if (this.remaining === 0) {
       this.score += 500 * this.wave;
       this.resetServe(); this.status = 'cleared';
     } else if (this.balls.length === 0) {
       this.lives--; this.resetServe(); this.status = this.lives > 0 ? 'ready' : 'over';
+    }
+  }
+  private updateChambers(dt: number) {
+    for (const room of this.chambers) {
+      if (room.opened) continue;
+      // Count only active play after the first damaged tile. Life loss cannot reseal a vent.
+      if (room.remaining < room.initial) room.activeTime += dt;
+      if (room.remaining > Math.ceil(room.initial * .18) && room.activeTime < 28) continue;
+      room.opened = true;
+      const vents = this.obstacles.filter(o => o.kind === 'steel' && o.vent === room.id);
+      this.obstacles = this.obstacles.filter(o => o.kind !== 'steel' || o.vent !== room.id);
+      for (const vent of vents) this.hits.push({ x: vent.x + 10, y: vent.y + 10, color: room.color });
+      if (vents.length) this.hits.push({ x: vents[Math.floor(vents.length / 2)].x, y: vents[0].y, color: room.color, text: 'OPEN' });
     }
   }
   private rectBounce(b: Ball, rect: { x: number; y: number; w: number; h: number }, ox: number, oy: number) {
