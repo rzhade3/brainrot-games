@@ -19,7 +19,7 @@ root.innerHTML = `
 const el = (id: string) => document.getElementById(id)!;
 const canvas = root.querySelector('canvas')!, renderer = new Renderer(canvas);
 const overlay = el('overlay'), dialog = root.querySelector('dialog')!;
-let game = new Breakout(), paused = false, best = getBestScore('breakout-v3'), sound = false, confirmRestart = false;
+let game = new Breakout(1, crypto.getRandomValues(new Uint32Array(1))[0]), paused = false, best = getBestScore('breakout-v3'), sound = false, confirmRestart = false;
 let audio: AudioContext | undefined;
 let lastTone = 0, lastTime = 0, accumulator = 0, lastStatus = '', saveClock = 0, announcement = '';
 const keys = new Set<string>(), reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -46,7 +46,7 @@ function start() {
   else { if (game.status === 'over') reset(); game.launch(); }
   audio?.resume(); accumulator = 0; syncOverlay(); canvas.focus({ preventScroll: true });
 }
-function reset() { persist(); game = new Breakout(); renderer.clear(); paused = false; confirmRestart = false; keys.clear(); syncOverlay(); }
+function reset() { persist(); game = new Breakout(1, crypto.getRandomValues(new Uint32Array(1))[0]); renderer.clear(); paused = false; confirmRestart = false; keys.clear(); syncOverlay(); }
 function togglePause() { if (game.status === 'playing') { paused = !paused; confirmRestart = false; keys.clear(); syncOverlay(); } }
 el('launch').onclick = start;
 el('pause').onclick = () => { togglePause(); canvas.focus({ preventScroll: true }); };

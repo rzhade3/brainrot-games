@@ -221,4 +221,4 @@ controller limitations, tuning decisions, and reproducible commands.
 
 See [chamber balancing](docs/breakout-chambers.md) for the new layouts and seeded results.
 
-For new arenas, use the [declarative level authoring guide](src/games/breakout/levels/README.md). Chamber rooms, openings, and reward pockets live in typed blueprints; classic geometry uses editable tile maps.
+For new arenas, use the [declarative level authoring guide](src/games/breakout/levels/README.md). New levels use literal maps, parameterized families, or custom generators behind one validated board interface. Twin vaults varies entrances and brick patterns from a reproducible run seed; existing layouts retain compatibility adapters.

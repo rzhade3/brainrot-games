@@ -33,3 +33,29 @@ for wave in 1 2 3; do
   SIM_WAVE=$wave SIM_SEEDS=12 SIM_SECONDS=240 npm run --silent simulate:breakout
 done
 ```
+
+## Generation architecture
+
+The common generator interface now supports literal authored maps, parameterized families,
+and custom algorithms. Existing layouts retain version-0 adapters and pass the original
+66-wave exact-output fixtures. The browser selects Twin vaults version 1, a map-based family
+with four centered entrance offsets per floor and three constrained brick-fill patterns.
+All powers and connector gates remain explicit. Other families are unchanged.
+
+Validation rejects missing rewards and invalid behavior references as well as geometry.
+Three deterministic placement attempts are allowed; exhaustion fails tests/development.
+Production may use a separately validated fallback and logs the reasons. Initial boards,
+seeds, family versions, difficulty and attempt diagnostics remain available independently
+of mutable game state. See the [authoring guide](../src/games/breakout/levels/README.md).
+
+The 128-seed generation suite exercises first-cycle and later-cycle armor, exact replays,
+all 16 entrance combinations, and required rewards without retries or fallbacks. The
+new 36-run gameplay results are in [breakout-generated-simulations.jsonl](breakout-generated-simulations.jsonl).
+
+Final generated opening results (12 seeds/controller, up to 240 seconds): stationary
+0/12 first clears, reactive 1/12, predictive 6/12. Predictive successful first-clear
+median is 75.35 seconds, mean peak swarm 29.33. All stationary runs lose their three
+lives. The prior fixed opening had 7/12 predictive first clears (98.5-second successful
+median). Different layouts change trajectories, so these small samples are diagnostic,
+not evidence of statistically equivalent difficulty. The final choices use centered
+entrance offsets 4–7; wider offsets 3/5/7/9 were rejected after worse survival results.

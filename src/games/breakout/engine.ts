@@ -1,5 +1,5 @@
 import type { Chamber } from './levels/types';
-import { makeLevel, type Brick, type Power, type Obstacle } from './levels';
+import { makeLevel, generateWave, type Brick, type Power, type Obstacle } from './levels';
 export { type Brick, type Power, type Obstacle } from './levels';
 export const W = 720, H = 960, R = 6, TOP = 24, PADDLE_Y = 848, MAX_BALLS = 48, BASE_WIDTH = 114;
 export const LABELS: Record<Power, string> = { triple: '×3', add: '+3', wide: 'WIDE', fire: 'FIRE', bomb: 'BOOM', shield: 'SAVE', slow: 'SLOW' };
@@ -18,6 +18,8 @@ export class Breakout {
   name = '';
   hint = '';
   wave: number;
+  generation?: ReturnType<typeof generateWave>;
+  readonly seed?: number;
   score = 0;
   lives = 3;
   shields = 0;
@@ -30,9 +32,11 @@ export class Breakout {
   rally = 0;
   initialBricks = 0;
   status: 'ready' | 'playing' | 'cleared' | 'over' = 'ready';
-  constructor(wave = 1) { this.wave = Math.max(1, Math.floor(wave)); this.loadLevel(); }
+  constructor(wave = 1, seed?: number) { this.seed = seed; this.wave = Math.max(1, Math.floor(wave)); this.loadLevel(); }
   private loadLevel() {
-    const level = makeLevel(this.wave);
+    this.generation = this.seed === undefined ? undefined : generateWave(this.wave, this.seed, { allowFallback: import.meta.env?.PROD === true });
+    if (this.generation?.diagnostics.fallback) console.warn('Breakout generation fallback', this.generation.replay, this.generation.diagnostics);
+    const level = this.generation ? structuredClone(this.generation.board) : makeLevel(this.wave);
     this.bricks = level.bricks; this.obstacles = level.obstacles; this.name = level.name; this.hint = level.hint;
     this.chambers = level.chambers ?? [];
     this.initialBricks = this.bricks.length; this.elapsed = 0; this.resetServe();
