@@ -59,3 +59,9 @@ lives. The prior fixed opening had 7/12 predictive first clears (98.5-second suc
 median). Different layouts change trajectories, so these small samples are diagnostic,
 not evidence of statistically equivalent difficulty. The final choices use centered
 entrance offsets 4–7; wider offsets 3/5/7/9 were rejected after worse survival results.
+
+Cloudflare deployed code commit `6f48f5e` successfully. Desktop browser smoke testing
+verified pre-launch pointer steering, launch, keyboard steering, pause, restart
+confirmation, and a visibly changed board after restart. No application-origin errors
+were observed. See [the deployed board](breakout-generated-preview.jpg). This is not
+mobile/touch verification or a complete human balance test.
