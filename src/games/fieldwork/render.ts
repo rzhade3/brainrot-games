@@ -78,9 +78,8 @@ export class Renderer {
     c.fillRect(0, 0, W, H);
     c.save();
     if (!this.camera.overview) {
-      c.translate(W / 2, H * 0.68);
-      c.scale(this.camera.zoom, this.camera.zoom * this.camera.tilt);
-      c.rotate(this.camera.rotation);
+      c.translate(W / 2, H / 2);
+      c.scale(this.camera.zoom, this.camera.zoom);
       c.translate(-this.camera.x, -this.camera.y);
     }
     c.drawImage(this.ground, 0, 0);

@@ -13,7 +13,7 @@ Stars: finish = one; save 15% fuel = two; save 30% fuel = three. Score is covera
 ## Architecture
 
 - `engine.ts`: DOM-free deterministic field masks, tractor motion, fixed-step input, swept blade coverage, repeated-pass accounting, collisions, scores and terminal states.
-- `camera.ts`: shared ground-plane projection and inverse for rendering/touch input, shortest-arc heading smoothing and a north-up reduced-motion mode.
+- `camera.ts`: shared ground-plane projection and inverse for rendering/touch input, a fixed north-up orientation.
 - `render.ts`: cached terrain and furrows, tractor, trees, wind turbines, dust and impact feedback. Only newly worked cells update the terrain cache. Reduced motion disables dust and turbine animation.
 - `main.ts`: menus, input, persistence, background pause and accessibility announcements. The engine advances at 60 Hz independently of rendering. Long frames are capped; background tabs pause automatically.
 
@@ -41,8 +41,8 @@ Next review priorities: late-field solvability and star thresholds, a recovery-c
 
 ## Driving camera
 
-The default driving view follows the tractor at 2.35× zoom with a tilted ground plane. The tractor sits at 68% of the screen height, keeping its blade and fresh furrows visible below it while exposing the next pass ahead. Heading follows the shortest angular arc with frame-rate-independent smoothing. Reduced-motion mode follows position but stays north-up. This is a Canvas ground-plane camera, not a full 3D renderer.
+The default driving view follows the tractor at a modest 1.55× zoom with a fixed north-up orientation and the tractor centred, leaving equal room to see ahead in any direction. Neither view rotates or tilts. Map returns to the stationary field instantly, with no animated transition. These defaults replace the rotating follow camera after motion-discomfort feedback.
 
-A north-up minimap shows worked soil, obstacles, heading and the visible footprint. The Map/Drive button switches between the driving view and the whole field without resetting the run. Menus and results use the whole-field view. Pointer coordinates are inverted through the current camera every simulation step so held touch aiming does not stick to a stale world position. The minimap ignores driving gestures.
+The follow view includes a north-up minimap showing worked soil, obstacles, heading and the visible footprint. Pointer coordinates are inverted through the current camera each simulation step. The minimap ignores driving gestures. Menus and results always show the whole field.
 
-Camera tests cover projection/inverse consistency at field edges and 32 headings, shortest-arc wraparound, reduced motion, overview mapping, minimap hit testing and plough/aim placement.
+Camera tests cover projection/inverse consistency at field edges, the stationary overview, heading-independent projection and held-pointer aiming while following.
