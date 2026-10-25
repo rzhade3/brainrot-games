@@ -220,3 +220,5 @@ See [the gameplay evaluation](docs/breakout-evaluation.md) for the old/new simul
 controller limitations, tuning decisions, and reproducible commands.
 
 See [chamber balancing](docs/breakout-chambers.md) for the new layouts and seeded results.
+
+For new arenas, use the [declarative level authoring guide](src/games/breakout/levels/README.md). Chamber rooms, openings, and reward pockets live in typed blueprints; classic geometry uses editable tile maps.

@@ -1,4 +1,4 @@
-import type { Chamber } from './chambers';
+import type { Chamber } from './levels/types';
 import { makeLevel, type Brick, type Power, type Obstacle } from './levels';
 export { type Brick, type Power, type Obstacle } from './levels';
 export const W = 720, H = 960, R = 6, TOP = 24, PADDLE_Y = 848, MAX_BALLS = 48, BASE_WIDTH = 114;
