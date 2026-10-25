@@ -377,3 +377,21 @@ dialog p {
 #fuel-readout.low {
   color: #e4b75f;
 }
+
+@media (max-width: 500px) {
+  header {
+    gap: 8px;
+  }
+  h1 {
+    font-size: 26px;
+  }
+  h1 span {
+    display: none;
+  }
+  .footer {
+    gap: 8px;
+  }
+  .footer .desktop-hint {
+    display: none;
+  }
+}

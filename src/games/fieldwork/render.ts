@@ -1,5 +1,7 @@
 import { CELL, COLS, Farm, H, random, TOOLS, W } from "./engine";
+import { Camera, MAP } from "./camera";
 export class Renderer {
+  camera = new Camera();
   ctx: CanvasRenderingContext2D;
   ground = document.createElement("canvas");
   soil = this.ground.getContext("2d")!;
@@ -72,6 +74,15 @@ export class Renderer {
     game.changed.length = 0;
     const c = this.ctx;
     c.clearRect(0, 0, W, H);
+    c.fillStyle = "#697b4e";
+    c.fillRect(0, 0, W, H);
+    c.save();
+    if (!this.camera.overview) {
+      c.translate(W / 2, H * 0.68);
+      c.scale(this.camera.zoom, this.camera.zoom * this.camera.tilt);
+      c.rotate(this.camera.rotation);
+      c.translate(-this.camera.x, -this.camera.y);
+    }
     c.drawImage(this.ground, 0, 0);
     if (game.coverage > 0.9) {
       c.fillStyle = "#ffe5a3";
@@ -208,5 +219,71 @@ export class Renderer {
       );
       c.stroke();
     }
+    c.restore();
+    if (!this.camera.overview) this.drawMap(game);
+  }
+  private drawMap(game: Farm) {
+    const c = this.ctx;
+    c.save();
+    c.fillStyle = "#1e2b24e8";
+    c.fillRect(MAP.x - 6, MAP.y - 6, MAP.width + 12, MAP.height + 28);
+    c.drawImage(this.ground, MAP.x, MAP.y, MAP.width, MAP.height);
+    c.save();
+    c.beginPath();
+    c.rect(MAP.x, MAP.y, MAP.width, MAP.height);
+    c.clip();
+    c.translate(MAP.x, MAP.y);
+    c.scale(MAP.width / W, MAP.height / H);
+    c.lineWidth = 6;
+    c.strokeStyle = "#fff4c899";
+    c.beginPath();
+    for (const [i, p] of [
+      { x: 0, y: 0 },
+      { x: W, y: 0 },
+      { x: W, y: H },
+      { x: 0, y: H },
+    ].entries()) {
+      const world = this.camera.toWorld(p);
+      if (i === 0) c.moveTo(world.x, world.y);
+      else c.lineTo(world.x, world.y);
+    }
+    c.closePath();
+    c.stroke();
+    for (const o of game.field.obstacles) {
+      c.fillStyle = "#2d432c";
+      c.beginPath();
+      c.arc(o.x, o.y, o.r + 10, 0, Math.PI * 2);
+      c.fill();
+    }
+    if (game.coverage > 0.9) {
+      c.fillStyle = "#ffe6a0";
+      game.field.mask.forEach((v, i) => {
+        if (v && !game.soil[i])
+          c.fillRect(
+            (i % COLS) * CELL,
+            Math.floor(i / COLS) * CELL,
+            CELL,
+            CELL,
+          );
+      });
+    }
+    c.translate(game.x, game.y);
+    c.rotate(game.angle);
+    c.fillStyle = "#fff1b4";
+    c.strokeStyle = "#25321e";
+    c.lineWidth = 5;
+    c.beginPath();
+    c.moveTo(24, 0);
+    c.lineTo(-15, -14);
+    c.lineTo(-10, 0);
+    c.lineTo(-15, 14);
+    c.closePath();
+    c.fill();
+    c.stroke();
+    c.restore();
+    c.fillStyle = "#e8edda";
+    c.font = "10px system-ui";
+    c.fillText("FIELD  ·  N ↑", MAP.x + 4, MAP.y + MAP.height + 15);
+    c.restore();
   }
 }

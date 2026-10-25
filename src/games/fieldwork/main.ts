@@ -1,14 +1,15 @@
 import "./style.css";
 import { Farm, H, makeField, TOOLS, W } from "./engine";
+import { onMap, type Point } from "./camera";
 import { Renderer } from "./render";
 import { submitScore } from "../../core/scores";
 const root = document.querySelector<HTMLDivElement>("#app")!;
-root.innerHTML = `<main><header><a href="/" aria-label="Back to arcade">←</a><h1>Fieldwork<span>take the long way</span></h1><button id="help" aria-label="How to play">?</button><button id="pause" aria-label="Pause game">Ⅱ</button></header>
+root.innerHTML = `<main><header><a href="/" aria-label="Back to arcade">←</a><h1>Fieldwork<span>take the long way</span></h1><button id="view" aria-label="Show whole field" aria-pressed="false">Map</button><button id="pause" aria-label="Pause game">Ⅱ</button></header>
 <div class="hud"><div><small id="field-label">Field 01</small><strong id="coverage">0.0%</strong></div><div id="fuel-readout"><small id="fuel-label">Fuel</small><strong id="fuel-value">100%</strong><meter id="fuel" min="0" max="100" low="20" high="100" optimum="100" value="100" aria-label="Fuel remaining"></meter></div></div>
-<div class="stage"><canvas tabindex="0" aria-label="Tractor field. Arrow keys or WASD to drive. Hold and drag on the field to steer. P pauses."></canvas><div class="overlay" id="overlay"><section class="panel" id="panel" aria-labelledby="title"></section></div></div>
+<div class="stage"><canvas tabindex="0" aria-label="Tractor field. Arrow keys or WASD to drive. Hold and drag on the field to steer. P pauses. Map toggles the whole field."></canvas><div class="overlay" id="overlay"><section class="panel" id="panel" aria-labelledby="title"></section></div></div>
 <div class="progress" role="progressbar" aria-label="Field coverage" aria-valuemin="0" aria-valuemax="98" aria-valuenow="0"><div id="bar"></div></div>
-<div class="footer"><span id="feedback">Leave nothing but neat rows.</span><button id="reverse" aria-label="Hold to reverse">↶ Reverse</button><span class="desktop-hint">WASD / arrows · P pause</span><span class="mobile-hint">Hold & drag to drive</span></div><div class="sr" id="announcement" aria-live="polite"></div></main>
-<dialog aria-labelledby="help-title"><h2 id="help-title">Make your mark.</h2><p>Work 98% of the field on one tank. Hold and drag toward where you want to drive; release to brake. On a keyboard, use ↑ / W to drive, ↓ / S to reverse and ← → / A D to steer. Hold Reverse on touch screens to back out. Reversing lifts the plough.</p><p>Worked soil turns dark. Fuel burns as you drive, with a little extra while ploughing. Stopping costs nothing; repeated passes waste fuel. Grass gives you turning room; trees, turbines and fences stop your tractor. Missed patches glow near the finish.</p><p>Finish for one star. Save 15% fuel for two stars, or 30% for three. Each plough gets a tank sized to its working width. Practice has unlimited fuel and does not unlock contracts.</p><button id="close-help">Back to the field</button></dialog>`;
+<div class="footer"><span id="feedback">Leave nothing but neat rows.</span><button id="reverse" aria-label="Hold to reverse">↶ Reverse</button><span class="desktop-hint">WASD / arrows</span><button id="help" aria-label="How to play">?</button></div><div class="sr" id="announcement" aria-live="polite"></div></main>
+<dialog aria-labelledby="help-title"><h2 id="help-title">Make your mark.</h2><p>Work 98% of the field on one tank. Hold and drag toward where you want to drive; release to brake. On a keyboard, use ↑ / W to drive, ↓ / S to reverse and ← → / A D to steer. Hold Reverse on touch screens to back out. Reversing lifts the plough.</p><p>Worked soil turns dark. Fuel burns as you drive, with a little extra while ploughing. Stopping costs nothing; repeated passes waste fuel. Grass gives you turning room; trees, turbines and fences stop your tractor. Missed patches glow near the finish. The camera follows your heading; the small map stays north-up. Tap Map for the whole field. Reduced-motion mode keeps the camera north-up.</p><p>Finish for one star. Save 15% fuel for two stars, or 30% for three. Each plough gets a tank sized to its working width. Practice has unlimited fuel and does not unlock contracts.</p><button id="close-help">Back to the field</button></dialog>`;
 const el = (id: string) => document.getElementById(id)!;
 const canvas = root.querySelector("canvas")!,
   renderer = new Renderer(canvas),
@@ -36,6 +37,8 @@ let level = 1,
   mode: "menu" | "playing" | "paused" | "result" = "menu";
 let target: { x: number; y: number } | undefined, pointer: number | undefined;
 let reversing = false;
+let follow = true;
+let pointerScreen: Point | undefined;
 let previous = 0,
   accumulator = 0,
   oldHits = 0,
@@ -50,6 +53,7 @@ function clearInput() {
   keys.clear();
   reversing = false;
   target = undefined;
+  pointerScreen = undefined;
   pointer = undefined;
 }
 function maxLevel() {
@@ -189,15 +193,37 @@ window.addEventListener("blur", pause);
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) pause();
 });
-function setTarget(e: PointerEvent) {
+function screenPoint(e: PointerEvent): Point {
   const rect = canvas.getBoundingClientRect();
-  target = {
+  return {
     x: ((e.clientX - rect.left) * W) / rect.width,
     y: ((e.clientY - rect.top) * H) / rect.height,
   };
 }
+function setTarget(e: PointerEvent) {
+  pointerScreen = screenPoint(e);
+  target = renderer.camera.toWorld(pointerScreen);
+}
+el("view").onclick = () => {
+  follow = !follow;
+  clearInput();
+  renderer.camera.update(
+    game,
+    0,
+    !follow || mode === "menu" || mode === "result",
+    reduced.matches,
+  );
+  el("view").textContent = follow ? "Map" : "Drive";
+  el("view").setAttribute("aria-pressed", String(!follow));
+  el("view").setAttribute(
+    "aria-label",
+    follow ? "Show whole field" : "Follow tractor",
+  );
+  canvas.focus({ preventScroll: true });
+};
 canvas.onpointerdown = (e) => {
   if (mode !== "playing" || pointer !== undefined) return;
+  if (!renderer.camera.overview && onMap(screenPoint(e))) return;
   pointer = e.pointerId;
   canvas.setPointerCapture(pointer);
   setTarget(e);
@@ -209,6 +235,7 @@ canvas.onpointermove = (e) => {
 const release = (e: PointerEvent) => {
   if (e.pointerId === pointer) {
     pointer = undefined;
+    pointerScreen = undefined;
     target = undefined;
   }
 };
@@ -233,10 +260,22 @@ el("reverse").onblur = () => (reversing = false);
 function frame(now: number) {
   const dt = previous ? Math.min((now - previous) / 1000, 0.1) : 0;
   previous = now;
+  renderer.camera.update(
+    game,
+    dt,
+    !follow || mode === "menu" || mode === "result",
+    reduced.matches,
+  );
   if (mode === "playing") {
     accumulator += dt;
     while (accumulator >= 1 / 60 && mode === "playing") {
       const down = (...k: string[]) => (k.some((v) => keys.has(v)) ? 1 : 0);
+      // Reproject a held finger through the moving camera, not a stale world target.
+      target =
+        pointerScreen &&
+        (!renderer.camera.overview && onMap(pointerScreen)
+          ? undefined
+          : renderer.camera.toWorld(pointerScreen));
       game.step(1 / 60, {
         throttle: reversing
           ? -1
@@ -265,6 +304,13 @@ function frame(now: number) {
       if (game.status !== "playing") finish();
     }
   }
+  renderer.camera.x = game.x;
+  renderer.camera.y = game.y;
+  target =
+    pointerScreen &&
+    (!renderer.camera.overview && onMap(pointerScreen)
+      ? undefined
+      : renderer.camera.toWorld(pointerScreen));
   renderer.draw(game, now, reduced.matches || mode !== "playing", target);
   el("coverage").textContent =
     `${(Math.floor(game.coverage * 1000) / 10).toFixed(1)}%`;
