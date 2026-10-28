@@ -14,7 +14,9 @@
     "test:cube-lines": "tsx --test src/games/cube-lines/*.test.ts",
     "preview": "vite preview",
     "test:breakout": "node --import tsx --test src/games/breakout/*.test.ts",
-    "simulate:breakout": "node --import tsx scripts/simulate-breakout.ts"
+    "simulate:breakout": "node --import tsx scripts/simulate-breakout.ts",
+    "test:fieldwork": "node --import tsx --test src/games/fieldwork/*.test.ts",
+    "simulate:fieldwork": "node --import tsx scripts/simulate-fieldwork.ts"
   },
   "dependencies": {
     "phaser": "^3.80.1",
