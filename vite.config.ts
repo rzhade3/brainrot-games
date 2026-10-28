@@ -10,6 +10,7 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
         fieldwork: resolve(__dirname, 'games/fieldwork/index.html'),
         breakout: resolve(__dirname, 'games/breakout/index.html'),
+        gateRunner: resolve(__dirname, 'games/gate-runner/index.html'),
         untangle: resolve(__dirname, 'games/untangle/index.html'),
         towerDefense: resolve(__dirname, 'games/tower-defense/index.html'),
         topDown: resolve(__dirname, 'games/top-down/index.html'),
@@ -24,7 +25,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icons/*.png'],
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,woff2}'],
       },
       manifest: {
         name: 'Brainrot Games',

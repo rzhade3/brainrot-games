@@ -1,0 +1,118 @@
+{
+  "seeds": "10001–10300",
+  "timestep": "1/60 s; decisions every 200 ms (reactive: 400 ms, 15% missed inputs, ±0.35 steering error)",
+  "results": [
+    {
+      "policy": "idle",
+      "runs": 300,
+      "wins": 0,
+      "meanStage": 1,
+      "meanScore": 143.2,
+      "meanSeconds": 23.5,
+      "meanSurvivors": 0,
+      "reachedStage": [
+        300,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "policy": "random",
+      "runs": 300,
+      "wins": 0,
+      "meanStage": 1,
+      "meanScore": 721.5,
+      "meanSeconds": 21.9,
+      "meanSurvivors": 0,
+      "reachedStage": [
+        300,
+        4,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "policy": "squad",
+      "runs": 300,
+      "wins": 280,
+      "meanStage": 5,
+      "meanScore": 14016.4,
+      "meanSeconds": 264.5,
+      "meanSurvivors": 95.8,
+      "reachedStage": [
+        300,
+        300,
+        300,
+        300,
+        296
+      ]
+    },
+    {
+      "policy": "damage",
+      "runs": 300,
+      "wins": 283,
+      "meanStage": 4.8,
+      "meanScore": 16645.4,
+      "meanSeconds": 143.4,
+      "meanSurvivors": 99.8,
+      "reachedStage": [
+        300,
+        289,
+        283,
+        283,
+        283
+      ]
+    },
+    {
+      "policy": "balanced",
+      "runs": 300,
+      "wins": 299,
+      "meanStage": 5,
+      "meanScore": 17065.3,
+      "meanSeconds": 160.8,
+      "meanSurvivors": 109,
+      "reachedStage": [
+        300,
+        300,
+        300,
+        299,
+        299
+      ]
+    },
+    {
+      "policy": "reactive",
+      "runs": 300,
+      "wins": 55,
+      "meanStage": 3.4,
+      "meanScore": 7671.4,
+      "meanSeconds": 118.6,
+      "meanSurvivors": 7.5,
+      "reachedStage": [
+        300,
+        291,
+        219,
+        128,
+        78
+      ]
+    },
+    {
+      "policy": "sweep",
+      "runs": 300,
+      "wins": 0,
+      "meanStage": 1.1,
+      "meanScore": 1151.6,
+      "meanSeconds": 32.3,
+      "meanSurvivors": 0,
+      "reachedStage": [
+        300,
+        37,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}
