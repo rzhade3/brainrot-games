@@ -10,7 +10,8 @@ function reflect(x: number) { const span = W - 24 - R * 2; const n = ((x - 12 - 
 for (const mode of ['idle', 'reactive', 'predictive'] as const) {
   const runs = [];
   for (let seed = 1; seed <= seeds; seed++) {
-    const rng = random(seed), g = new Breakout(startWave);
+    const rng = random(seed), g = new Breakout(startWave, process.env.SIM_GENERATED === '1' ? seed : undefined);
+    const generation = g.generation?.replay;
     let target = W / 2 + (rng() - .5) * 160, nextReaction = 0, maxBalls = 0, lost = 0, clears = 0, lastWave = startWave, oldLives = g.lives;
     let firstClear: number | null = null, elapsed = 0;
     for (let tick = 0; tick < duration * 240; tick++) {
@@ -38,7 +39,7 @@ for (const mode of ['idle', 'reactive', 'predictive'] as const) {
       }
       if (g.balls.some((b: { x: number; y: number; vx: number; vy: number }) => ![b.x, b.y, b.vx, b.vy].every(Number.isFinite) || b.x < 0 || b.x > W || b.y < 0 || b.y > H + 30)) throw Error('Invalid ball');
     }
-    runs.push({ seed, clears, firstClear: firstClear === null ? null : +firstClear.toFixed(1), maxBalls, lost, gameOver: g.status === 'over', seconds: +elapsed.toFixed(1), remaining: g.bricks.filter((b: { hp: number }) => b.hp > 0).length });
+    runs.push({ seed, generation, fallback: g.generation?.diagnostics.fallback, clears, firstClear: firstClear === null ? null : +firstClear.toFixed(1), maxBalls, lost, gameOver: g.status === 'over', seconds: +elapsed.toFixed(1), remaining: g.bricks.filter((b: { hp: number }) => b.hp > 0).length });
   }
   const mean = (key: 'clears' | 'maxBalls' | 'lost' | 'seconds') => +(runs.reduce((n, r) => n + r[key], 0) / runs.length).toFixed(2);
   console.log(JSON.stringify({ mode, startWave, seeds, duration, meanClears: mean('clears'), firstClearSeconds: runs.map(r => r.firstClear), meanPeakBalls: mean('maxBalls'), meanLivesLost: mean('lost'), gameOvers: runs.filter(r => r.gameOver).length, meanSeconds: mean('seconds'), runs }));

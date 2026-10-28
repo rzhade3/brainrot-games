@@ -15,15 +15,15 @@ root.innerHTML = `
       <div class="br-sr" id="announcement" aria-live="polite"></div>
     </main>
   </div>
-  <dialog aria-labelledby="help-title"><h2 id="help-title">How to play</h2><p>Drag or use ← → / A D to steer. Space launches; P pauses.</p><p>Clear the numbered and colored bricks. Steel is permanent; round bumpers reflect and accelerate balls. Only breakable bricks count toward a clear.</p><p>Drag to position the paddle before launch. Hit near its edges to aim your return. A life is lost when every ball falls. You have three lives for the run; waves don’t award more.</p><dl>${Object.entries(LABELS).map(([k, v]) => `<dt style="color:${COLORS[k as keyof typeof COLORS]}">${v}</dt><dd>${({ triple: 'Triple live balls', add: 'Add three balls', wide: '↔ Wider paddle for 10 seconds', fire: 'F · Pierce bricks for 4 seconds; steel still blocks', bomb: '✹ Damage nearby bricks by two hits', shield: 'S · Save one falling ball', slow: '~ Slow motion for 5 seconds' })[k as keyof typeof LABELS]}</dd>`).join('')}</dl><p>Hit a power tile to activate it. Upgrades and balls reset each wave and after a lost life. The swarm caps at ${MAX_BALLS}. Numbers show hits remaining. Best scores save on this device.</p><button id="help-sound">Sound off</button><button id="close-help" class="br-primary">Got it</button></dialog>`;
+  <dialog aria-labelledby="help-title"><h2 id="help-title">How to play</h2><p>Drag or use ← → / A D to steer. Space launches; P pauses.</p><p>Clear the numbered and colored bricks. Steel is permanent; round bumpers reflect and accelerate balls. Gold gates break open into adjoining chambers. Mint-edged floors retract as a chamber empties or after 28 seconds of activity. Only breakable bricks count toward a clear.</p><p>Drag to position the paddle before launch. Hit near its edges to aim your return. A life is lost when every ball falls. You have three lives for the run; waves don’t award more.</p><dl>${Object.entries(LABELS).map(([k, v]) => `<dt style="color:${COLORS[k as keyof typeof COLORS]}">${v}</dt><dd>${({ triple: 'Triple live balls', add: 'Add three balls', wide: '↔ Wider paddle for 10 seconds', fire: 'F · Pierce bricks for 4 seconds; steel still blocks', bomb: '✹ Damage nearby bricks by two hits', shield: 'S · Save one falling ball', slow: '~ Slow motion for 5 seconds' })[k as keyof typeof LABELS]}</dd>`).join('')}</dl><p>Hit a power tile to activate it. Upgrades and balls reset each wave and after a lost life. The swarm caps at ${MAX_BALLS}. Numbers show hits remaining. Best scores save on this device.</p><button id="help-sound">Sound off</button><button id="close-help" class="br-primary">Got it</button></dialog>`;
 const el = (id: string) => document.getElementById(id)!;
 const canvas = root.querySelector('canvas')!, renderer = new Renderer(canvas);
 const overlay = el('overlay'), dialog = root.querySelector('dialog')!;
-let game = new Breakout(), paused = false, best = getBestScore('breakout-v2'), sound = false, confirmRestart = false;
+let game = new Breakout(1, crypto.getRandomValues(new Uint32Array(1))[0]), paused = false, best = getBestScore('breakout-v3'), sound = false, confirmRestart = false;
 let audio: AudioContext | undefined;
 let lastTone = 0, lastTime = 0, accumulator = 0, lastStatus = '', saveClock = 0, announcement = '';
 const keys = new Set<string>(), reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-function persist() { best = submitScore('breakout-v2', game.score); }
+function persist() { best = submitScore('breakout-v3', game.score); }
 function syncOverlay() {
   const active = game.status === 'playing';
   overlay.hidden = active && !paused;
@@ -46,7 +46,7 @@ function start() {
   else { if (game.status === 'over') reset(); game.launch(); }
   audio?.resume(); accumulator = 0; syncOverlay(); canvas.focus({ preventScroll: true });
 }
-function reset() { persist(); game = new Breakout(); renderer.clear(); paused = false; confirmRestart = false; keys.clear(); syncOverlay(); }
+function reset() { persist(); game = new Breakout(1, crypto.getRandomValues(new Uint32Array(1))[0]); renderer.clear(); paused = false; confirmRestart = false; keys.clear(); syncOverlay(); }
 function togglePause() { if (game.status === 'playing') { paused = !paused; confirmRestart = false; keys.clear(); syncOverlay(); } }
 el('launch').onclick = start;
 el('pause').onclick = () => { togglePause(); canvas.focus({ preventScroll: true }); };

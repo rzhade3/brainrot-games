@@ -16,12 +16,21 @@ type GameEntry = {
 const games: GameEntry[] = [
   { title: 'Gate Runner', emoji: '🚀', description: 'Multiply your squad, choose upgrades, and survive five stages of auto-shooter chaos.', href: './games/gate-runner/', ready: true, scoreKey: 'gate-runner', scoreLabel: 'pts' },
   {
+    title: 'Fieldwork',
+    emoji: '🚜',
+    description: 'Neat furrows. Tight turns. Work every acre with three ploughs and six increasingly tricky fields.',
+    href: './games/fieldwork/',
+    ready: true,
+    scoreKey: 'fieldwork-fuel',
+    scoreLabel: 'pts',
+  },
+  {
     title: 'Break Rot',
     emoji: '🧱',
-    description: 'Play the angles through brick islands, steel vaults, and ricochet bumpers. Build a swarm. Start fresh each wave.',
+    description: 'Breach packed chambers, multiply your swarm, and catch the fallout. A fresh ball every wave.',
     href: './games/breakout/',
     ready: true,
-    scoreKey: 'breakout-v2',
+    scoreKey: 'breakout-v3',
     scoreLabel: 'pts',
   },
   {

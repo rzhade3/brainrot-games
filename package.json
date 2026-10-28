@@ -14,9 +14,11 @@
     "test:cube-lines": "tsx --test src/games/cube-lines/*.test.ts",
     "preview": "vite preview",
     "test:gate-runner": "node --import tsx --test src/games/gate-runner/*.test.ts",
+    "simulate:gate-runner": "node --import tsx scripts/simulate-gate-runner.ts",
     "test:breakout": "node --import tsx --test src/games/breakout/*.test.ts",
     "simulate:breakout": "node --import tsx scripts/simulate-breakout.ts",
-    "simulate:gate-runner": "node --import tsx scripts/simulate-gate-runner.ts"
+    "test:fieldwork": "node --import tsx --test src/games/fieldwork/*.test.ts",
+    "simulate:fieldwork": "node --import tsx scripts/simulate-fieldwork.ts"
   },
   "dependencies": {
     "phaser": "^3.80.1",

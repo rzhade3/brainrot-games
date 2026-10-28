@@ -8,6 +8,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
+        fieldwork: resolve(__dirname, 'games/fieldwork/index.html'),
         breakout: resolve(__dirname, 'games/breakout/index.html'),
         gateRunner: resolve(__dirname, 'games/gate-runner/index.html'),
         untangle: resolve(__dirname, 'games/untangle/index.html'),
