@@ -21,17 +21,18 @@ export class Renderer {
     const cleanup = g.remaining <= 5;
     for (const b of g.bricks) {
       if (b.hp <= 0) continue;
-      c.fillStyle = b.power ? COLORS[b.power] : ['#7975ad', '#9791c4', '#b5a7db', '#ccbae7', '#e5d0f0', '#f3e6f8'][Math.min(5, b.hp - 1)];
-      c.beginPath(); c.roundRect(b.x, b.y, b.w, b.h, 4); c.fill();
+      c.fillStyle = b.gate ? '#e7bd75' : b.power ? COLORS[b.power] : b.color ?? ['#7975ad', '#9791c4', '#b5a7db', '#ccbae7', '#e5d0f0', '#f3e6f8'][Math.min(5, b.hp - 1)];
+      c.beginPath(); c.roundRect(b.x, b.y, b.w, b.h, b.chamber !== undefined ? 2 : 4); c.fill();
+      if (b.gate) { c.strokeStyle = '#fff0c7'; c.lineWidth = 2; c.stroke(); c.beginPath(); c.moveTo(b.x + 5, b.y + b.h - 4); c.lineTo(b.x + b.w - 5, b.y + 4); c.stroke(); }
       if (cleanup) { c.strokeStyle = '#f5f5f7'; c.lineWidth = 2.5; c.stroke(); }
-      if (b.power || b.hp > 1) this.text(b.power ? GLYPHS[b.power] : String(b.hp), b.x + b.w / 2, b.y + b.h / 2 + 6, 18, '#181827');
+      if (b.power || b.hp > 1 && !b.gate) this.text(b.power ? GLYPHS[b.power] : String(b.hp), b.x + b.w / 2, b.y + b.h / 2 + (b.h < 20 ? 5 : 6), b.w < 30 ? 12 : 18, '#181827');
     }
     for (const o of g.obstacles) {
       if (o.kind === 'steel') {
         c.save(); c.beginPath(); c.rect(o.x, o.y, o.w, o.h); c.clip(); c.fillStyle = '#272e3b'; c.fillRect(o.x, o.y, o.w, o.h);
         c.strokeStyle = '#4d5c6b'; c.lineWidth = 3;
         for (let x = o.x - o.h; x < o.x + o.w + o.h; x += 14) { c.beginPath(); c.moveTo(x, o.y); c.lineTo(x + o.h, o.y + o.h); c.stroke(); }
-        c.restore(); c.strokeStyle = '#8a9bae'; c.lineWidth = 2; c.strokeRect(o.x, o.y, o.w, o.h);
+        c.restore(); c.strokeStyle = o.vent !== undefined ? '#73dfc3' : '#8a9bae'; c.lineWidth = 2; c.strokeRect(o.x, o.y, o.w, o.h);
       } else {
         c.fillStyle = '#3c2926'; c.strokeStyle = '#ffac70'; c.lineWidth = 4;
         c.beginPath(); c.arc(o.x, o.y, o.radius, 0, Math.PI * 2); c.fill(); c.stroke();
