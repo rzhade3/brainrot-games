@@ -1,12 +1,12 @@
 export type Kind = 'bin' | 'person' | 'tree' | 'car' | 'house' | 'tower' | 'landmark';
-export interface Item { x: number; z: number; size: number; points: number; kind: Kind; eaten: boolean }
+export interface Item { x: number; z: number; size: number; points: number; kind: Kind; eaten: boolean; falling?: boolean }
 export interface Hole { x: number; z: number; score: number; radius: number; name: string; color: number; respawn: number }
-export const LIMIT = 78;
+export const LIMIT = 86;
 export const MILESTONES = [
   { score: 0, radius: 1.65, name: 'Street snacks', menu: 'TREES' },
   { score: 30, radius: 2.051, name: 'Park picnic', menu: 'CARS' },
   { score: 180, radius: 2.851, name: 'Traffic eater', menu: 'HOUSES' },
-  { score: 600, radius: 4.001, name: 'Block party', menu: 'TOWERS' },
+  { score: 450, radius: 4.001, name: 'Block party', menu: 'TOWERS' },
   { score: 1100, radius: 6.501, name: 'Skyline snack', menu: 'LANDMARKS' },
   { score: 2600, radius: 9.501, name: 'City devourer', menu: 'THE WHOLE CITY' },
   { score: 7000, radius: 15, name: 'Bottomless', menu: 'THE WHOLE CITY' },
@@ -26,7 +26,7 @@ export const spawnPoints = [
   { x: 0, z: 73 }, { x: -60, z: 73 }, { x: 60, z: 73 },
   { x: -60, z: -73 }, { x: 0, z: -73 }, { x: 60, z: -73 },
 ];
-export function canEat(hole: Hole, item: Item) { return !item.eaten && item.size < hole.radius && Math.hypot(hole.x - item.x, hole.z - item.z) < hole.radius - item.size * .35; }
+export function canEat(hole: Hole, item: Item) { return !item.eaten && !item.falling && item.size < hole.radius && Math.hypot(hole.x - item.x, hole.z - item.z) < hole.radius - item.size * .35; }
 export function feed(hole: Hole, points: number) { hole.score += points; hole.radius = radiusFor(hole.score); }
 export function move(hole: Hole, x: number, z: number, dt: number) {
   const length = Math.hypot(x, z); if (!length) return;
@@ -89,7 +89,7 @@ export function rivalDirection(hole: Hole, holes: Hole[], items: Item[]): { x: n
   }
   let target: { x: number; z: number } | undefined, best = Infinity;
   for (const item of items) {
-    if (item.eaten || item.size >= hole.radius) continue;
+    if (item.eaten || item.falling || item.size >= hole.radius) continue;
     const cost = Math.hypot(item.x - hole.x, item.z - hole.z) / (1 + item.points * .025);
     if (cost < best) { best = cost; target = item; }
   }
@@ -112,4 +112,51 @@ export function swallow(hunter: Hole, prey: Hole): number {
   prey.x = prey.x > 0 ? -73 : 73;
   prey.z = prey.z > 0 ? -73 : 73;
   return stolen;
+}
+
+
+/** Conservative horizontal footprint of each rendered model, including its crown/roof. */
+export function footprint(item: Item): number {
+  return item.kind === 'tree' ? 1.55 : item.kind === 'car' ? 1.9 :
+    item.kind === 'person' ? .32 : item.kind === 'bin' ? .61 : Math.SQRT2 * (item.size * 1.25 + .3) / 2;
+}
+export interface Falling {
+  item: Item;
+  hole: Hole;
+  phase: 'falling' | 'returning' | 'done';
+  elapsed: number;
+  drop: number;
+  returnFrom: number;
+  duration: number;
+  depth: number;
+}
+export function supports(hole: Hole, item: Item): boolean {
+  return hole.respawn <= 0 && item.size < hole.radius &&
+    Math.hypot(hole.x-item.x, hole.z-item.z) + footprint(item) < hole.radius;
+}
+export function beginFall(item: Item, hole: Hole): Falling | undefined {
+  if (!canEat(hole,item) || !supports(hole,item)) return;
+  item.falling = true;
+  const duration = { person: .08, bin: .1, tree: .24, car: .32, house: .55, tower: .8, landmark: 1 }[item.kind];
+  const depth = { person: 1.6, bin: 1.3, tree: 4.6, car: 1.8, house: 9, tower: 22, landmark: 38 }[item.kind];
+  return { item, hole, phase: 'falling', elapsed: 0, drop: 0, returnFrom: 0, duration, depth };
+}
+/** Keep the opening beneath the whole footprint until the top clears the ground. */
+export function advanceFall(fall: Falling, dt: number): 'pending' | 'caught' | 'eaten' | 'done' {
+  if (fall.phase === 'done') return 'done';
+  if (fall.phase === 'falling' && !supports(fall.hole,fall.item)) {
+    fall.phase = 'returning'; fall.elapsed = 0; fall.returnFrom = fall.drop;
+  }
+  fall.elapsed += dt;
+  if (fall.phase === 'returning') {
+    fall.drop = fall.returnFrom * Math.max(0,1-fall.elapsed/.2);
+    if (fall.elapsed < .2) return 'pending';
+    fall.item.falling = false; fall.phase = 'done'; return 'caught';
+  }
+  const progress = Math.min(1,fall.elapsed/fall.duration);
+  fall.drop = fall.depth * progress * progress;
+  if (progress < 1) return 'pending';
+  fall.item.falling = false; fall.item.eaten = true; fall.phase = 'done';
+  feed(fall.hole,fall.item.points);
+  return 'eaten';
 }

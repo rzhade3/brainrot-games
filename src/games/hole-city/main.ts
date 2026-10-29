@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import './style.css';
-import { city, MILESTONES, growthStage, spawnPoints, swallow, canEat, canSwallow, matchResult, rivalDirection, feed, move, radiusFor, type FinishReason, type Hole, type Item } from './engine';
+import { beginFall, advanceFall, type Falling, city, MILESTONES, growthStage, spawnPoints, swallow, canSwallow, matchResult, rivalDirection, move, radiusFor, type FinishReason, type Hole, type Item } from './engine';
 import { getBestScore, submitScore } from '../../core/scores';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -11,7 +11,7 @@ app.innerHTML = `<header><a href="/">↖ <span>THE ARCADE</span></a><div class="
 <aside><h2>THE BIG EATERS <span>↗</span></h2><ol id="leaders"></ol><p>LOCAL MATCH · AI RIVALS</p></aside>
 <div class="bottom"><div class="growth"><div><strong id="level">A small appetite</strong><span id="score">0 pts</span></div><div class="track"><i id="progress"></i></div><small id="target">NEXT ON THE MENU: TREES</small></div><div class="control-hint"><kbd>W A S D</kbd><span>or drag to move</span><span>Gold props: edible · Mint ring: prey · Red ring: danger</span></div></div>
 <div id="toast" role="status"></div><div id="bites" aria-live="off"></div><div id="rival-hint"></div><div id="joystick"><i></i></div>
-<div class="veil" id="overlay"><section><span class="eyebrow">SMALL HOLE. BIG PLANS.</span><h1>The city is<br>on the menu<span>.</span></h1><p>Follow the sidewalk snacks into parks and traffic. Grow from street snacks to whole skyscrapers. Biggest score in two minutes wins.</p><div class="instructions"><span>01 <b>Move</b> with WASD, arrows, or drag</span><span>02 <b>Eat</b> anything smaller than your hole</span><span>03 <b>Grow</b> to the top in two minutes</span></div><button class="primary" id="play">Let's eat <span>↗</span></button><small id="best">PERSONAL BEST · ${getBestScore('hole-city-classic-v2')} PTS</small></section></div>
+<div class="veil" id="overlay"><section><span class="eyebrow">SMALL HOLE. BIG PLANS.</span><h1>The city is<br>on the menu<span>.</span></h1><p>Follow the sidewalk snacks into parks and traffic. Grow from street snacks to whole skyscrapers. Biggest score in two minutes wins.</p><div class="instructions"><span>01 <b>Move</b> with WASD, arrows, or drag</span><span>02 <b>Eat</b> hold underneath until it drops</span><span>03 <b>Grow</b> to the top in two minutes</span></div><button class="primary" id="play">Let's eat <span>↗</span></button><small id="best">PERSONAL BEST · ${getBestScore('hole-city-classic-v2')} PTS</small></section></div>
 </main><footer><span>A LITTLE CHAOS. A LOT OF APPETITE.</span><span>HOLE CITY <b> / </b> 01</span></footer>`;
 const $ = (id: string) => document.getElementById(id)!;
 const canvas = $('world') as HTMLCanvasElement;
@@ -40,7 +40,7 @@ const boxGeo = new THREE.BoxGeometry(1, 1, 1);
 function box(parent: THREE.Object3D, x: number, y: number, z: number, w: number, h: number, d: number, color: number) {
   const mesh = new THREE.Mesh(boxGeo, mat(color, parent !== scene)); mesh.position.set(x, y, z); mesh.scale.set(w, h, d); mesh.castShadow = true; mesh.receiveShadow = true; parent.add(mesh); return mesh;
 }
-box(scene, 0, -.6, 0, 186, 1, 186, 0xa8bc9a);
+box(scene, 0, -.6, 0, 212, 1, 212, 0xa8bc9a);
 box(scene, 0, -.09, 0, 158, .1, 158, 0x71817c);
 for (let x = -60;x <= 60;x += 30) for (let z = -60;z <= 60;z += 30) {
   box(scene, x, .04, z, 26.4, .24, 26.4, 0xd9d9c8);
@@ -140,7 +140,7 @@ function makeHole(hole: Hole) {
   const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: hole.color, side: THREE.DoubleSide, depthTest: false })); ring.renderOrder = 3; ring.rotation.x = -Math.PI / 2; ring.position.y = .02; g.add(ring); scene.add(g); return g;
 }
 let state: 'ready' | 'playing' | 'paused' | 'over' = 'ready', remaining = 120, eaten = 0, toastTime = 0, lastTier = 0;
-interface Falling { elapsed: number; x: number; z: number; targetX: number; targetZ: number; depth: number; duration: number }
+
 const sinking = new Map<number, Falling>();
 let biteCount = 0, bitePoints = 0, biteTime = 0, cuesElapsed = 0;
 const cueGeometry = new THREE.RingGeometry(.85, 1, 24);
@@ -149,7 +149,7 @@ const cues = new THREE.InstancedMesh(cueGeometry, cueMaterial, 32); cues.count =
 const cueTransform = new THREE.Object3D();
 function updateCues() {
   const player = holes[0]; let count = 0;
-  const nearby = items.filter(item => !item.eaten && item.size < player.radius && Math.hypot(item.x - player.x, item.z - player.z) < player.radius + 18)
+  const nearby = items.filter(item => !item.eaten && !item.falling && item.size < player.radius && Math.hypot(item.x - player.x, item.z - player.z) < player.radius + 18)
     .sort((a, b) => Math.hypot(a.x - player.x, a.z - player.z) - Math.hypot(b.x - player.x, b.z - player.z));
   for (const item of nearby.slice(0, 32)) {
     cueTransform.position.set(item.x, .205, item.z); cueTransform.rotation.set(-Math.PI / 2, 0, 0); cueTransform.scale.setScalar(Math.max(.65, item.size * .8)); cueTransform.updateMatrix(); cues.setMatrixAt(count++, cueTransform.matrix);
@@ -199,7 +199,6 @@ function hud() {
   if (tier > lastTier) { toast(`SIZE UP! ${MILESTONES[tier - 1].menu} UNLOCKED`); lastTier = tier; }
   if (tier < lastTier) lastTier = tier;
 }
-const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function update(dt: number, elapsed: number) {
 
   let x = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft')) + stick.x;
@@ -208,15 +207,15 @@ function update(dt: number, elapsed: number) {
   if (holes[0].respawn <= 0) move(holes[0], x * .8 + z * .6, z * .8 - x * .6, dt);
   holes.forEach((h, i) => {
     if (h.respawn > 0) { h.respawn -= elapsed; return; }
-    if (i > 0) { const direction = rivalDirection(h, holes, items); move(h, direction.x, direction.z, dt * .8); }
-    items.forEach((item, j) => {
-      if (canEat(h, item)) {
-        item.eaten = true;
-        feed(h, item.points);
-        if (i === 0) { eaten++; registerBite(item.points); }
-        const depth = item.kind === 'landmark' ? 36 : item.kind === 'tower' ? 24 : item.kind === 'house' ? 10 : 6;
-        sinking.set(j, { elapsed: 0, x: item.x, z: item.z, targetX: h.x, targetZ: h.z, depth, duration: depth > 10 ? 1 : .55 });
-      }
+    if (i > 0) {
+      const danger = holes.some(other => canSwallow(other,h) && Math.hypot(other.x-h.x,other.z-h.z)<other.radius+9);
+      const holding = [...sinking.values()].some(fall=>fall.hole===h && fall.phase==='falling');
+      if (!holding || danger) { const direction=rivalDirection(h,holes,items);move(h,direction.x,direction.z,dt*.8); }
+    }
+    items.forEach((item,j)=>{
+      if (sinking.has(j)) return;
+      const fall=beginFall(item,h);
+      if (fall) sinking.set(j,fall);
     });
   });
   for (let i = 0;i < holes.length;i++)for (let j = i + 1;j < holes.length;j++) {
@@ -227,13 +226,17 @@ function update(dt: number, elapsed: number) {
       else if (big === holes[0]) { registerBite(stolen); toast(`Swallowed ${small.name}! +${stolen} pts`); }
     }
   }
-  sinking.forEach((fall, index) => {
-    fall.elapsed += dt; const progress = Math.min(1, fall.elapsed / fall.duration), g = meshes[index];
-    // Pull the full-size model toward the mouth, then drop it below the clipped ground.
-    const pull = reduced ? 1 : Math.min(1, progress * 2);
-    g.position.set(THREE.MathUtils.lerp(fall.x, fall.targetX, pull), .2 - fall.depth * progress * progress, THREE.MathUtils.lerp(fall.z, fall.targetZ, pull));
-    if (!reduced) { g.rotation.x = (fall.targetZ - fall.z) * .015 * progress; g.rotation.z = -(fall.targetX - fall.x) * .015 * progress; }
-    if (progress >= 1) { g.visible = false; g.scale.setScalar(0); sinking.delete(index); }
+  sinking.forEach((fall,index)=>{
+    const result=advanceFall(fall,dt),g=meshes[index];
+    // The object stays in world space; it never follows a hole that has moved away.
+    g.position.set(fall.item.x,.2-fall.drop,fall.item.z);
+    if(result==='eaten') {
+      g.visible=false;g.scale.setScalar(0);sinking.delete(index);
+      if(fall.hole===holes[0]){eaten++;registerBite(fall.item.points);}
+    } else if(result==='caught') {
+      g.position.y=.2;g.rotation.set(0,0,0);sinking.delete(index);
+      if(fall.hole===holes[0] && fall.item.kind!=='person' && fall.item.kind!=='bin')toast('Caught the rim — hold underneath until it drops.');
+    }
     syncProp(index);
   });
   biteTime = Math.max(0, biteTime - dt); $('bites').style.opacity = biteTime > 0 ? '1' : '0';

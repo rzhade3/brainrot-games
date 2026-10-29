@@ -17,8 +17,17 @@ Pause with P, Escape, or the header button. Leaving the window pauses the match.
 Nearby edible props have gold ground rings. Rival rims turn mint when swallowable
 and red when dangerous; a nearby-rival label explains size parity. The growth
 bar reports points until the next milestone. A running bite tally rewards
-continuous routes visually; it is not a score multiplier. Full-size models pull
-into the mouth, tip, and fall below the ground; reduced motion removes the tilt.
+continuous routes visually; it is not a score multiplier.
+
+Objects stay at their world position while falling. The hole must cover their
+whole horizontal footprint until the top clears the ground. Moving away too
+quickly catches the rim and the object settles back uneaten; scoring and growth
+happen only after a completed swallow. Trees include the crown in their footprint,
+and buildings include roof corners. A larger opening gives more room to move.
+Small snacks fall quickly; trees, vehicles, and buildings need a longer hold.
+AI rivals hold their bites unless fleeing danger. Being swallowed releases any
+objects that were still falling. These are conservative footprint checks rather
+than rigid-body physics; objects do not tip, slide, or transfer between mouths.
 
 Small props use shared instanced geometry to keep the denser city efficient.
 
@@ -55,13 +64,14 @@ matches with a greedy, threat-aware player and five rivals. It reports the first
 consumed object of each tier, final score, and remaining food. This probe ignores
 rendering and human decision time; it does not establish subjective fun.
 
-After tuning, seeds 718, 42, 2026, 891, and 15 reached cars at 7.8–10.2 seconds,
-houses at 16.9–23.9 seconds, towers at 25.9–55.5 seconds, and landmarks at 45.5–51.4
-seconds in the four runs that reached them. Four runs retained food through the
-120-second deadline; seed 718 cleared at 99 seconds. The script rejects stalled
-economies, clears before 90 seconds, openings taking over 35 seconds to reach
-houses, or captures creating extra total score. Earlier candidate tuning
-cleared all five cities around 65–68 seconds and was rejected.
+With continuous rim checks and a 30 Hz simulation step, seeds 718, 42, 2026,
+891, and 15 reached cars at 13.5–14.8 seconds and houses at 27.6–34.1 seconds.
+Three runs reached towers at 54.6–66 seconds and landmarks at 89.5–102.7 seconds;
+the other two lost ground to rivals. All five retained food through 120 seconds.
+The script rejects stalled economies, clears before 90 seconds, openings taking
+over 35 seconds to reach houses, or captures creating extra total score.
+The house milestone was reduced from 600 to 450 points to account for bite holds.
+The previous instant-consumption pacing measurements no longer apply.
 
 The original version's nearest-food AI and size curve are different, so these
 figures compare tuning candidates, not equivalent before/after human sessions.

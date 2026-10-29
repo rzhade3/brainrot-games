@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { city, canEat, matchResult, rivalDirection, feed, move, radiusFor, LIMIT, MILESTONES, growthStage, spawnPoints, swallow, type Hole } from './engine';
+import { beginFall, advanceFall, footprint, supports, city, canEat, matchResult, rivalDirection, feed, move, radiusFor, LIMIT, MILESTONES, growthStage, spawnPoints, swallow, type Hole } from './engine';
 const player = (): Hole => ({ name: 'You', x: 0, z: 0, radius: radiusFor(0), score: 0, color: 0, respawn: 0 });
 test('growth unlocks every city object without exceeding the radius cap', () => {
   const h = player(); const item = { ...city().find(i => i.kind === 'tower')!, x: 0, z: 0 };
@@ -79,5 +79,43 @@ test('late civic buildings remain reachable from the movement boundary', () => {
     h.x = Math.max(-LIMIT, Math.min(LIMIT, item.x));
     h.z = Math.max(-LIMIT, Math.min(LIMIT, item.z));
     assert.ok(canEat(h, item), `${item.kind} at ${item.x},${item.z} unreachable`);
+  }
+});
+
+test('a bite reserves food but awards nothing until the top clears the opening',()=>{
+  const h={...player(),radius:3};const item={...city().find(i=>i.kind==='tree')!,x:0,z:0};
+  const fall=beginFall(item,h)!;assert.ok(fall);assert.equal(item.eaten,false);assert.equal(h.score,0);
+  assert.equal(beginFall(item,{...h}),undefined);
+  assert.equal(advanceFall(fall,.1),'pending');assert.equal(h.score,0);
+  assert.equal(advanceFall(fall,.21),'eaten');assert.equal(item.eaten,true);assert.equal(h.score,item.points);
+  assert.equal(advanceFall(fall,1),'done');assert.equal(h.score,item.points);
+});
+test('driving away catches the crown on the rim and restores an uneaten tree',()=>{
+  const h={...player(),radius:2.1};const item={...city().find(i=>i.kind==='tree')!,x:0,z:0};
+  const fall=beginFall(item,h)!;advanceFall(fall,.1);h.x=.7;
+  assert.equal(supports(h,item),false);assert.equal(advanceFall(fall,.05),'pending');
+  assert.equal(fall.phase,'returning');assert.equal(advanceFall(fall,.2),'caught');
+  assert.equal(fall.drop,0);assert.equal(item.eaten,false);assert.equal(item.falling,false);assert.equal(h.score,0);
+  h.x=0;assert.ok(beginFall(item,h));
+});
+test('a roomy opening permits movement while swallowing, including at small timesteps',()=>{
+  const h={...player(),radius:6};const item={...city().find(i=>i.kind==='tree')!,x:0,z:0};
+  const fall=beginFall(item,h)!;
+  for(let n=0;n<40 && !item.eaten;n++){h.x+=.05;advanceFall(fall,.01);}
+  assert.equal(item.eaten,true);assert.equal(h.score,item.points);
+});
+test('an object touching the rim cannot start falling and respawning releases pending food',()=>{
+  const h={...player(),radius:3};const item={...city().find(i=>i.kind==='tree')!,x:0,z:0};
+  h.x=3-footprint(item);assert.equal(beginFall(item,h),undefined);
+  h.x=0;const fall=beginFall(item,h)!;advanceFall(fall,.1);h.respawn=5;
+  assert.equal(advanceFall(fall,.21),'caught');assert.equal(item.eaten,false);assert.equal(h.score,0);
+});
+
+test('every object can fit at the boundary as soon as its size tier permits it',()=>{
+  const h=player();
+  for(const item of city(718)){
+    h.radius=Math.max(item.size,footprint(item))+.01;
+    h.x=Math.max(-LIMIT,Math.min(LIMIT,item.x));h.z=Math.max(-LIMIT,Math.min(LIMIT,item.z));
+    assert.ok(supports(h,item),`${item.kind} at ${item.x},${item.z} blocked by world boundary`);
   }
 });
