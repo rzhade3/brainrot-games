@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import './style.css';
-import { city, canEat, feed, move, radiusFor, type Hole, type Item } from './engine';
+import { city, canEat, canSwallow, matchResult, rivalDirection, feed, move, radiusFor, type FinishReason, type Hole, type Item } from './engine';
 import { getBestScore, submitScore } from '../../core/scores';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -115,12 +115,12 @@ $('play').onclick=start;
 function togglePause(){if(state==='ready'||state==='over')return;if(state==='paused'){start();return;}state='paused';clearInput();$('pause').textContent='▶';$('overlay').hidden=false;$('overlay').innerHTML=`<section><span class="eyebrow">TAKE A BREATHER</span><h1>Still hungry?</h1><p>Your city will be right here.</p><button class="primary" id="resume">Keep eating ↗</button><button class="secondary" id="restart">New match</button></section>`;$('resume').onclick=start;$('restart').onclick=()=>{state='over';start();};$('resume').focus();}
 $('pause').onclick=togglePause;
 window.addEventListener('blur',()=>{if(state==='playing')togglePause();});document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='playing')togglePause();});
-function finish(){state='over';clearInput();const best=submitScore('hole-city',holes[0].score),rank=ranking().indexOf(holes[0])+1;$('overlay').hidden=false;$('overlay').innerHTML=`<section><span class="eyebrow">THE CITY HAS BEEN SERVED</span><h1>${rank===1?'Biggest appetite.':'A delicious run.'}</h1><p>You finished #${rank} with <b>${holes[0].score} points</b> and swallowed ${eaten} objects.</p><div class="result">${holes[0].score}<small>POINTS · BEST ${best}</small></div><button class="primary" id="again">Another helping ↗</button><a class="exit" href="/">Back to the arcade</a></section>`;$('again').onclick=start;$('again').focus();}
+function finish(reason: FinishReason){state='over';clearInput();const best=submitScore('hole-city',holes[0].score),rank=ranking().indexOf(holes[0])+1;$('overlay').hidden=false;$('overlay').innerHTML=`<section><span class="eyebrow">${reason==='cleared'?'CITY CLEARED · EVERY LAST BITE':reason==='stalled'?'THE FEAST IS FINISHED':'TIME’S UP · THE CITY HAS BEEN SERVED'}</span><h1>${rank===1?'Biggest appetite.':'A delicious run.'}</h1><p>You finished #${rank} with <b>${holes[0].score} points</b> and swallowed ${eaten} objects.${reason==='cleared'?` The city was cleared with ${Math.ceil(remaining)} seconds to spare!`:reason==='stalled'?' Nothing left that anyone can eat — time to serve a fresh city.':''}</p><div class="result">${holes[0].score}<small>POINTS · BEST ${best}</small></div><button class="primary" id="again">Another helping ↗</button><a class="exit" href="/">Back to the arcade</a></section>`;$('again').onclick=start;$('again').focus();}
 function ranking(){return [...holes].sort((a,b)=>b.score-a.score);}
 function toast(message:string){$('toast').textContent=message;toastTime=2.5;}
 let hudElapsed=0;
 function hud(){
- const p=holes[0];$('time').textContent=`${Math.floor(Math.ceil(remaining)/60)}:${String(Math.ceil(remaining)%60).padStart(2,'0')}`;
+ const p=holes[0];document.querySelector('.district small')!.textContent=`${items.filter(item=>!item.eaten).length} OBJECTS LEFT · 6 HOLES`;$('time').textContent=`${Math.floor(Math.ceil(remaining)/60)}:${String(Math.ceil(remaining)%60).padStart(2,'0')}`;
  $('leaders').innerHTML=ranking().map((h,i)=>`<li class="${h===p?'you':''}"><span>${String(i+1).padStart(2,'0')}</span><i style="background:#${h.color.toString(16)}"></i><b>${h.name}</b><strong>${h.score}</strong></li>`).join('');
  const tiers=[0,2.1,2.6,3.7,5.2,9], tier=tiers.filter(t=>p.radius>t).length-1;
  $('level').textContent=['A small appetite','Room for more','Street sweeper','Block party','City devourer','Bottomless'][tier];$('score').textContent=`${p.score} pts`;
@@ -134,18 +134,18 @@ function update(dt:number){
  let x=Number(keys.has('d')||keys.has('arrowright'))-Number(keys.has('a')||keys.has('arrowleft'))+stick.x;
  let z=Number(keys.has('s')||keys.has('arrowdown'))-Number(keys.has('w')||keys.has('arrowup'))+stick.y;
  // Camera looks diagonally across the grid: align movement to the screen axes.
- move(holes[0],x*.8+z*.6,z*.8-x*.6,dt);
+ if(holes[0].respawn<=0)move(holes[0],x*.8+z*.6,z*.8-x*.6,dt);
  holes.forEach((h,i)=>{
   if(h.respawn>0){h.respawn-=dt;return;}
-  if(i>0){let target:Item|undefined, best=Infinity;for(const item of items){if(item.eaten||item.size>=h.radius)continue;const d=Math.hypot(item.x-h.x,item.z-h.z)/(1+item.points*.025);if(d<best){best=d;target=item;}}if(target)move(h,target.x-h.x,target.z-h.z,dt*.8);}
+  if(i>0){const direction=rivalDirection(h,holes,items);move(h,direction.x,direction.z,dt*.8);}
   items.forEach((item,j)=>{if(canEat(h,item)){item.eaten=true;feed(h,item.points);if(i===0)eaten++;sinking.set(j,0);}});
  });
  for(let i=0;i<holes.length;i++)for(let j=i+1;j<holes.length;j++){
   const a=holes[i],b=holes[j];if(a.respawn>0||b.respawn>0)continue;const big=a.radius>b.radius?a:b,small=big===a?b:a;
-  if(big.radius>small.radius*1.3&&Math.hypot(big.x-small.x,big.z-small.z)<big.radius-small.radius*.4){feed(big,Math.max(15,Math.round(small.score*.25)));small.respawn=3;small.x=small.x>0?-57:57;small.z=small.z>0?-57:57;if(small===holes[0])toast('Swallowed! Back in 3 seconds — keep your size.');else if(big===holes[0])toast(`Swallowed ${small.name}!`);}
+  if(canSwallow(big,small)&&Math.hypot(big.x-small.x,big.z-small.z)<big.radius-small.radius*.4){feed(big,Math.max(15,Math.round(small.score*.25)));small.respawn=3;small.x=small.x>0?-57:57;small.z=small.z>0?-57:57;if(small===holes[0])toast('Swallowed! Back in 3 seconds — keep your size.');else if(big===holes[0])toast(`Swallowed ${small.name}!`);}
  }
  sinking.forEach((t,index)=>{t+=dt;const g=meshes[index];g.position.y-=dt*9;g.scale.setScalar(Math.max(0,1-t*1.7));if(!reduced)g.rotation.z=t*.7;if(t>.6){g.visible=false;sinking.delete(index);}else sinking.set(index,t);});
- hudElapsed+=dt;if(hudElapsed>.12){hud();hudElapsed=0;}if(remaining<=0)finish();
+ hudElapsed+=dt;if(hudElapsed>.12){hud();hudElapsed=0;}const result=matchResult(items,holes,remaining);if(result){hud();finish(result);}
 }
 let w=0,h=0,previous=performance.now();const aim=new THREE.Vector3();
 function frame(now:number){const dt=Math.min((now-previous)/1000,.05);previous=now;

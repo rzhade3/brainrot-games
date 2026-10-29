@@ -3,7 +3,11 @@
 Open `/games/hole-city/` or choose **Hole City** in the arcade. Move with WASD,
 arrow keys, or drag anywhere in the city using a mouse or touch. Eat smaller
 objects to grow from pedestrians and bins to trees, cars, houses, and towers.
-Compete against five local AI rivals for the highest score in two minutes.
+Compete against five local AI rivals for the highest score in up to two minutes.
+Rivals seek food, hunt smaller holes, and flee larger holes. The match finishes
+immediately when every city object is eaten, with a city-clear summary and the
+time left. If nobody can eat any remaining object or grow by swallowing a rival,
+the feast ends early too. The HUD counts down the remaining objects.
 A hole can swallow another when its radius is at least 30% larger. The swallowed
 hole returns at the opposite edge after three seconds and retains its size.
 Pause with P, Escape, or the header button. Leaving the window pauses the match.

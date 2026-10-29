@@ -30,3 +30,43 @@ export function city(seed = 718): Item[] {
   }
   return items;
 }
+
+export const canSwallow = (hunter: Hole, prey: Hole) =>
+  hunter !== prey && hunter.respawn <= 0 && prey.respawn <= 0 && hunter.radius > prey.radius * 1.3;
+
+export type FinishReason = 'time' | 'cleared' | 'stalled';
+export function matchResult(items: Item[], holes: Hole[], remaining: number): FinishReason | undefined {
+  if (items.every(item => item.eaten)) return 'cleared';
+  if (remaining <= 0) return 'time';
+  // Include returning holes: their three-second absence must not end a match.
+  if (items.some(item => !item.eaten && holes.some(hole => item.size < hole.radius))) return;
+  if (holes.some(hunter => holes.some(prey => hunter !== prey && hunter.radius > prey.radius * 1.3))) return;
+  return 'stalled';
+}
+
+/** Seek food or nearby prey, but escape a larger hole before continuing to eat. */
+export function rivalDirection(hole: Hole, holes: Hole[], items: Item[]): { x: number; z: number } {
+  const threats = holes.filter(other => canSwallow(other, hole))
+    .sort((a, b) => Math.hypot(a.x-hole.x, a.z-hole.z) - Math.hypot(b.x-hole.x, b.z-hole.z));
+  const threat = threats[0];
+  if (threat && Math.hypot(threat.x-hole.x, threat.z-hole.z) < threat.radius + 9) {
+    let x = hole.x - threat.x, z = hole.z - threat.z;
+    // Turn along the boundary instead of getting pinned while fleeing.
+    if ((hole.x >= LIMIT-1 && x > 0) || (hole.x <= -LIMIT+1 && x < 0)) { z += x; x = 0; }
+    if ((hole.z >= LIMIT-1 && z > 0) || (hole.z <= -LIMIT+1 && z < 0)) { x -= z; z = 0; }
+    return { x: x || (z ? 0 : 1), z };
+  }
+  let target: { x: number; z: number } | undefined, best = Infinity;
+  for (const item of items) {
+    if (item.eaten || item.size >= hole.radius) continue;
+    const cost = Math.hypot(item.x-hole.x, item.z-hole.z) / (1 + item.points * .025);
+    if (cost < best) { best = cost; target = item; }
+  }
+  for (const prey of holes) {
+    if (!canSwallow(hole, prey)) continue;
+    const distance = Math.hypot(prey.x-hole.x, prey.z-hole.z);
+    const cost = distance / (1 + Math.max(15, prey.score * .25) * .025);
+    if (cost < best) { best = cost; target = prey; }
+  }
+  return target ? { x: target.x-hole.x, z: target.z-hole.z } : { x: 0, z: 0 };
+}
