@@ -14,6 +14,7 @@ type GameEntry = {
 };
 
 const games: GameEntry[] = [
+  { title: 'Hole City', emoji: '🕳️', description: 'A little hole. A big appetite. Swallow the city and outgrow five rivals in two minutes.', href: './games/hole-city/', ready: true, scoreKey: 'hole-city-classic-v2', scoreLabel: 'pts' },
   { title: 'Gate Runner', emoji: '🚀', description: 'Multiply your squad, choose upgrades, and survive five stages of auto-shooter chaos.', href: './games/gate-runner/', ready: true, scoreKey: 'gate-runner', scoreLabel: 'pts' },
   {
     title: 'Fieldwork',
