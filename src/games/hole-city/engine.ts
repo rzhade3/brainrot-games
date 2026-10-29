@@ -1,33 +1,64 @@
-export type Kind = 'bin' | 'person' | 'tree' | 'car' | 'house' | 'tower';
+export type Kind = 'bin' | 'person' | 'tree' | 'car' | 'house' | 'tower' | 'landmark';
 export interface Item { x: number; z: number; size: number; points: number; kind: Kind; eaten: boolean }
 export interface Hole { x: number; z: number; score: number; radius: number; name: string; color: number; respawn: number }
-export const LIMIT = 62;
-export const radiusFor = (score: number) => Math.min(13, 1.65 + Math.sqrt(score) * .36);
-export function canEat(hole: Hole, item: Item) { return !item.eaten && item.size < hole.radius && Math.hypot(hole.x-item.x, hole.z-item.z) < hole.radius - item.size * .35; }
+export const LIMIT = 78;
+export const MILESTONES = [
+  { score: 0, radius: 1.65, name: 'Street snacks', menu: 'TREES' },
+  { score: 30, radius: 2.051, name: 'Park picnic', menu: 'CARS' },
+  { score: 180, radius: 2.851, name: 'Traffic eater', menu: 'HOUSES' },
+  { score: 600, radius: 4.001, name: 'Block party', menu: 'TOWERS' },
+  { score: 1100, radius: 6.501, name: 'Skyline snack', menu: 'LANDMARKS' },
+  { score: 2600, radius: 9.501, name: 'City devourer', menu: 'THE WHOLE CITY' },
+  { score: 7000, radius: 15, name: 'Bottomless', menu: 'THE WHOLE CITY' },
+] as const;
+export function radiusFor(score: number): number {
+  for (let i = 1;i < MILESTONES.length;i++) {
+    const previous = MILESTONES[i - 1], next = MILESTONES[i];
+    if (score < next.score) return previous.radius + (next.radius - previous.radius) *
+      Math.max(0, score - previous.score) / (next.score - previous.score);
+  }
+  return Math.min(18, 15 + Math.max(0, score - 7000) / 1200);
+}
+export function growthStage(score: number) {
+  return Math.max(0, MILESTONES.filter(stage => score >= stage.score).length - 1);
+}
+export const spawnPoints = [
+  { x: 0, z: 73 }, { x: -60, z: 73 }, { x: 60, z: 73 },
+  { x: -60, z: -73 }, { x: 0, z: -73 }, { x: 60, z: -73 },
+];
+export function canEat(hole: Hole, item: Item) { return !item.eaten && item.size < hole.radius && Math.hypot(hole.x - item.x, hole.z - item.z) < hole.radius - item.size * .35; }
 export function feed(hole: Hole, points: number) { hole.score += points; hole.radius = radiusFor(hole.score); }
 export function move(hole: Hole, x: number, z: number, dt: number) {
-  const length = Math.hypot(x,z); if (!length) return;
-  const speed = (10.5 - hole.radius * .22) * Math.min(length, 1) * dt;
-  hole.x = Math.max(-LIMIT, Math.min(LIMIT, hole.x+x/length*speed));
-  hole.z = Math.max(-LIMIT, Math.min(LIMIT, hole.z+z/length*speed));
+  const length = Math.hypot(x, z); if (!length) return;
+  const speed = (15 - Math.min(hole.radius, 15) * .12) * Math.min(length, 1) * dt;
+  hole.x = Math.max(-LIMIT, Math.min(LIMIT, hole.x + x / length * speed));
+  hole.z = Math.max(-LIMIT, Math.min(LIMIT, hole.z + z / length * speed));
 }
 export function city(seed = 718): Item[] {
   const items: Item[] = [];
-  const random = () => { seed = (Math.imul(seed,1664525)+1013904223) >>> 0; return seed/4294967296; };
-  const add = (x:number,z:number,kind:Kind,size:number,points:number) => items.push({x,z,kind,size,points,eaten:false});
-  for(let x=-48;x<=48;x+=24) for(let z=-48;z<=48;z+=24) {
-    const park = random()<.22 || (x===0 && z===0);
-    if(!park) for(const dx of [-5,5]) for(const dz of [-5,5]) {
-      const tall = random()>.65; add(x+dx,z+dz,tall?'tower':'house',tall?5.2:3.7,tall?90:40);
+  const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const add = (x: number, z: number, kind: Kind, size: number, points: number) => items.push({ x, z, kind, size, points, eaten: false });
+  for (let x = -60;x <= 60;x += 30) for (let z = -60;z <= 60;z += 30) {
+    const park = (x === 0 && z === 0) || random() < .18;
+    if (!park) for (const dx of [-7, 7]) for (const dz of [-7, 7]) {
+      const landmark = Math.abs(x) + Math.abs(z) < 90 && random() < .22;
+      const tall = random() > .4;
+      add(x + dx, z + dz, landmark ? 'landmark' : tall ? 'tower' : 'house',
+        landmark ? 9.5 : tall ? 6.5 : 4, landmark ? 260 : tall ? 100 : 40);
     }
-    else for(let n=0;n<7;n++) add(x+(random()-.5)*16,z+(random()-.5)*16,'tree',2.1,10);
-    for(let n=0;n<9;n++) {
-      const side = n%2 ? -10 : 10;
-      add(x+side,z-9+n*2.3,n%3===0?'bin':'person',n%3===0?.65:.45,n%3===0?3:2);
+    else for (let n = 0;n < 14;n++) add(x + (random() - .5) * 19, z + (random() - .5) * 19, 'tree', 2.05, 7);
+    // Continuous sidewalk trails connect the six starts to parks, traffic, and blocks.
+    for (let n = 0;n < 11;n++) for (const side of [-1, 1]) {
+      add(x - 12 + n * 2.4, z + side * 13, n % 3 === 0 ? 'bin' : 'person', n % 3 === 0 ? .65 : .45, 3);
     }
-    for(const offset of [-7,3]) add(x+offset,z+12,'car',2.6,15);
-    add(x-9,z+8,'tree',2.1,10);
+    for (const side of [-1, 1]) {
+      for (const offset of [-9, 0, 9]) add(x + side * 13, z + offset, 'tree', 2.05, 7);
+      for (const offset of [-9, 0, 9]) add(x + offset, z + side * 15, 'car', 2.85, 12);
+    }
   }
+  // Large civic buildings around the perimeter remain worthwhile in the final lap.
+  for (const side of [-1, 1]) for (const z of [-60, -20, 20, 60])
+    add(side * 84, z, 'landmark', 12, 360);
   return items;
 }
 
@@ -38,35 +69,47 @@ export type FinishReason = 'time' | 'cleared' | 'stalled';
 export function matchResult(items: Item[], holes: Hole[], remaining: number): FinishReason | undefined {
   if (items.every(item => item.eaten)) return 'cleared';
   if (remaining <= 0) return 'time';
-  // Include returning holes: their three-second absence must not end a match.
+  // Include returning holes: their respawn absence must not end a match.
   if (items.some(item => !item.eaten && holes.some(hole => item.size < hole.radius))) return;
-  if (holes.some(hunter => holes.some(prey => hunter !== prey && hunter.radius > prey.radius * 1.3))) return;
+  if (holes.some(hunter => holes.some(prey => hunter !== prey && hunter.radius > prey.radius * 1.3 && Math.floor(prey.score * .2) > 0))) return;
   return 'stalled';
 }
 
 /** Seek food or nearby prey, but escape a larger hole before continuing to eat. */
 export function rivalDirection(hole: Hole, holes: Hole[], items: Item[]): { x: number; z: number } {
   const threats = holes.filter(other => canSwallow(other, hole))
-    .sort((a, b) => Math.hypot(a.x-hole.x, a.z-hole.z) - Math.hypot(b.x-hole.x, b.z-hole.z));
+    .sort((a, b) => Math.hypot(a.x - hole.x, a.z - hole.z) - Math.hypot(b.x - hole.x, b.z - hole.z));
   const threat = threats[0];
-  if (threat && Math.hypot(threat.x-hole.x, threat.z-hole.z) < threat.radius + 9) {
+  if (threat && Math.hypot(threat.x - hole.x, threat.z - hole.z) < threat.radius + 9) {
     let x = hole.x - threat.x, z = hole.z - threat.z;
     // Turn along the boundary instead of getting pinned while fleeing.
-    if ((hole.x >= LIMIT-1 && x > 0) || (hole.x <= -LIMIT+1 && x < 0)) { z += x; x = 0; }
-    if ((hole.z >= LIMIT-1 && z > 0) || (hole.z <= -LIMIT+1 && z < 0)) { x -= z; z = 0; }
+    if ((hole.x >= LIMIT - 1 && x > 0) || (hole.x <= -LIMIT + 1 && x < 0)) { z += x; x = 0; }
+    if ((hole.z >= LIMIT - 1 && z > 0) || (hole.z <= -LIMIT + 1 && z < 0)) { x -= z; z = 0; }
     return { x: x || (z ? 0 : 1), z };
   }
   let target: { x: number; z: number } | undefined, best = Infinity;
   for (const item of items) {
     if (item.eaten || item.size >= hole.radius) continue;
-    const cost = Math.hypot(item.x-hole.x, item.z-hole.z) / (1 + item.points * .025);
+    const cost = Math.hypot(item.x - hole.x, item.z - hole.z) / (1 + item.points * .025);
     if (cost < best) { best = cost; target = item; }
   }
   for (const prey of holes) {
-    if (!canSwallow(hole, prey)) continue;
-    const distance = Math.hypot(prey.x-hole.x, prey.z-hole.z);
-    const cost = distance / (1 + Math.max(15, prey.score * .25) * .025);
+    if (!canSwallow(hole, prey) || prey.score < 30) continue;
+    const distance = Math.hypot(prey.x - hole.x, prey.z - hole.z);
+    const cost = distance / (1 + Math.floor(prey.score * .2) * .025);
     if (cost < best) { best = cost; target = prey; }
   }
-  return target ? { x: target.x-hole.x, z: target.z-hole.z } : { x: 0, z: 0 };
+  return target ? { x: target.x - hole.x, z: target.z - hole.z } : { x: 0, z: 0 };
+}
+
+/** Transfer existing points instead of creating an unlimited source from respawns. */
+export function swallow(hunter: Hole, prey: Hole): number {
+  const stolen = Math.floor(prey.score * .2);
+  feed(hunter, stolen);
+  prey.score -= stolen;
+  prey.radius = radiusFor(prey.score);
+  prey.respawn = 5;
+  prey.x = prey.x > 0 ? -73 : 73;
+  prey.z = prey.z > 0 ? -73 : 73;
+  return stolen;
 }
