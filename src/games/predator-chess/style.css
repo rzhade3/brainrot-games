@@ -28,7 +28,6 @@ h2 { font-size: 18px; font-weight: 600; line-height: 1.35; margin: 0; }
 .side-dot.w { background: #fff5de; }
 .side-dot.b { background: #222e2a; }
 .primary { color: #202922; background: var(--accent); border-color: transparent; font-weight: 650; white-space: nowrap; }
-.status.waiting h2 { color: var(--accent); }
 .board-wrap { display: grid; grid-template-columns: 16px minmax(0, 1fr); grid-template-rows: auto 20px; margin-left: -16px; }
 .ranks { display: grid; grid-template-rows: repeat(8, 1fr); }
 .ranks span { display: grid; place-items: center start; color: var(--muted); font-size: 10px; }
@@ -88,7 +87,6 @@ dialog ul { padding-left: 20px; }
  .status-copy { gap: 8px; }
  .status h2 { font-size: 17px; }
  .status p { font-size: 11px; }
- .status .primary { padding: 10px; font-size: 12px; }
  .board-footer>span { gap: 9px; }
  .board-footer { gap: 8px; font-size: 10px; }
  .sq.capture::after { border-width: 3px; }
@@ -98,5 +96,4 @@ dialog ul { padding-left: 20px; }
  .header { padding-inline: 12px; }
  h1 { font-size: 18px; }
  .side-dot { display: none; }
- .status .primary { white-space: normal; max-width: 100px; }
 }
