@@ -27,6 +27,13 @@ than introducing a third win condition; automatic threefold repetition and
 50-move draws prevent endless play. Repetition includes movement rights, en
 passant target and sweep progress. New games require confirmation.
 
+The board uses local SVG pieces, edge coordinates, and highlights for the last move,
+legal destinations, checks, and forced Predators. After each move, the board locks
+until the next player selects **Play as White/Black** in the inline turn panel.
+White starts immediately. Board orientation stays fixed unless manually flipped.
+Sweep counts and the latest move stay visible; full move history is expandable.
+Rules, promotion, and new-game confirmation use accessible dialogs.
+
 Run `npm run test:predator-chess` for engine checks and `npm run build` for the
 TypeScript and production build checks. The game requires no external assets.
 
