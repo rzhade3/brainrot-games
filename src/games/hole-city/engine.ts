@@ -127,25 +127,32 @@ export interface Falling {
   elapsed: number;
   drop: number;
   returnFrom: number;
+  outsideTime: number;
+  secured: boolean;
   duration: number;
   depth: number;
 }
 export function supports(hole: Hole, item: Item): boolean {
   return hole.respawn <= 0 && item.size < hole.radius &&
-    Math.hypot(hole.x-item.x, hole.z-item.z) + footprint(item) < hole.radius;
+    Math.hypot(hole.x-item.x, hole.z-item.z) + footprint(item) * .35 < hole.radius;
 }
 export function beginFall(item: Item, hole: Hole): Falling | undefined {
   if (!canEat(hole,item) || !supports(hole,item)) return;
   item.falling = true;
-  const duration = { person: .08, bin: .1, tree: .24, car: .32, house: .55, tower: .8, landmark: 1 }[item.kind];
+  const duration = { person: .06, bin: .08, tree: .18, car: .24, house: .4, tower: .55, landmark: .7 }[item.kind];
   const depth = { person: 1.6, bin: 1.3, tree: 4.6, car: 1.8, house: 9, tower: 22, landmark: 38 }[item.kind];
-  return { item, hole, phase: 'falling', elapsed: 0, drop: 0, returnFrom: 0, duration, depth };
+  return { item, hole, phase: 'falling', elapsed: 0, drop: 0, returnFrom: 0, outsideTime: 0, secured: false, duration, depth };
 }
-/** Keep the opening beneath the whole footprint until the top clears the ground. */
+/** Allow rim overlap, a brief escape grace, and an early point of no return. */
 export function advanceFall(fall: Falling, dt: number): 'pending' | 'caught' | 'eaten' | 'done' {
   if (fall.phase === 'done') return 'done';
-  if (fall.phase === 'falling' && !supports(fall.hole,fall.item)) {
-    fall.phase = 'returning'; fall.elapsed = 0; fall.returnFrom = fall.drop;
+  const covered = supports(fall.hole,fall.item);
+  if (fall.phase === 'falling') {
+    if (covered && fall.elapsed + dt >= fall.duration * .45) fall.secured = true;
+    fall.outsideTime = covered ? 0 : fall.outsideTime + dt;
+    if (fall.hole.respawn > 0 || (!fall.secured && fall.outsideTime >= .1)) {
+      fall.phase = 'returning'; fall.elapsed = 0; fall.returnFrom = fall.drop;
+    }
   }
   fall.elapsed += dt;
   if (fall.phase === 'returning') {
@@ -155,7 +162,7 @@ export function advanceFall(fall: Falling, dt: number): 'pending' | 'caught' | '
   }
   const progress = Math.min(1,fall.elapsed/fall.duration);
   fall.drop = fall.depth * progress * progress;
-  if (progress < 1) return 'pending';
+  if (progress < 1 || (!fall.secured && !covered)) return 'pending';
   fall.item.falling = false; fall.item.eaten = true; fall.phase = 'done';
   feed(fall.hole,fall.item.points);
   return 'eaten';

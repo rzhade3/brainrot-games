@@ -92,8 +92,8 @@ test('a bite reserves food but awards nothing until the top clears the opening',
 });
 test('driving away catches the crown on the rim and restores an uneaten tree',()=>{
   const h={...player(),radius:2.1};const item={...city().find(i=>i.kind==='tree')!,x:0,z:0};
-  const fall=beginFall(item,h)!;advanceFall(fall,.1);h.x=.7;
-  assert.equal(supports(h,item),false);assert.equal(advanceFall(fall,.05),'pending');
+  const fall=beginFall(item,h)!;advanceFall(fall,.02);h.x=5;
+  assert.equal(supports(h,item),false);assert.equal(advanceFall(fall,.11),'pending');
   assert.equal(fall.phase,'returning');assert.equal(advanceFall(fall,.2),'caught');
   assert.equal(fall.drop,0);assert.equal(item.eaten,false);assert.equal(item.falling,false);assert.equal(h.score,0);
   h.x=0;assert.ok(beginFall(item,h));
@@ -106,7 +106,7 @@ test('a roomy opening permits movement while swallowing, including at small time
 });
 test('an object touching the rim cannot start falling and respawning releases pending food',()=>{
   const h={...player(),radius:3};const item={...city().find(i=>i.kind==='tree')!,x:0,z:0};
-  h.x=3-footprint(item);assert.equal(beginFall(item,h),undefined);
+  h.x=3-item.size*.35;assert.equal(beginFall(item,h),undefined);
   h.x=0;const fall=beginFall(item,h)!;advanceFall(fall,.1);h.respawn=5;
   assert.equal(advanceFall(fall,.21),'caught');assert.equal(item.eaten,false);assert.equal(h.score,0);
 });
@@ -118,4 +118,16 @@ test('every object can fit at the boundary as soon as its size tier permits it',
     h.x=Math.max(-LIMIT,Math.min(LIMIT,item.x));h.z=Math.max(-LIMIT,Math.min(LIMIT,item.z));
     assert.ok(supports(h,item),`${item.kind} at ${item.x},${item.z} blocked by world boundary`);
   }
+});
+
+test('small holes can skim a tree while moving and finish after the bite is secured',()=>{
+  const h={...player(),radius:2.1};const item={...city().find(i=>i.kind==='tree')!,x:0,z:0};
+  h.x=.8;assert.ok(supports(h,item));
+  const fall=beginFall(item,h)!;advanceFall(fall,.09);assert.equal(fall.secured,true);
+  h.x=5;assert.equal(advanceFall(fall,.1),'eaten');assert.equal(h.score,item.points);
+});
+test('a brief rim excursion does not cancel an early bite',()=>{
+  const h={...player(),radius:2.1};const item={...city().find(i=>i.kind==='tree')!,x:0,z:0};
+  const fall=beginFall(item,h)!;advanceFall(fall,.02);h.x=5;advanceFall(fall,.04);
+  assert.equal(fall.phase,'falling');h.x=0;assert.equal(advanceFall(fall,.13),'eaten');
 });

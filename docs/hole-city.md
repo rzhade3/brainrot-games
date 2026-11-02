@@ -19,15 +19,13 @@ and red when dangerous; a nearby-rival label explains size parity. The growth
 bar reports points until the next milestone. A running bite tally rewards
 continuous routes visually; it is not a score multiplier.
 
-Objects stay at their world position while falling. The hole must cover their
-whole horizontal footprint until the top clears the ground. Moving away too
-quickly catches the rim and the object settles back uneaten; scoring and growth
-happen only after a completed swallow. Trees include the crown in their footprint,
-and buildings include roof corners. A larger opening gives more room to move.
-Small snacks fall quickly; trees, vehicles, and buildings need a longer hold.
-AI rivals hold their bites unless fleeing danger. Being swallowed releases any
-objects that were still falling. These are conservative footprint checks rather
-than rigid-body physics; objects do not tip, slide, or transfer between mouths.
+Objects stay at their world position while falling. Bites allow substantial rim
+overlap and a 100 ms grace period if the opening slips away. Once 45% of the fall
+has completed while supported, the bite is secured and you can move on. Falls
+are shorter too: trees take 180 ms, cars 240 ms, and buildings 400–700 ms.
+Moving well away before securing the bite still restores the object uneaten.
+Points arrive only when the fall completes; a respawning owner still releases
+pending food. AI rivals resume moving as soon as a bite is secured.
 
 Small props use shared instanced geometry to keep the denser city efficient.
 
@@ -64,14 +62,12 @@ matches with a greedy, threat-aware player and five rivals. It reports the first
 consumed object of each tier, final score, and remaining food. This probe ignores
 rendering and human decision time; it does not establish subjective fun.
 
-With continuous rim checks and a 30 Hz simulation step, seeds 718, 42, 2026,
-891, and 15 reached cars at 13.5–14.8 seconds and houses at 27.6–34.1 seconds.
-Three runs reached towers at 54.6–66 seconds and landmarks at 89.5–102.7 seconds;
-the other two lost ground to rivals. All five retained food through 120 seconds.
-The script rejects stalled economies, clears before 90 seconds, openings taking
-over 35 seconds to reach houses, or captures creating extra total score.
-The house milestone was reduced from 600 to 450 points to account for bite holds.
-The previous instant-consumption pacing measurements no longer apply.
+The simulator uses a 30 Hz step and reports each player's unlock times plus the
+first house eaten by any competitor. Its opening guard checks that the economy
+reaches houses within 35 seconds, rather than requiring a particular player to
+stay ahead after being swallowed. It also rejects stalled economies, clears
+before 90 seconds, and score inflation. Earlier strict-rim timing measurements
+no longer apply to this more forgiving version.
 
 The original version's nearest-food AI and size curve are different, so these
 figures compare tuning candidates, not equivalent before/after human sessions.

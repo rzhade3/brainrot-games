@@ -11,7 +11,7 @@ app.innerHTML = `<header><a href="/">↖ <span>THE ARCADE</span></a><div class="
 <aside><h2>THE BIG EATERS <span>↗</span></h2><ol id="leaders"></ol><p>LOCAL MATCH · AI RIVALS</p></aside>
 <div class="bottom"><div class="growth"><div><strong id="level">A small appetite</strong><span id="score">0 pts</span></div><div class="track"><i id="progress"></i></div><small id="target">NEXT ON THE MENU: TREES</small></div><div class="control-hint"><kbd>W A S D</kbd><span>or drag to move</span><span>Gold props: edible · Mint ring: prey · Red ring: danger</span></div></div>
 <div id="toast" role="status"></div><div id="bites" aria-live="off"></div><div id="rival-hint"></div><div id="joystick"><i></i></div>
-<div class="veil" id="overlay"><section><span class="eyebrow">SMALL HOLE. BIG PLANS.</span><h1>The city is<br>on the menu<span>.</span></h1><p>Follow the sidewalk snacks into parks and traffic. Grow from street snacks to whole skyscrapers. Biggest score in two minutes wins.</p><div class="instructions"><span>01 <b>Move</b> with WASD, arrows, or drag</span><span>02 <b>Eat</b> hold underneath until it drops</span><span>03 <b>Grow</b> to the top in two minutes</span></div><button class="primary" id="play">Let's eat <span>↗</span></button><small id="best">PERSONAL BEST · ${getBestScore('hole-city-classic-v2')} PTS</small></section></div>
+<div class="veil" id="overlay"><section><span class="eyebrow">SMALL HOLE. BIG PLANS.</span><h1>The city is<br>on the menu<span>.</span></h1><p>Follow the sidewalk snacks into parks and traffic. Grow from street snacks to whole skyscrapers. Biggest score in two minutes wins.</p><div class="instructions"><span>01 <b>Move</b> with WASD, arrows, or drag</span><span>02 <b>Eat</b> slow down briefly for bigger bites</span><span>03 <b>Grow</b> to the top in two minutes</span></div><button class="primary" id="play">Let's eat <span>↗</span></button><small id="best">PERSONAL BEST · ${getBestScore('hole-city-classic-v2')} PTS</small></section></div>
 </main><footer><span>A LITTLE CHAOS. A LOT OF APPETITE.</span><span>HOLE CITY <b> / </b> 01</span></footer>`;
 const $ = (id: string) => document.getElementById(id)!;
 const canvas = $('world') as HTMLCanvasElement;
@@ -209,7 +209,7 @@ function update(dt: number, elapsed: number) {
     if (h.respawn > 0) { h.respawn -= elapsed; return; }
     if (i > 0) {
       const danger = holes.some(other => canSwallow(other,h) && Math.hypot(other.x-h.x,other.z-h.z)<other.radius+9);
-      const holding = [...sinking.values()].some(fall=>fall.hole===h && fall.phase==='falling');
+      const holding = [...sinking.values()].some(fall=>fall.hole===h && fall.phase==='falling' && !fall.secured);
       if (!holding || danger) { const direction=rivalDirection(h,holes,items);move(h,direction.x,direction.z,dt*.8); }
     }
     items.forEach((item,j)=>{
@@ -235,7 +235,7 @@ function update(dt: number, elapsed: number) {
       if(fall.hole===holes[0]){eaten++;registerBite(fall.item.points);}
     } else if(result==='caught') {
       g.position.y=.2;g.rotation.set(0,0,0);sinking.delete(index);
-      if(fall.hole===holes[0] && fall.item.kind!=='person' && fall.item.kind!=='bin')toast('Caught the rim — hold underneath until it drops.');
+      if(fall.hole===holes[0] && fall.item.kind!=='person' && fall.item.kind!=='bin')toast('Caught the rim — slow down briefly for bigger bites.');
     }
     syncProp(index);
   });
