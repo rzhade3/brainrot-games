@@ -17,6 +17,7 @@
     "simulate:gate-runner": "node --import tsx scripts/simulate-gate-runner.ts",
     "test:breakout": "node --import tsx --test src/games/breakout/*.test.ts",
     "simulate:breakout": "node --import tsx scripts/simulate-breakout.ts",
+    "test:predator-chess": "node --import tsx src/games/predator-chess/engine.test.ts",
     "test:fieldwork": "node --import tsx --test src/games/fieldwork/*.test.ts",
     "simulate:fieldwork": "node --import tsx scripts/simulate-fieldwork.ts"
   },

@@ -14,6 +14,7 @@ type GameEntry = {
 };
 
 const games: GameEntry[] = [
+  { title: 'Predator Chess', emoji: '◉', description: 'Bait the Predator. Hunt it with your king. A chess variant for two local players.', href: './games/predator-chess/', ready: true },
   { title: 'Gate Runner', emoji: '🚀', description: 'Multiply your squad, choose upgrades, and survive five stages of auto-shooter chaos.', href: './games/gate-runner/', ready: true, scoreKey: 'gate-runner', scoreLabel: 'pts' },
   {
     title: 'Fieldwork',
