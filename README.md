@@ -4,6 +4,32 @@ A little arcade of browser games. Installable, offline-ready PWA built with Vite
 
 ## Games
 
+- ◉ **Predator Chess** — two-player local chess with compulsory Predator hunts, king captures, random respawns, and a handoff prompt after each move. Play at `/games/predator-chess/`.
+
+### Predator Chess
+
+Inspired by @neanderman's [Predator Chess](https://youtube.com/shorts/pXmmXOcvaGA).
+Each queen is replaced by a queen-moving Predator. A legal Predator capture of
+a pawn, bishop or knight takes precedence over every other move; players choose
+among available forced captures. A king capture of the enemy Predator wins.
+A non-king capture leaves the capturer on its destination and respawns the enemy
+Predator uniformly among empty squares that leave the moving king safe. Attacked
+squares, king-adjacent squares and the vacated origin are eligible. Predator
+against Predator uses this same respawn rule.
+
+House choices for unspecified video rules are also displayed in **How to play**:
+normal check legality, castling, en passant and four standard promotion choices
+apply. A promoted queen is not a Predator. Illegal self-check captures do not
+trigger a forced hunt. A Predator sweep awards its owner the win after capturing
+all 12 original enemy pawns and minor pieces, tracking identity after promotion.
+Other pieces' captures never contribute. Checkmate and stalemate draw rather
+than introducing a third win condition; automatic threefold repetition and
+50-move draws prevent endless play. Repetition includes movement rights, en
+passant target and sweep progress. New games require confirmation.
+
+Run `npm run test:predator-chess` for engine checks and `npm run build` for the
+TypeScript and production build checks. The game requires no external assets.
+
 - 🧱 **Break Rot** — breach dense chambers, multiply a swarm, and catch the fallout across eleven cycling arenas.
 
 - 🧶 **Untangle** — drag nodes so no strings cross.
