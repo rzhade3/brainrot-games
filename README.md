@@ -4,7 +4,7 @@ A little arcade of browser games. Installable, offline-ready PWA built with Vite
 
 ## Games
 
-- ◉ **Predator Chess** — two-player local chess with compulsory Predator hunts, king captures, random respawns, and a handoff prompt after each move. Play at `/games/predator-chess/`.
+- ◉ **Predator Chess** — two-player local chess with compulsory Predator hunts, king captures, random respawns, and automatic local turn switching. Play at `/games/predator-chess/`.
 
 ### Predator Chess
 
@@ -28,8 +28,8 @@ than introducing a third win condition; automatic threefold repetition and
 passant target and sweep progress. New games require confirmation.
 
 The board uses local SVG pieces, edge coordinates, and highlights for the last move,
-legal destinations, checks, and forced Predators. After each move, the board locks
-until the next player selects **Play as White/Black** in the inline turn panel.
+legal destinations, checks, and forced Predators. Turns switch immediately after each completed move, with no handoff confirmation.
+The turn status identifies the next player; forced Predators are selected automatically.
 White starts immediately. Board orientation stays fixed unless manually flipped.
 Sweep counts and the latest move stay visible; full move history is expandable.
 Rules, promotion, and new-game confirmation use accessible dialogs.
