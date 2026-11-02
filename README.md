@@ -4,6 +4,8 @@ A little arcade of browser games. Installable, offline-ready PWA built with Vite
 
 ## Games
 
+- 🕳️ **Hole City** — swallow a 3D city, outgrow five AI rivals, and climb the leaderboard in two minutes. [Controls and assets](docs/hole-city.md).
+
 - 🧱 **Break Rot** — breach dense chambers, multiply a swarm, and catch the fallout across eleven cycling arenas.
 
 - 🧶 **Untangle** — drag nodes so no strings cross.
