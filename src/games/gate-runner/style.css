@@ -47,7 +47,6 @@ dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
 #course { font-size: 12px; margin-bottom: 12px; overflow-wrap: anywhere; }
 #sound { padding-inline: 0; background: transparent; color: var(--accent); }
 .best { margin: 20px 0 0 !important; font-size: 12px !important; }
-.menu-back { display: inline-flex; align-items: center; min-height: 44px; margin-top: 12px; font-size: 13px; }
 #notice { position: absolute; top: 18px; left: 10px; right: 10px; text-align: center; color: #fff; font-size: 14px; font-weight: 600; pointer-events: none; text-shadow: 0 2px 4px #172331; }
 footer { display: flex; justify-content: space-between; padding: 10px 20px max(10px, env(safe-area-inset-bottom)); font-size: 12px; color: var(--muted); }
 #score { display: inline-block; margin-left: 6px; color: var(--text); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
