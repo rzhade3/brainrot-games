@@ -5,7 +5,7 @@
  * Extensible: new games just call `submitScore('game-key', value)`.
  *
  * Storage format: JSON object keyed by game slug.
- *   { "typing": 1200, "tower-defense": 14, "untangle": 87 }
+ *   { "typing": 1200, "tower-defense": 14, "cube-lines": 12 }
  */
 
 const STORAGE_KEY = 'brainrot-scores';

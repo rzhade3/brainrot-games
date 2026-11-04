@@ -49,8 +49,6 @@ const games: GameEntry[] = [
     description: 'Untangle clusters so no strings cross. They collapse, zoom out, and never end.',
     href: './games/untangle/',
     ready: true,
-    scoreKey: 'untangle',
-    scoreLabel: 'nodes',
   },
   {
     title: 'Type Rot',
