@@ -1,0 +1,390 @@
+{
+  "method": "Production Vite dependency closure plus public media, worker URLs and declared icons. Includes all homepage previews and both dynamic-import branches. Cold bytes, not timing or measured HTTP traffic. Gzip level 9 / Brotli quality 6 estimates; actual hosting compression varies. PWA install precaches every listed asset in addition to service-worker support. Warm visits reuse cached assets.",
+  "entries": [
+    {
+      "page": "games/associations/index.html",
+      "files": 10,
+      "bytes": {
+        "raw": 123020,
+        "gzip": 27789,
+        "brotli": 26552
+      },
+      "assets": [
+        "apple-touch-icon.png",
+        "assets/associations-BT1jHn0f.css",
+        "assets/associations-CYTo7rqe.js",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "favicon.svg",
+        "games/associations/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/breakout/index.html",
+      "files": 10,
+      "bytes": {
+        "raw": 53359,
+        "gzip": 21510,
+        "brotli": 20496
+      },
+      "assets": [
+        "apple-touch-icon.png",
+        "assets/breakout-Bzwc5PEM.js",
+        "assets/breakout-xlTo1kqW.css",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "favicon.svg",
+        "games/breakout/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/cube-lines/index.html",
+      "files": 13,
+      "bytes": {
+        "raw": 885942,
+        "gzip": 183361,
+        "brotli": 172552
+      },
+      "assets": [
+        "apple-touch-icon.png",
+        "assets/cubeLines-Bt5-LJbq.js",
+        "assets/cubeLines-CHKIEMLJ.css",
+        "assets/endless.worker-DqJZL2um.js",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "assets/style-B4BKft48.css",
+        "assets/three.module-DHrkQOdN.js",
+        "favicon.svg",
+        "games/cube-lines/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/fieldwork/index.html",
+      "files": 9,
+      "bytes": {
+        "raw": 32614,
+        "gzip": 13441,
+        "brotli": 12493
+      },
+      "assets": [
+        "assets/fieldwork-DcMSYere.css",
+        "assets/fieldwork-YAthOyqU.js",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "favicon.svg",
+        "games/fieldwork/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/gate-runner/index.html",
+      "files": 11,
+      "bytes": {
+        "raw": 462735,
+        "gzip": 436206,
+        "brotli": 436092
+      },
+      "assets": [
+        "assets/gate-runner/barlow-condensed-700.woff2",
+        "assets/gate-runner/causeway.webp",
+        "assets/gate-runner/units.webp",
+        "assets/gateRunner-CIFMbClS.css",
+        "assets/gateRunner-oxMAsCkm.js",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "games/gate-runner/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/hole-city/index.html",
+      "files": 10,
+      "bytes": {
+        "raw": 527659,
+        "gzip": 138808,
+        "brotli": 127166
+      },
+      "assets": [
+        "assets/holeCity-BWnQ3_4W.js",
+        "assets/holeCity-Br1dArN9.css",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "assets/three.module-DHrkQOdN.js",
+        "favicon.svg",
+        "games/hole-city/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/top-down/index.html",
+      "files": 10,
+      "bytes": {
+        "raw": 1501853,
+        "gzip": 347563,
+        "brotli": 312629
+      },
+      "assets": [
+        "apple-touch-icon.png",
+        "assets/createGame-DGdZvAcY.js",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/style-B4BKft48.css",
+        "assets/topDown-CDyuVgmH.js",
+        "favicon.svg",
+        "games/top-down/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/tower-defense/index.html",
+      "files": 11,
+      "bytes": {
+        "raw": 1516728,
+        "gzip": 352835,
+        "brotli": 317752
+      },
+      "assets": [
+        "apple-touch-icon.png",
+        "assets/createGame-DGdZvAcY.js",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "assets/style-B4BKft48.css",
+        "assets/towerDefense-dIOQbMKG.js",
+        "favicon.svg",
+        "games/tower-defense/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/typing/index.html",
+      "files": 13,
+      "bytes": {
+        "raw": 243507,
+        "gzip": 226726,
+        "brotli": 225731
+      },
+      "assets": [
+        "apple-touch-icon.png",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "assets/typing-2iUH5Jzt.js",
+        "assets/typing-v056MlF7.css",
+        "assets/typing/JetBrainsMono-Bold.woff2",
+        "assets/typing/JetBrainsMono-SemiBold.woff2",
+        "assets/typing/barlow-condensed-700.woff2",
+        "favicon.svg",
+        "games/typing/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "games/untangle/index.html",
+      "files": 10,
+      "bytes": {
+        "raw": 1506489,
+        "gzip": 350384,
+        "brotli": 315319
+      },
+      "assets": [
+        "apple-touch-icon.png",
+        "assets/createGame-DGdZvAcY.js",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/untangle-Bg3XWLhn.css",
+        "assets/untangle-D672mNmr.js",
+        "favicon.svg",
+        "games/untangle/index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    },
+    {
+      "page": "index.html",
+      "files": 19,
+      "bytes": {
+        "raw": 28363,
+        "gzip": 13749,
+        "brotli": 12690
+      },
+      "assets": [
+        "apple-touch-icon.png",
+        "assets/arcade/associations.svg",
+        "assets/arcade/breakout.svg",
+        "assets/arcade/cube-lines.svg",
+        "assets/arcade/fieldwork.svg",
+        "assets/arcade/gate-runner.svg",
+        "assets/arcade/hole-city.svg",
+        "assets/arcade/tower-defense.svg",
+        "assets/arcade/typing.svg",
+        "assets/arcade/untangle.svg",
+        "assets/main-Bsxdpo-1.css",
+        "assets/main-f_We_9zS.js",
+        "assets/modulepreload-polyfill-B5Qt9EMX.js",
+        "assets/scores-CoZYClSi.js",
+        "favicon.svg",
+        "index.html",
+        "manifest.webmanifest",
+        "registerSW.js",
+        "sw.js"
+      ]
+    }
+  ],
+  "allPagesUnique": {
+    "raw": 3320735,
+    "gzip": 1256263,
+    "brotli": 1205761
+  },
+  "precache": {
+    "manifestEntries": 64,
+    "files": 60,
+    "bytes": {
+      "raw": 3350131,
+      "gzip": 1284169,
+      "brotli": 1233979
+    }
+  },
+  "offlinePack": {
+    "files": 62,
+    "bytes": {
+      "raw": 3369926,
+      "gzip": 1291056,
+      "brotli": 1240607
+    }
+  },
+  "largest": [
+    {
+      "file": "assets/createGame-DGdZvAcY.js",
+      "raw": 1479315,
+      "gzip": 337596,
+      "brotli": 303269
+    },
+    {
+      "file": "assets/three.module-DHrkQOdN.js",
+      "raw": 490934,
+      "gzip": 123999,
+      "brotli": 113334
+    },
+    {
+      "file": "assets/cubeLines-Bt5-LJbq.js",
+      "raw": 350162,
+      "gzip": 41193,
+      "brotli": 42154
+    },
+    {
+      "file": "assets/gate-runner/units.webp",
+      "raw": 288870,
+      "gzip": 288000,
+      "brotli": 288875
+    },
+    {
+      "file": "assets/gate-runner/causeway.webp",
+      "raw": 109108,
+      "gzip": 109161,
+      "brotli": 109113
+    },
+    {
+      "file": "assets/associations-CYTo7rqe.js",
+      "raw": 99125,
+      "gzip": 17599,
+      "brotli": 16962
+    },
+    {
+      "file": "assets/typing/JetBrainsMono-Bold.woff2",
+      "raw": 94628,
+      "gzip": 94617,
+      "brotli": 94633
+    },
+    {
+      "file": "assets/typing/JetBrainsMono-SemiBold.woff2",
+      "raw": 94484,
+      "gzip": 94492,
+      "brotli": 94489
+    },
+    {
+      "file": "assets/breakout-Bzwc5PEM.js",
+      "raw": 37754,
+      "gzip": 13272,
+      "brotli": 12808
+    },
+    {
+      "file": "assets/gateRunner-oxMAsCkm.js",
+      "raw": 28423,
+      "gzip": 11224,
+      "brotli": 10853
+    },
+    {
+      "file": "assets/gate-runner/barlow-condensed-700.woff2",
+      "raw": 22444,
+      "gzip": 22472,
+      "brotli": 22442
+    },
+    {
+      "file": "assets/typing/barlow-condensed-700.woff2",
+      "raw": 22444,
+      "gzip": 22472,
+      "brotli": 22442
+    },
+    {
+      "file": "assets/holeCity-BWnQ3_4W.js",
+      "raw": 21926,
+      "gzip": 9196,
+      "brotli": 8782
+    },
+    {
+      "file": "assets/fieldwork-YAthOyqU.js",
+      "raw": 19786,
+      "gzip": 8112,
+      "brotli": 7744
+    },
+    {
+      "file": "assets/towerDefense-dIOQbMKG.js",
+      "raw": 15762,
+      "gzip": 5772,
+      "brotli": 5575
+    }
+  ],
+  "duplicates": [
+    {
+      "files": [
+        "assets/gate-runner/FONT-LICENSE.txt",
+        "assets/typing/FONT-LICENSE.txt"
+      ],
+      "removable": {
+        "raw": 6167,
+        "gzip": 2065,
+        "brotli": 1910
+      }
+    },
+    {
+      "files": [
+        "assets/gate-runner/barlow-condensed-700.woff2",
+        "assets/typing/barlow-condensed-700.woff2"
+      ],
+      "removable": {
+        "raw": 22444,
+        "gzip": 22472,
+        "brotli": 22442
+      }
+    }
+  ]
+}

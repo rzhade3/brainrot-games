@@ -21,7 +21,8 @@
     "simulate:fieldwork": "node --import tsx scripts/simulate-fieldwork.ts",
     "test:hole-city": "node --import tsx --test src/games/hole-city/*.test.ts",
     "test:untangle": "node --import tsx --test src/games/untangle/*.test.ts",
-    "test:typing": "node --import tsx --test src/games/typing/*.test.ts"
+    "test:typing": "node --import tsx --test src/games/typing/*.test.ts",
+    "benchmark:assets": "npm run build -- --manifest && node scripts/benchmark-assets.mjs docs/asset-benchmark.json"
   },
   "dependencies": {
     "phaser": "^3.80.1",
