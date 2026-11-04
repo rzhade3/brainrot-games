@@ -2,6 +2,17 @@
 
 A little arcade of browser games. Installable, offline-ready PWA built with Vite + TypeScript.
 
+## Arcade catalog
+
+The homepage is driven by `src/catalog.ts`; its styles live in `src/arcade.css`, independently of game styles.
+To list a playable game, add one catalog entry with its route ID, title, category, description, emoji,
+and preview color. The game must already have a `/games/{id}/` page and a Vite build entry.
+
+- Optional `preview` names an SVG in `public/assets/arcade/` (without `.svg`). Omit it to use the emoji fallback.
+- Optional `score` connects the card to an existing score key and display unit. Omit it for games without a high score.
+- Card layout, category filters, and game counts derive from the catalog. Unavailable games stay out of the playable list.
+- Add a category to `categories` only when a game needs it; unused categories are hidden automatically.
+
 ## Games
 
 - 🕳️ **Hole City** — swallow a 3D city, outgrow five AI rivals, and climb the leaderboard in two minutes. [Controls and assets](docs/hole-city.md).

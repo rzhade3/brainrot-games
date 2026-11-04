@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <rect width="400" height="220" fill="#eedbb6"/>
+  <!-- One quiet street keeps the hole, rather than the road layout, in focus. -->
+  <path d="M0 118h400v46H0z" fill="#b6b8a5"/>
+  <path d="M0 115h400M0 167h400" stroke="#f9efd9" stroke-width="5"/>
+  <path d="M0 141h400" stroke="#f6ecd4" stroke-width="2" stroke-dasharray="14 16"/>
+  <!-- Roofs and shaded sides give the buildings a small, readable silhouette. -->
+  <g stroke="#6c7967" stroke-width="1.5" stroke-linejoin="round">
+    <path d="m53 53 30-12 35 14v56l-30 13-35-14z" fill="#e7cda5"/>
+    <path d="m88 67 30-12v56l-30 13z" fill="#c1b18e"/>
+    <path d="m53 53 30-12 35 14-30 12z" fill="#fff0d1"/>
+    <path d="m290 36 24-10 31 13v74l-25 10-30-13z" fill="#94b3a0"/>
+    <path d="m320 49 25-10v74l-25 10z" fill="#6b9180"/>
+    <path d="m290 36 24-10 31 13-25 10z" fill="#bfd0b4"/>
+  </g>
+  <g fill="#5a776d">
+    <path d="m63 71 7 3v10l-7-3zm14 6 7 3v10l-7-3zm-14 13 7 3v10l-7-3zm14 6 7 3v10l-7-3z"/>
+    <path d="m299 55 6 2v9l-6-2zm12 5 5 2v9l-5-2zm-12 14 6 2v9l-6-2zm12 5 5 2v9l-5-2zm-12 14 6 2v9l-6-2z" fill="#e3ebca"/>
+  </g>
+  <!-- A tree and a tiny car establish the scale of the appetite. -->
+  <path d="M256 90v23" stroke="#8d7452" stroke-width="5"/>
+  <circle cx="256" cy="84" r="16" fill="#76956b"/>
+  <circle cx="250" cy="79" r="10" fill="#91ac7c"/>
+  <g transform="translate(347 131)" fill="#a66b54">
+    <rect width="29" height="14" rx="5"/>
+    <rect x="8" y="2" width="12" height="10" rx="2" fill="#e5d9bd"/>
+  </g>
+  <ellipse cx="195" cy="177" rx="88" ry="20" fill="#b5a37e" opacity=".35"/>
+  <ellipse cx="195" cy="162" rx="79" ry="35" fill="#20332f" stroke="#edb44e" stroke-width="6"/>
+  <ellipse cx="195" cy="166" rx="65" ry="24" fill="#101f1e"/>
+  <!-- A snack on the rim hints at the action without adding visual noise. -->
+  <g transform="rotate(16 195 114)" stroke="#526d61" stroke-width="1.5" stroke-linejoin="round">
+    <path d="m180 96 14-6 17 7v25l-14 6-17-7z" fill="#92b39b"/>
+    <path d="m197 103 14-6v25l-14 6z" fill="#648d78"/>
+    <path d="m180 96 14-6 17 7-14 6z" fill="#c1d4b5"/>
+  </g>
+</svg>
