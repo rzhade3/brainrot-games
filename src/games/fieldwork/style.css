@@ -103,6 +103,7 @@ main {
   text-align: right;
 }
 .stage {
+  grid-area: 3 / 1;
   position: relative;
   border-radius: 10px;
   overflow: hidden;
@@ -124,9 +125,11 @@ canvas {
   touch-action: none;
 }
 .overlay {
-  position: fixed;
+  grid-area: 3 / 1 / 6 / 2;
+  position: relative;
+  min-height: 0;
+  min-width: 0;
   z-index: 10;
-  inset: 0;
   background: #14231b8c;
   display: grid;
   place-items: center;
@@ -230,6 +233,7 @@ h2 {
   height: 18px;
 }
 .footer {
+  grid-area: 5 / 1;
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -239,6 +243,7 @@ h2 {
   color: #c0c8b3;
 }
 .progress {
+  grid-area: 4 / 1;
   height: 3px;
   background: #45513e;
   margin-top: 10px;

@@ -3,8 +3,8 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: #0c1620; color: var(--text); font-family: system-ui, sans-serif; overscroll-behavior: none; }
 ::selection { color: var(--bg); background: var(--accent); }
-.shell { width: 100%; max-width: 520px; height: 100dvh; margin: auto; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); background: var(--bg); }
-header { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 8px; }
+.shell { width: 100%; max-width: 520px; height: 100dvh; margin: auto; display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); background: var(--bg); }
+header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 0 8px; }
 h1 { margin: 0; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
 a { color: var(--muted); text-underline-offset: 4px; }
 button, summary, a { -webkit-tap-highlight-color: transparent; }
@@ -13,17 +13,17 @@ button:active { background: #345064; }
 button:disabled { opacity: .4; cursor: default; }
 button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 header button, header a { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; background: transparent; color: var(--text); }
-.hud { display: grid; grid-template-columns: 1fr; gap: 0; padding: 3px 20px 12px; }
+.hud { flex-shrink: 0; display: grid; grid-template-columns: 1fr; gap: 0; padding: 3px 20px 12px; }
 .stat { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: baseline; column-gap: 10px; }
 .stat > span:first-child { color: var(--muted); font-size: 12px; }
 .stat strong { display: inline-block; font: 700 30px/1 'Barlow Condensed', sans-serif; font-variant-numeric: tabular-nums; transform-origin: center; }
 .delta { position: absolute; right: 0; top: -12px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .delta[data-tone='gain'] { color: var(--accent); } .delta[data-tone='loss'] { color: var(--loss); }
-.progress { height: 2px; background: #243849; }
+.progress { flex-shrink: 0; height: 2px; background: #243849; }
 .progress > div { height: 100%; background: #9bb8cf; transform-origin: left; }
-.arena { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; }
+.arena { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 canvas { display: block; width: 100%; height: 100%; touch-action: none; outline: none; }
-.overlay { position: absolute; inset: 0; display: flex; align-items: safe center; justify-content: center; padding: 24px; overflow-y: auto; background: #101e30ed; scrollbar-color: #66859b #101e30; scrollbar-width: thin; }
+.overlay { position: absolute; inset: 0; display: flex; align-items: safe center; justify-content: center; padding: 24px; overflow-y: auto; overscroll-behavior-y: contain; touch-action: pan-y; background: #101e30ed; scrollbar-color: #66859b #101e30; scrollbar-width: thin; }
 [hidden] { display: none !important; }
 .menu { width: min(100%, 320px); padding-block: 16px; }
 .menu h2 { margin: 0 0 12px; font: 700 clamp(32px, 9vw, 46px)/1.05 'Barlow Condensed', sans-serif; letter-spacing: -.01em; text-wrap: balance; }
@@ -48,7 +48,7 @@ dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; }
 #sound { padding-inline: 0; background: transparent; color: var(--accent); }
 .best { margin: 20px 0 0 !important; font-size: 12px !important; }
 #notice { position: absolute; top: 18px; left: 10px; right: 10px; text-align: center; color: #fff; font-size: 14px; font-weight: 600; pointer-events: none; text-shadow: 0 2px 4px #172331; }
-footer { display: flex; justify-content: space-between; padding: 10px 20px max(10px, env(safe-area-inset-bottom)); font-size: 12px; color: var(--muted); }
+footer { flex-shrink: 0; display: flex; justify-content: space-between; padding: 10px 20px max(10px, env(safe-area-inset-bottom)); font-size: 12px; color: var(--muted); }
 #score { display: inline-block; margin-left: 6px; color: var(--text); font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (hover: hover) { button:hover { background: #2a4256; } .primary:hover { background: #c2f0df; } #options button:hover { background: #ffffff09; } a:hover { color: var(--text); } }
