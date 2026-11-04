@@ -10,8 +10,8 @@ export interface Hud {
 export function createHud(): Hud {
   const shell = document.querySelector<HTMLElement>('#untangle-app')!;
   shell.innerHTML = `
-    <header class="ut-header"><a href="../../">← Arcade</a><h1>untangle<span aria-hidden="true">.</span></h1>
-      <div class="ut-actions"><button id="ut-new" type="button">New puzzle</button><button id="ut-help" type="button" aria-label="How to play" aria-haspopup="dialog" aria-controls="ut-help-dialog">?</button></div></header>
+    <header class="ut-header"><a href="../../" aria-label="Back to Brainrot Games">←</a><h1>untangle<span aria-hidden="true">.</span></h1>
+      <button id="ut-help" type="button" aria-label="Game menu" aria-haspopup="dialog" aria-controls="ut-help-dialog">☰</button></header>
     <main class="ut-main" aria-label="Untangle puzzle">
       <div class="ut-progress"><span id="ut-puzzle">Puzzle 1</span><span class="ut-crossings" id="ut-status" role="status" aria-live="polite"></span></div>
       <div class="ut-board" id="game-root"></div>
@@ -19,12 +19,14 @@ export function createHud(): Hud {
       <p class="ut-tip">Drag the dots until no strings cross.</p>
       <p id="ut-warning" role="status" hidden>Progress can’t be saved in this browser.</p>
     </main>
-    <dialog id="ut-help-dialog" aria-labelledby="ut-help-title"><div class="ut-dialog-head"><h2 id="ut-help-title">How to play</h2><button id="ut-close" type="button" aria-label="Close help">×</button></div>
+    <dialog id="ut-help-dialog" aria-labelledby="ut-help-title"><div class="ut-dialog-head"><h2 id="ut-help-title">Game menu</h2><button id="ut-close" type="button" aria-label="Close game menu">×</button></div>
+      <button id="ut-new" class="ut-primary" type="button">New puzzle</button>
+      <h3>How to play</h3>
       <p>Drag the dots until no strings cross. Clear the web to reveal the next puzzle.</p>
       <ul class="ut-legend"><li><i class="ut-coral"></i>Coral strings cross another string.</li><li><i class="ut-mint"></i>Mint strings are clear of crossings.</li><li><i class="ut-selection"></i>A white ring marks the selected dot.</li><li><i class="ut-lime"></i>Lime means the web is clear.</li></ul>
       <p>Your puzzle saves as you play. New puzzle replaces only the current web.</p>
       <p class="ut-keyboard">Keyboard: Tab to the board. Enter selects the next dot; arrows move it. Hold Shift for larger steps.</p>
-      <button id="ut-play" class="ut-primary" type="button">Let’s untangle</button></dialog>`;
+      <button id="ut-play" class="ut-primary" type="button">Resume</button></dialog>`;
   const $ = (id: string) => shell.querySelector<HTMLElement>(`#ut-${id}`)!;
   const dialog = $('help-dialog') as HTMLDialogElement;
   const hud: Hud = {
@@ -41,7 +43,7 @@ export function createHud(): Hud {
     warnSave() { $('warning').hidden = false; },
     destroy() { shell.replaceChildren(); },
   };
-  $('new').onclick = () => hud.onNew?.();
+  $('new').onclick = () => { dialog.close(); hud.onNew?.(); };
   $('help').onclick = () => dialog.showModal();
   const close = () => dialog.close();
   $('close').onclick = close; $('play').onclick = close;

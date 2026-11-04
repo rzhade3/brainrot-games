@@ -15,13 +15,9 @@ const STORAGE_KEY = 'brainrot-cube-lines:v4';
 const root = document.querySelector<HTMLElement>('#cube-app')!;
 root.innerHTML = `
   <header class="cl-header">
-    <a class="cl-hub" href="../../" aria-label="Back to Brainrot Games">← Arcade</a>
+    <a class="cl-hub" href="../../" aria-label="Back to Brainrot Games">←</a>
     <h1>Cube Lines</h1>
-    <div class="cl-header-actions">
-      <button id="cl-levels" class="cl-level-button" type="button" aria-haspopup="dialog" aria-controls="cl-level-dialog">Puzzles</button>
-      <button id="cl-hint" type="button">Hint</button>
-      <button id="cl-help" type="button" aria-label="How to play" title="How to play" aria-haspopup="dialog" aria-controls="cl-instructions">?</button>
-    </div>
+    <button id="cl-levels" class="cl-level-button" type="button" aria-label="Game menu" aria-haspopup="dialog" aria-controls="cl-level-dialog">☰</button>
   </header>
   <dialog id="cl-instructions" class="cl-dialog cl-instructions" aria-labelledby="cl-instructions-title">
     <div class="cl-dialog-header"><h2 id="cl-instructions-title">How to play</h2>
@@ -54,9 +50,13 @@ root.innerHTML = `
   </div>
   </main>
   <dialog id="cl-level-dialog" class="cl-dialog" aria-labelledby="cl-level-title">
-    <div class="cl-dialog-header"><h2 id="cl-level-title">Puzzles</h2>
-      <button id="cl-close" type="button" aria-label="Close level selector">×</button></div>
+    <div class="cl-dialog-header"><h2 id="cl-level-title">Game menu</h2>
+      <button id="cl-close" type="button" aria-label="Close game menu">×</button></div>
     <div class="cl-dialog-body">
+    <div class="cl-menu-actions">
+      <button id="cl-hint" type="button">Hint</button>
+      <button id="cl-help" type="button" aria-haspopup="dialog" aria-controls="cl-instructions">How to play</button>
+    </div>
     <div id="cl-chooser">
       <div class="cl-mode-switch" role="group" aria-label="Puzzle mode">
         <button id="cl-show-levels" type="button" aria-pressed="true" aria-controls="cl-campaign-panel">Levels</button>
@@ -572,8 +572,16 @@ element('generation-retry').addEventListener('click', () => {
   prefetchEndless();
 });
 element('reload').addEventListener('click', () => window.location.reload());
-hintButton.addEventListener('click', showHint);
-element('help').addEventListener('click', () => instructions.showModal());
+hintButton.addEventListener('click', () => {
+  dialog.close();
+  showHint();
+  view?.canvas.focus({ preventScroll: true });
+});
+element('help').addEventListener('click', () => {
+  dialog.close();
+  instructions.showModal();
+});
+instructions.addEventListener('close', () => element('levels').focus());
 element('help-close').addEventListener('click', () => instructions.close());
 nextButton.addEventListener('click', () => {
   if (mode === 'shared') {

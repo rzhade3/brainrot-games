@@ -1,4 +1,5 @@
 .cube-page {
+  min-height: 0; height: 100dvh;
   --cl-bg: #0c0914;
   --cl-surface: #21172f;
   --cl-ink: #f6f3ff;
@@ -23,7 +24,7 @@
    the body owns the centered play area. Dialogs are independent shell siblings. */
 .cl-game-body {
   position: relative; align-self: center; width: min(100%, 900px);
-  display: flex; flex-direction: column; flex: 1; min-height: 0;
+  display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0;
   gap: var(--cl-content-gap);
   padding: var(--cl-content-gap) var(--cl-gutter-right) var(--cl-bottom-inset) var(--cl-gutter-left);
 }
@@ -38,19 +39,19 @@
 #cube-app button:disabled { opacity: 0.4; cursor: not-allowed; }
 #cube-app button:active:not(:disabled) { transform: translateY(1px); }
 #cube-app :focus-visible { outline: 3px solid var(--cl-pink); outline-offset: 3px; }
-.cl-header { padding: var(--cl-top-inset) var(--cl-gutter-right) 12px var(--cl-gutter-left); border-bottom: 1px solid var(--cl-border); display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; flex-shrink: 0; }
-.cl-header h1 { color: #ff99df; margin: 0; font-size: clamp(1.4rem, 3vw, 1.8rem); font-weight: 850; letter-spacing: -0.065em; }
-.cl-hub { display: flex; align-items: center; min-height: 44px; flex-shrink: 0; color: var(--cl-muted); text-decoration: none; font-size: 0.85rem; }
-.cl-header-actions { display: flex; gap: 8px; margin-left: auto; align-items: center; }
-#cube-app .cl-level-button { background: #ffffff08; }
+.cl-header { padding: var(--cl-top-inset) var(--cl-gutter-right) 12px var(--cl-gutter-left); border-bottom: 1px solid var(--cl-border); display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 12px; flex-shrink: 0; }
+.cl-header h1 { color: #ff99df; margin: 0; text-align: center; font-size: clamp(1.4rem, 3vw, 1.8rem); font-weight: 850; letter-spacing: -0.065em; }
+.cl-hub { display: flex; align-items: center; justify-content: center; min-height: 44px; flex-shrink: 0; color: var(--cl-muted); text-decoration: none; font-size: 0.85rem; }
+.cl-menu-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+#cube-app .cl-level-button { padding: 8px; background: #ffffff08; font-size: 1.2rem; }
 #cube-app #cl-hint, #cube-app .cl-primary, #cube-app .cl-load-code, #cube-app .cl-endless-entry {
   background: var(--cl-accent); color: #172000; border-color: var(--cl-accent);
 }
-#cube-app #cl-help { width: 44px; padding: 8px; border-radius: 50%; background: transparent; color: var(--cl-muted); }
+
 .cl-progress { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; color: var(--cl-muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 .cl-progress strong { color: var(--cl-accent); font-weight: 750; }
 #cl-faces { display: none; }
-.cl-stage { position: relative; width: 100%; flex: 1; min-height: 80px; }
+.cl-stage { position: relative; width: 100%; flex: 1; min-height: 0; }
 .cl-stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
 .cl-stage canvas:active { cursor: grabbing; }
 .cl-status { flex-shrink: 0; min-height: 2.8em; max-width: 54ch; margin: 0 auto; text-align: center; color: var(--cl-muted); font-size: 0.82rem; line-height: 1.5; text-wrap: pretty; }
@@ -103,9 +104,6 @@
 @media (max-width: 540px) {
   #cube-app { --cl-gutter-left: max(16px, env(safe-area-inset-left)); --cl-gutter-right: max(16px, env(safe-area-inset-right)); }
   .cl-header { gap: 10px 12px; }
-  .cl-header h1 { margin-left: auto; }
-  .cl-header-actions { width: 100%; }
-  #cube-app .cl-level-button { margin-right: auto; }
   .cl-level-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
 }
 @media (max-width: 540px), (max-height: 500px) {

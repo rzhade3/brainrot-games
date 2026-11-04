@@ -6,12 +6,11 @@ button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation
 button { font: inherit; font-weight: 600; font-size: .85rem; color: inherit; background: #ffffff06; border: 1px solid var(--ut-border); border-radius: 10px; min-height: 44px; padding: 10px 16px; cursor: pointer; }
 button:disabled { opacity: .45; cursor: default; }
 :focus-visible { outline: 2px solid #63e2e4; outline-offset: 4px; }
-.ut-header { display: flex; gap: 24px; align-items: center; flex-shrink: 0; padding: max(16px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) 16px max(24px, env(safe-area-inset-left)); border-bottom: 1px solid var(--ut-border); }
-.ut-header a { display: flex; align-items: center; min-height: 44px; text-decoration: none; color: var(--ut-muted); font-size: .85rem; }
-.ut-header h1 { font-size: 1.6rem; letter-spacing: -.06em; margin: 0; font-weight: 750; }
+.ut-header { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 12px; align-items: center; flex-shrink: 0; padding: max(16px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) 16px max(24px, env(safe-area-inset-left)); border-bottom: 1px solid var(--ut-border); }
+.ut-header a { display: flex; align-items: center; justify-content: center; min-height: 44px; text-decoration: none; color: var(--ut-muted); font-size: .85rem; }
+.ut-header h1 { text-align: center; font-size: 1.6rem; letter-spacing: -.06em; margin: 0; font-weight: 750; }
 .ut-header h1 span { color: #ff8376; }
-.ut-actions { margin-left: auto; display: flex; gap: 8px; }
-#ut-help { width: 44px; padding: 8px; border-radius: 50%; color: var(--ut-muted); }
+#ut-help { width: 44px; padding: 8px; font-size: 1.2rem; color: var(--ut-muted); }
 .ut-main { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; padding: 0 max(20px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); }
 .ut-progress { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 20px 8px 8px; color: var(--ut-muted); font-size: .8rem; font-variant-numeric: tabular-nums; }
 .ut-crossings { color: #ff9a8f; font-weight: 650; display: flex; align-items: center; gap: 8px; }
@@ -38,9 +37,7 @@ dialog p, .ut-legend { font-size: .9rem; line-height: 1.6; color: #bac8c9; }
 .ut-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
 @media (hover: hover) { button:hover:not(:disabled) { background: #ffffff12; } .ut-primary:hover { background: #e3ff9e; } .ut-header a:hover { color: #f0f1e7; } }
 @media (max-width: 540px) {
-  .ut-header { padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left)); gap: 8px 12px; flex-wrap: wrap; }
-  .ut-header h1 { margin-left: auto; }
-  .ut-actions { width: 100%; justify-content: space-between; }
+  .ut-header { padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left)); gap: 12px; }
   .ut-main { padding-left: max(8px, env(safe-area-inset-left)); padding-right: max(8px, env(safe-area-inset-right)); }
   .ut-progress { padding: 14px 8px 4px; gap: 8px; font-size: .72rem; }
 }
