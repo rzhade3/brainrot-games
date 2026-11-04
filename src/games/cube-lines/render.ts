@@ -31,7 +31,7 @@ export class CubeRenderer {
   private marked: string | null = null;
   private blockedIds: readonly string[] = [];
   private blockedUntil = 0;
-  private tap: { id: number; x: number; y: number } | null = null;
+  private tap: { id: number; x: number; y: number; touch: boolean } | null = null;
   private pointers = new Set<number>();
   private reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   private enabled = true;
@@ -73,16 +73,16 @@ export class CubeRenderer {
     this.canvas.addEventListener('pointerdown', event => {
       this.pointers.add(event.pointerId);
       this.tap = this.pointers.size === 1 && event.button === 0
-        ? { id: event.pointerId, x: event.clientX, y: event.clientY } : null;
+        ? { id: event.pointerId, x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' } : null;
     }, options);
     this.canvas.addEventListener('pointermove', event => {
-      if (this.tap && Math.hypot(event.clientX - this.tap.x, event.clientY - this.tap.y) > 7) this.tap = null;
+      if (this.tap && Math.hypot(event.clientX - this.tap.x, event.clientY - this.tap.y) > (this.tap.touch ? 12 : 7)) this.tap = null;
       if (!this.pointers.size) this.canvas.style.cursor = this.pick(event.clientX, event.clientY) ? 'pointer' : 'grab';
     }, options);
     this.canvas.addEventListener('pointerup', event => {
       this.pointers.delete(event.pointerId);
       if (this.tap?.id === event.pointerId && this.enabled) {
-        const id = this.pick(event.clientX, event.clientY);
+        const id = this.pick(event.clientX, event.clientY, this.tap.touch);
         if (id) this.onPick(id);
       }
       this.tap = null;
@@ -265,7 +265,7 @@ export class CubeRenderer {
     }
   }
 
-  private pick(x: number, y: number): string | null {
+  private pick(x: number, y: number, touch = false): string | null {
     if (!this.enabled || this.animation) return null;
     const rect = this.canvas.getBoundingClientRect();
     this.raycaster.setFromCamera(new THREE.Vector2(
@@ -279,7 +279,7 @@ export class CubeRenderer {
     const cx = (hit.point.dot(new THREE.Vector3(...u)) + 1) * this.layout.size / 2 - 0.5;
     const cy = (hit.point.dot(new THREE.Vector3(...v)) + 1) * this.layout.size / 2 - 0.5;
     let closest: string | null = null;
-    let distance = 0.3;
+    let distance = touch ? 16 : 0.3;
     const normalVector = new THREE.Vector3(...FACE_AXES[face].normal);
     const uVector = new THREE.Vector3(...u);
     const vVector = new THREE.Vector3(...v);
@@ -291,12 +291,20 @@ export class CubeRenderer {
           x: (point.dot(uVector) + 1) * this.layout.size / 2 - 0.5,
           y: (point.dot(vVector) + 1) * this.layout.size / 2 - 0.5,
         });
-        const a = local(path[i - 1]);
-        const b = local(path[i]);
+        // Compare touch targets in CSS pixels so zoom and puzzle density do not
+        // shrink the hit area. Only segments on the frontmost hit face qualify.
+        const screen = (point: THREE.Vector3) => {
+          const projected = point.clone().project(this.camera);
+          return { x: rect.left + (projected.x + 1) * rect.width / 2,
+            y: rect.top + (1 - projected.y) * rect.height / 2 };
+        };
+        const a = touch ? screen(path[i - 1]) : local(path[i - 1]);
+        const b = touch ? screen(path[i]) : local(path[i]);
+        const px = touch ? x : cx, py = touch ? y : cy;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
-        const t = THREE.MathUtils.clamp(((cx - a.x) * dx + (cy - a.y) * dy) / (dx * dx + dy * dy), 0, 1);
-        const candidate = Math.hypot(cx - a.x - dx * t, cy - a.y - dy * t);
+        const t = THREE.MathUtils.clamp(((px - a.x) * dx + (py - a.y) * dy) / (dx * dx + dy * dy), 0, 1);
+        const candidate = Math.hypot(px - a.x - dx * t, py - a.y - dy * t);
         if (candidate < distance) { distance = candidate; closest = line.id; }
       }
     }

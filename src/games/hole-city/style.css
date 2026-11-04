@@ -21,18 +21,29 @@ button:focus-visible,a:focus-visible {
   outline:3px solid #be701d;
   outline-offset:4px
 }
-header {
-  height:84px;
+#app {
+  height:100dvh;
   display:flex;
+  flex-direction:column;
+  padding:0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)
+}
+header {
+  flex-shrink:0;
+  min-height:calc(84px + env(safe-area-inset-top, 0px));
+  display:grid;
+  grid-template-columns:1fr auto 1fr;
   align-items:center;
-  justify-content:space-between;
-  padding:0 36px;
+  gap:12px;
+  padding:env(safe-area-inset-top, 0px) 28px 0;
   border-bottom:1px solid #d9ddd1
 }
 header a {
   color:inherit;
   text-decoration:none;
   font-size:20px;
+  min-height:44px;
+  min-width:44px;
+  justify-self:start;
   display:flex;
   gap:12px;
   align-items:center
@@ -63,16 +74,17 @@ header a span {
   border:1px solid #c5cec0;
   background:transparent;
   border-radius:50%;
-  width:42px;
-  height:42px;
+  justify-self:end;
+  width:44px;
+  height:44px;
   font-size:20px
 }
 main {
   position:relative;
-  height:calc(100dvh - 124px);
-  min-height:350px;
+  flex:1;
+  min-height:0;
   overflow:hidden;
-  margin:0 16px;
+  margin:0 16px 16px;
   border-radius:12px
 }
 canvas {
@@ -183,12 +195,6 @@ li strong {
 .you b {
   font-weight:800
 }
-aside p {
-  font-size:7px;
-  letter-spacing:1.3px;
-  color:#7b8c7e;
-  margin:15px 0 0
-}
 .bottom {
   position:absolute;
   bottom:27px;
@@ -233,35 +239,6 @@ aside p {
   letter-spacing:1px;
   color:#627560
 }
-.control-hint {
-  display:flex;
-  flex-direction:column;
-  align-items:flex-end;
-  gap:9px;
-  font-size:10px;
-  color:#334e3e
-}
-kbd {
-  font:11px monospace;
-  border:1px solid #738a6f80;
-  border-radius:6px;
-  padding:7px 10px;
-  background:#f5f3df99
-}
-footer {
-  height:40px;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:0 36px;
-  font-size:8px;
-  letter-spacing:1.6px;
-  color:#7b8b7d
-}
-footer b {
-  padding:0 10px;
-  font-weight:400
-}
 .veil {
   position:absolute;
   inset:0;
@@ -270,12 +247,14 @@ footer b {
   justify-content:center;
   background:#29473830;
   backdrop-filter:blur(4px);
-  padding:20px
+  padding:20px;
+  overflow-y:auto
 }
 .veil[hidden] {
   display:none
 }
 .veil section {
+  margin:auto;
   background:#f8f6eb;
   border:1px solid #fff;
   border-radius:20px;
@@ -296,9 +275,6 @@ h1 {
   line-height:1.03;
   margin:20px 0
 }
-h1 span {
-  color:#d6a244
-}
 section p {
   font-size:13px;
   line-height:1.7;
@@ -312,12 +288,13 @@ section p {
   margin-bottom:28px
 }
 .instructions span {
-  font-size:11px;
-  color:#7c8873
+  font-size:12px;
+  line-height:1.5;
+  color:#596b53
 }
 .instructions b {
   color:#344d3e;
-  margin-left:10px
+  margin-right:4px
 }
 .primary {
   display:flex;
@@ -406,18 +383,21 @@ section>small {
 }
 @media(max-width:650px) {
   header {
-    height:64px;
-    padding:0 20px
+    min-height:calc(64px + env(safe-area-inset-top, 0px));
+    padding:env(safe-area-inset-top, 0px) 12px 0
   }
   .brand {
     font-size:29px
   }
+  header a {
+    gap:6px
+  }
   header a span {
-    display:none
+    font-size:9px;
+    letter-spacing:1px
   }
   main {
-    margin:0 7px;
-    height:calc(100dvh - 96px);
+    margin:0 7px 7px;
     border-radius:10px
   }
   .top {
@@ -455,27 +435,14 @@ section>small {
   li strong {
     font-size:9px
   }
-  aside p {
-    font-size:6px;
-    letter-spacing:.7px
-  }
   .bottom {
     left:17px;
     right:17px;
     bottom:17px
   }
   .growth {
-    width:245px;
+    width:min(245px, 100%);
     padding:14px
-  }
-  .control-hint {
-    display:none
-  }
-  footer {
-    height:32px;
-    padding:0 18px;
-    font-size:6px;
-    letter-spacing:1px
   }
   .veil section {
     padding:26px;
@@ -562,11 +529,6 @@ section>small {
 }
 #rival-hint:empty {
   display:none
-}
-.control-hint span:last-child {
-  font-size:8px;
-  max-width:240px;
-  text-align:right
 }
 @media(max-width:650px) {
   #rival-hint {

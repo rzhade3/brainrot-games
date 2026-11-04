@@ -24,7 +24,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'icons/*.png', 'assets/typing/JetBrainsMono-OFL.txt'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,woff2}'],
       },
@@ -32,8 +32,8 @@ export default defineConfig({
         name: 'Brainrot Games',
         short_name: 'Brainrot',
         description: 'A collection of small brainrot browser games.',
-        theme_color: '#0d0221',
-        background_color: '#0d0221',
+        theme_color: '#121313',
+        background_color: '#121313',
         display: 'standalone',
         scope: '/',
         start_url: '/',

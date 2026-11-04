@@ -1,120 +1,34 @@
-import './style.css';
+import './arcade.css';
 import { getAllBestScores } from './core/scores';
+import { categories, games, type GameEntry } from './catalog';
 
-type GameEntry = {
-  title: string;
-  emoji: string;
-  description: string;
-  href: string;
-  ready: boolean;
-  /** Key matching the scores module (used for hub best-score display). */
-  scoreKey?: string;
-  /** Label for the score (e.g. "pts", "waves", "nodes"). */
-  scoreLabel?: string;
-};
-
-const games: GameEntry[] = [
-  { title: 'Hole City', emoji: '🕳️', description: 'A little hole. A big appetite. Swallow the city and outgrow five rivals in two minutes.', href: './games/hole-city/', ready: true, scoreKey: 'hole-city-classic-v2', scoreLabel: 'pts' },
-  { title: 'Gate Runner', emoji: '🚀', description: 'Multiply your squad, choose upgrades, and survive five stages of auto-shooter chaos.', href: './games/gate-runner/', ready: true, scoreKey: 'gate-runner', scoreLabel: 'pts' },
-  {
-    title: 'Fieldwork',
-    emoji: '🚜',
-    description: 'Neat furrows. Tight turns. Work every acre with three ploughs and six increasingly tricky fields.',
-    href: './games/fieldwork/',
-    ready: true,
-    scoreKey: 'fieldwork-fuel',
-    scoreLabel: 'pts',
-  },
-  {
-    title: 'Break Rot',
-    emoji: '🧱',
-    description: 'Breach packed chambers, multiply your swarm, and catch the fallout. A fresh ball every wave.',
-    href: './games/breakout/',
-    ready: true,
-    scoreKey: 'breakout-v3',
-    scoreLabel: 'pts',
-  },
-  {
-    title: 'Cube Lines',
-    emoji: '🧊',
-    description: 'Turn the cube, trace the arrows, and clear all six sides. Thirty puzzles. No rush.',
-    href: './games/cube-lines/',
-    ready: true,
-    scoreKey: 'cube-lines',
-    scoreLabel: 'levels',
-  },
-  {
-    title: 'Untangle',
-    emoji: '🧶',
-    description: 'Untangle clusters so no strings cross. They collapse, zoom out, and never end.',
-    href: './games/untangle/',
-    ready: true,
-    scoreKey: 'untangle',
-    scoreLabel: 'nodes',
-  },
-  {
-    title: 'Type Rot',
-    emoji: '⌨️',
-    description: 'Type the words before they escape. They only get faster.',
-    href: './games/typing/',
-    ready: true,
-    scoreKey: 'typing',
-    scoreLabel: 'pts',
-  },
-  {
-    title: 'Tower Defense',
-    emoji: '🏰',
-    description: 'Mine ore, power turrets, and defend your castle from escalating waves.',
-    href: './games/tower-defense/',
-    ready: true,
-    scoreKey: 'tower-defense',
-    scoreLabel: 'waves',
-  },
-  {
-    title: 'Associations',
-    emoji: '🃏',
-    description: 'Word solitaire: stack every word on its category before your moves run out.',
-    href: './games/associations/',
-    ready: true,
-    scoreKey: 'associations',
-    scoreLabel: 'levels',
-  },
-  {
-    title: 'Top Down',
-    emoji: '🕹️',
-    description: 'A top-down adventure. Coming soon.',
-    href: './games/top-down/',
-    ready: false,
-  },
-];
-
-const app = document.querySelector<HTMLDivElement>('#app')!;
 const bestScores = getAllBestScores();
+function card(game: GameEntry): string {
+  const best = game.score ? bestScores[game.score.key] : undefined;
+  return `<li class="arcade-item" data-category="${game.category}">
+    <a class="arcade-card" href="/games/${game.id}/" style="--game-color:${game.color}" aria-labelledby="title-${game.id}" aria-describedby="description-${game.id}">
+      <div class="arcade-preview" aria-hidden="true"><span>${game.emoji}</span>${game.preview ? `<img src="/assets/arcade/${game.preview}.svg" alt="" width="400" height="220" loading="lazy">` : ''}</div>
+      <div class="arcade-card-body"><span class="arcade-category">${game.category}</span><h3 id="title-${game.id}">${game.title}</h3><p id="description-${game.id}">${game.description}</p>
+      <div class="arcade-card-foot">${typeof best === 'number' && Number.isFinite(best) && best > 0 ? `<span class="arcade-best">Best: ${best.toLocaleString()} ${game.score!.unit}</span>` : '<span></span>'}<span class="arcade-play">Play <span aria-hidden="true">↗</span></span></div></div>
+    </a></li>`;
+}
 
-app.innerHTML = `
-  <a class="skip-link" href="#game-list">Skip to games</a>
-  <header class="hub-header">
-    <h1>Brainrot Games</h1>
-    <p>A little arcade of browser games. Installable, offline-ready.</p>
-  </header>
-  <main class="game-grid" id="game-list" role="list">
-    ${games
-      .map(
-        (g) => {
-          const best = g.scoreKey ? bestScores[g.scoreKey] : undefined;
-          const bestBadge = best != null && best > 0
-            ? `<span class="best-score" aria-label="Best score: ${best} ${g.scoreLabel}">Best: ${best} ${g.scoreLabel}</span>`
-            : '';
-          return `
-      <a class="game-card ${g.ready ? '' : 'disabled'}" ${g.ready ? `href="${g.href}"` : 'aria-disabled="true" tabindex="-1"'} role="listitem">
-        <span class="emoji" aria-hidden="true">${g.emoji}</span>
-        <h2>${g.title}</h2>
-        <p>${g.description}</p>
-        ${bestBadge}
-        <span class="badge ${g.ready ? '' : 'soon'}">${g.ready ? 'Play' : 'Coming soon'}</span>
-      </a>`;
-        }
-      )
-      .join('')}
-  </main>
-`;
+document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
+  <a class="arcade-skip" href="#games">Skip to games</a>
+  <header class="arcade-header" id="top"><a class="arcade-brand" href="/" aria-label="Brainrot Games homepage">brainrot</a></header>
+  <main class="arcade-main">
+    <section class="arcade-library" aria-labelledby="games-title"><div class="arcade-library-head"><h1 id="games-title">The arcade</h1><p id="arcade-count" role="status" aria-live="polite">${games.length} games</p></div>
+    <div class="arcade-filters" role="group" aria-label="Filter games">${categories.filter(category => category === 'All games' || games.some(game => game.category === category)).map(category => `<button type="button" data-filter="${category}" aria-label="${category}" aria-pressed="${category === 'All games'}">${category === 'All games' ? 'All' : category}</button>`).join('')}</div>
+    <ul class="arcade-grid" id="games" tabindex="-1">${games.map(card).join('')}</ul></section>
+  </main><footer class="arcade-footer"><a href="#top">Back to top ↑</a></footer>`;
+
+document.querySelectorAll<HTMLButtonElement>('[data-filter]').forEach(button => button.addEventListener('click', () => {
+  const selected = button.dataset.filter as typeof categories[number];
+  document.querySelectorAll<HTMLButtonElement>('[data-filter]').forEach(filter => filter.setAttribute('aria-pressed', String(filter === button)));
+  document.querySelectorAll<HTMLElement>('.arcade-item').forEach(item => { item.hidden = selected !== 'All games' && item.dataset.category !== selected; });
+  const count = games.filter(game => selected === 'All games' || game.category === selected).length;
+  document.getElementById('arcade-count')!.textContent = `${count} ${count === 1 ? 'game' : 'games'}`;
+}));
+document.querySelectorAll<HTMLImageElement>('.arcade-preview img').forEach(img => {
+  img.addEventListener('error', () => img.remove(), { once: true });
+});

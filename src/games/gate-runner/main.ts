@@ -18,13 +18,13 @@ app.innerHTML = `<main class="shell">
   </div>
   <div class="progress" id="progress" role="progressbar" aria-label="Stage progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="progress-fill"></div></div>
   <div class="arena"><canvas aria-label="Drag or use arrow keys to steer. Shots fire automatically when you line up with an enemy. Escape pauses." tabindex="0"></canvas>
-    <div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="title" aria-describedby="message">
+    <div class="overlay" id="overlay" role="region" aria-labelledby="title" aria-describedby="message">
       <div class="menu"><h2 id="title">Gate Runner</h2><p id="message"></p><div id="results"></div><div id="options"></div>
       <button class="primary" id="action">Start run</button>
       <div class="secondary"><button id="retry">New run</button><button id="daily">Daily challenge</button></div>
       <p class="controls" id="controls">Drag to move, or use the arrow keys.</p>
       <details id="details"><summary>Run details</summary><dl id="build"></dl><p id="course"></p><button id="sound" aria-pressed="false">Sound off</button></details>
-      <p class="best" id="best"></p><a class="menu-back" href="/">Back to arcade</a></div>
+      <p class="best" id="best"></p></div>
     </div>
     <div id="notice" aria-hidden="true"></div>
   </div>
@@ -62,7 +62,6 @@ function updateOverlay() {
   shown = s.status; transitionAt = 0;
   el('overlay').hidden = !show;
   el('overlay').dataset.mode = paused ? 'paused' : s.status;
-  app.querySelector('header')!.inert = show;
   canvas.inert = show;
   el('pause').setAttribute('aria-label', paused ? 'Resume game' : 'Pause game');
   (el('pause') as HTMLButtonElement).disabled = s.status !== 'playing';
@@ -76,7 +75,6 @@ function updateOverlay() {
   el('daily').setAttribute('title', 'The same course for everyone today (UTC)');
   el('controls').hidden = s.status !== 'ready' && !paused;
   el('details').hidden = !paused;
-  app.querySelector<HTMLElement>('.menu-back')!.hidden = s.status === 'choice';
   text('course', `${isDaily ? 'Daily challenge · ' : ''}Course ${s.seed}`);
   const stats = [['Damage', s.damage.toFixed(1)], ['Fire rate', `${s.rate.toFixed(1)} / sec`], ['Targets per shot', String(s.pierce + 1)]];
   el('build').replaceChildren();
@@ -126,12 +124,6 @@ canvas.addEventListener('pointermove', e => { if (!paused && e.pointerId === act
 for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) canvas.addEventListener(event, e => { if ((e as PointerEvent).pointerId === activePointer) activePointer = null; });
 window.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
-  if (key === 'tab' && !el('overlay').hidden) {
-    const items = [...el('overlay').querySelectorAll<HTMLElement>('button:not([disabled]),a,summary')].filter(item => item.getClientRects().length > 0);
-    const first = items[0], end = items[items.length - 1];
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); end?.focus(); }
-    else if (!e.shiftKey && document.activeElement === end) { e.preventDefault(); first?.focus(); }
-  }
   if (['arrowleft', 'arrowright', 'a', 'd'].includes(key) && !paused && game.state.status === 'playing') { e.preventDefault(); keys.add(key); }
   if ((key === 'escape' || key === 'p') && !e.repeat) { e.preventDefault(); togglePause(); }
 });
