@@ -135,6 +135,7 @@ canvas {
   place-items: center;
   padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   backdrop-filter: blur(3px);
+  overflow: auto;
 }
 [hidden] {
   display: none !important;
@@ -142,6 +143,7 @@ canvas {
 .panel {
   max-height: 100%;
   overflow-y: auto;
+  margin: auto;
   background: #f2ecda;
   color: #293b2b;
   padding: clamp(18px, 4vw, 30px);
@@ -352,12 +354,6 @@ dialog p {
 }
 #reverse:active {
   background: #586b43;
-}
-.overlay {
-  overflow: auto;
-}
-.panel {
-  margin: auto;
 }
 
 #fuel {

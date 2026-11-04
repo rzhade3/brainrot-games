@@ -36,9 +36,8 @@ hud.innerHTML = `
   <header class="as-header"><a href="../../" aria-label="Back to arcade">←</a><h1>Associations<span aria-hidden="true">.</span></h1><button id="as-help" type="button" aria-label="Game menu" aria-haspopup="dialog" aria-controls="as-help-dialog">☰</button></header>
   <div class="as-toolbar"><button class="as-level-open" id="as-level-open" type="button" aria-label="Choose level" aria-haspopup="dialog" aria-controls="as-level-select">Level <span id="as-level">1</span> <span aria-hidden="true">⌄</span></button><div class="as-stat"><span class="as-label">Moves left</span><strong class="as-val" id="as-moves">0</strong></div><div class="as-stat"><span class="as-label">Groups</span><strong class="as-val" id="as-groups">0/0</strong></div></div>
   <dialog id="as-help-dialog" aria-labelledby="as-help-title"><div class="as-dialog-head"><h2 id="as-help-title">Game menu</h2><button id="as-help-close" type="button" aria-label="Close game menu">×</button></div><button id="as-new" class="as-primary" type="button">Retry level</button><h3>How to play</h3><ol class="as-instructions"><li><strong>Place a category.</strong> Move a lime category card to an empty slot.</li><li><strong>Match the words.</strong> Stack matching words on the category to complete its group.</li><li><strong>Watch your moves.</strong> Drawing from the house also costs a move.</li></ol><p>Tap a card, then its destination—or drag it. Face-up cards in a column move together.</p><p><strong>Peach cards marked ⇣ go in order.</strong> Build their stack last-to-first, then send it to the category first-to-last.</p><p class="as-help-keyboard">Keyboard: Enter or Space selects and places cards. D draws a card. Escape clears your selection.</p></dialog>
-  <dialog class="as-result-dialog" id="as-modal" aria-labelledby="as-modal-title" hidden>
+  <dialog class="as-result-dialog" id="as-modal" aria-labelledby="as-modal-title">
     <div class="as-modal-card">
-      <div class="as-result-symbol" id="as-modal-emoji" aria-hidden="true">🃏</div>
       <h2 id="as-modal-title">Out of moves</h2>
       <p id="as-modal-sub"></p>
       <p class="as-best" id="as-modal-best"></p>
@@ -49,7 +48,7 @@ hud.innerHTML = `
       </div>
     </div>
   </dialog>
-  <dialog class="as-level-select" id="as-level-select" aria-labelledby="as-level-title" hidden>
+  <dialog class="as-level-select" id="as-level-select" aria-labelledby="as-level-title">
     <div class="as-level-card">
       <div class="as-level-head">
         <div>
@@ -67,15 +66,12 @@ document.body.prepend(hud);
 const helpDialog = hud.querySelector<HTMLDialogElement>('#as-help-dialog')!;
 hud.querySelector<HTMLButtonElement>('#as-help')!.onclick = () => helpDialog.showModal();
 hud.querySelector<HTMLButtonElement>('#as-help-close')!.onclick = () => helpDialog.close();
-function openDialog(dialog: HTMLDialogElement): void { dialog.hidden = false; if (!dialog.open) dialog.showModal(); }
-function closeDialog(dialog: HTMLDialogElement): void { dialog.close(); dialog.hidden = true; }
 
 const levelOpenBtn = hud.querySelector<HTMLButtonElement>('#as-level-open')!;
 const levelEl = hud.querySelector<HTMLElement>('#as-level')!;
 const movesEl = hud.querySelector<HTMLElement>('#as-moves')!;
 const groupsEl = hud.querySelector<HTMLElement>('#as-groups')!;
 const modalEl = hud.querySelector<HTMLDialogElement>('#as-modal')!;
-const modalEmojiEl = hud.querySelector<HTMLElement>('#as-modal-emoji')!;
 const modalTitleEl = hud.querySelector<HTMLElement>('#as-modal-title')!;
 const modalSubEl = hud.querySelector<HTMLElement>('#as-modal-sub')!;
 const modalBestEl = hud.querySelector<HTMLElement>('#as-modal-best')!;
@@ -156,20 +152,20 @@ function renderLevelSelector(): void {
   });
 }
 
-function openLevelSelector(returnToModal = !modalEl.hidden): void {
+function openLevelSelector(returnToModal = modalEl.open): void {
   version++;
   selectorReturnsToModal = returnToModal;
-  if (returnToModal) closeDialog(modalEl);
+  if (returnToModal) modalEl.close();
   renderLevelSelector();
-  openDialog(levelSelectEl);
+  levelSelectEl.showModal();
   levelCloseBtn.focus();
 }
 
 function closeLevelSelector(): void {
-  closeDialog(levelSelectEl);
+  levelSelectEl.close();
   if (selectorReturnsToModal) {
     selectorReturnsToModal = false;
-    openDialog(modalEl);
+    modalEl.showModal();
     modalPrimaryEl.focus();
   } else {
     levelOpenBtn.focus();
@@ -185,8 +181,8 @@ function startLevel(level: number): void {
   version++;
   selected = null;
   gameOver = false;
-  closeDialog(modalEl);
-  closeDialog(levelSelectEl);
+  modalEl.close();
+  levelSelectEl.close();
   selectorReturnsToModal = false;
   levelOpenBtn.disabled = false;
   movesEl.classList.remove('as-loss-pending');
@@ -541,7 +537,7 @@ function parseTarget(attr: string | undefined): Target | null {
 }
 
 function tryMove(src: Source, target: Target): boolean {
-  if (gameOver || !levelSelectEl.hidden) return false;
+  if (gameOver || levelSelectEl.open) return false;
   const previousFilled = target.zone === 'slot' ? state.slots[target.index]?.filled ?? 0 : 0;
   const res = applyMove(state, src, target);
   if (!res.ok) return false;
@@ -558,7 +554,7 @@ function tryMove(src: Source, target: Target): boolean {
 }
 
 function doDraw(): void {
-  if (gameOver || !levelSelectEl.hidden) return;
+  if (gameOver || levelSelectEl.open) return;
   if (draw(state)) {
     selected = null;
     setStatus('');
@@ -578,7 +574,6 @@ function afterMove(): void {
       winTimer = undefined;
       celebrateLevel();
       showModal({
-        emoji: final ? '🏆' : '🎉',
         title: final ? 'All levels cleared!' : `Level ${state.level} cleared!`,
         sub: `All ${state.categories.length} groups associated with ${state.movesLeft} move${state.movesLeft === 1 ? '' : 's'} to spare.`,
         best: `Best: ${best} level${best === 1 ? '' : 's'}`,
@@ -590,7 +585,7 @@ function afterMove(): void {
     return;
   }
   if (state.movesLeft <= 0) {
-    scheduleLoss('⌛', 'Out of moves');
+    scheduleLoss('Out of moves');
     return;
   }
   // Fail as soon as the deck can no longer be finished. The check runs after
@@ -599,12 +594,12 @@ function afterMove(): void {
   window.setTimeout(() => {
     if (checked !== version || gameOver) return;
     if (checkViable(state) === 'dead') {
-      scheduleLoss('🧱', 'Dead end', 'There is no way to finish this deck from here.');
+      scheduleLoss('Dead end', 'There is no way to finish this deck from here.');
     }
   }, 60);
 }
 
-function scheduleLoss(emoji: string, title: string, reason = ''): void {
+function scheduleLoss(title: string, reason = ''): void {
   const lostLevel = state.level;
   gameOver = true;
   levelOpenBtn.disabled = true;
@@ -617,7 +612,6 @@ function scheduleLoss(emoji: string, title: string, reason = ''): void {
     lossTimer = undefined;
     const best = getBestScore(SCORE_KEY);
     showModal({
-      emoji,
       title,
       sub: `${reason ? `${reason} ` : ''}You reached level ${state.level} and finished ${state.completed} of ${state.categories.length} groups.`,
       best: best > 0 ? `Best: ${best} level${best === 1 ? '' : 's'}` : '',
@@ -629,16 +623,15 @@ function scheduleLoss(emoji: string, title: string, reason = ''): void {
 }
 
 let onModalPrimary: () => void = () => {};
-function showModal(o: { emoji: string; title: string; sub: string; best: string; primary: string; onPrimary: () => void; win: boolean }): void {
+function showModal(o: { title: string; sub: string; best: string; primary: string; onPrimary: () => void; win: boolean }): void {
   if (helpDialog.open) helpDialog.close();
-  modalEmojiEl.textContent = o.emoji;
   modalTitleEl.textContent = o.title;
   modalTitleEl.classList.toggle('as-win', o.win);
   modalSubEl.textContent = o.sub;
   modalBestEl.textContent = o.best;
   modalPrimaryEl.textContent = o.primary;
   onModalPrimary = o.onPrimary;
-  openDialog(modalEl);
+  modalEl.showModal();
   modalPrimaryEl.focus();
 }
 modalPrimaryEl.addEventListener('click', () => onModalPrimary());
@@ -656,7 +649,7 @@ stockEl.addEventListener('click', doDraw);
 
 // Keyboard: Enter/Space on a focused card selects it; on a slot or column it drops the selection there.
 board.addEventListener('keydown', (e) => {
-  if (gameOver || !levelSelectEl.hidden || (e.key !== 'Enter' && e.key !== ' ')) return;
+  if (gameOver || levelSelectEl.open || (e.key !== 'Enter' && e.key !== ' ')) return;
   const el = e.target as HTMLElement;
   const source = parseSource(el.dataset.src);
   const target = parseTarget(el.dataset.drop);
@@ -671,11 +664,7 @@ board.addEventListener('keydown', (e) => {
 });
 
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !levelSelectEl.hidden) {
-    closeLevelSelector();
-    return;
-  }
-  if (!modalEl.hidden || !levelSelectEl.hidden || helpDialog.open) return;
+  if (modalEl.open || levelSelectEl.open || helpDialog.open) return;
   if (e.key === 'd' || e.key === 'D') doDraw();
   if (e.key === 'Escape' && selected) {
     selected = null;
@@ -699,7 +688,7 @@ let dragging: DragState | null = null;
 const DRAG_THRESHOLD = 6;
 
 board.addEventListener('pointerdown', (e) => {
-  if (gameOver || !levelSelectEl.hidden || e.button !== 0) return;
+  if (gameOver || levelSelectEl.open || e.button !== 0) return;
   const cardEl = (e.target as HTMLElement).closest<HTMLElement>('[data-src]');
   const source = parseSource(cardEl?.dataset.src);
   if (!cardEl || !source) return;
@@ -822,7 +811,7 @@ function handleTap(source: Source): void {
 
 // Taps on empty drop zones (slots, empty columns, column background) while a card is selected.
 board.addEventListener('click', (e) => {
-  if (!selected || gameOver || !levelSelectEl.hidden) return;
+  if (!selected || gameOver || levelSelectEl.open) return;
   const el = e.target as HTMLElement;
   if (el.closest('[data-src]')) return;
   const t = parseTarget(el.closest<HTMLElement>('[data-drop]')?.dataset.drop);

@@ -41,7 +41,6 @@ dialog p { color: var(--muted); font-size: .9rem; line-height: 1.6; }
 .as-level-meta,.as-level-ordered { font-size: .68rem; color: var(--muted); }
 .as-level-ordered { color: var(--accent-2); }
 .as-modal-card h2.as-win { color: var(--accent); }
-.as-result-symbol { display: none; }
 .as-modal-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
 .as-primary { background: var(--accent); color: #192513; border: 0; }
 .as-hub-btn { text-align: center; }
