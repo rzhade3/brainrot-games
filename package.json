@@ -20,7 +20,8 @@
     "test:fieldwork": "node --import tsx --test src/games/fieldwork/*.test.ts",
     "simulate:fieldwork": "node --import tsx scripts/simulate-fieldwork.ts",
     "test:hole-city": "node --import tsx --test src/games/hole-city/*.test.ts",
-    "test:untangle": "node --import tsx --test src/games/untangle/*.test.ts"
+    "test:untangle": "node --import tsx --test src/games/untangle/*.test.ts",
+    "test:typing": "node --import tsx --test src/games/typing/*.test.ts"
   },
   "dependencies": {
     "phaser": "^3.80.1",

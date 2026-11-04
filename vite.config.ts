@@ -24,7 +24,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/*.png'],
+      includeAssets: ['favicon.svg', 'icons/*.png', 'assets/typing/JetBrainsMono-OFL.txt'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,woff2}'],
       },

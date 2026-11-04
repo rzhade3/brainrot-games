@@ -235,3 +235,11 @@ controller limitations, tuning decisions, and reproducible commands.
 See [chamber balancing](docs/breakout-chambers.md) for the new layouts and seeded results.
 
 For new arenas, use the [declarative level authoring guide](src/games/breakout/levels/README.md). New levels use literal maps, parameterized families, or custom generators behind one validated board interface. Twin vaults varies entrances and brick patterns from a reproducible run seed; existing layouts retain compatibility adapters.
+
+## Type Rot fonts
+
+Type Rot uses [JetBrains Mono](https://www.jetbrains.com/lp/mono/) for gameplay and input,
+paired with Barlow Condensed headings. Font files are self-hosted and cached for offline play.
+JetBrains Mono is copyright 2020 The JetBrains Mono Project Authors and licensed under the
+[SIL Open Font License 1.1](public/assets/typing/JetBrainsMono-OFL.txt). Its original font files
+and full license are included in `public/assets/typing/`.
