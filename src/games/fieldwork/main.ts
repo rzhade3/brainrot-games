@@ -4,7 +4,7 @@ import { onMap, type Point } from "./camera";
 import { Renderer } from "./render";
 import { submitScore } from "../../core/scores";
 const root = document.querySelector<HTMLDivElement>("#app")!;
-root.innerHTML = `<main><header><a href="/" aria-label="Back to arcade">←</a><h1>Fieldwork<span>take the long way</span></h1><button id="view" aria-label="Show whole field" aria-pressed="true">Map</button><button id="pause" aria-label="Pause game">Ⅱ</button></header>
+root.innerHTML = `<main><header><a href="/" aria-label="Back to arcade">←</a><h1>Fieldwork</h1><button id="view" aria-label="Show whole field" aria-pressed="true">Map</button><button id="pause" aria-label="Pause game">Ⅱ</button></header>
 <div class="hud"><div><small id="field-label">Field 01</small><strong id="coverage">0.0%</strong></div><div id="fuel-readout"><small id="fuel-label">Fuel</small><strong id="fuel-value">100%</strong><meter id="fuel" min="0" max="100" low="20" high="100" optimum="100" value="100" aria-label="Fuel remaining"></meter></div></div>
 <div class="stage"><canvas tabindex="0" aria-label="Tractor field. Arrow keys or WASD to drive. Hold and drag on the field to steer. P pauses. Follow enables the optional moving view."></canvas><div class="overlay" id="overlay"><section class="panel" id="panel" aria-labelledby="title"></section></div></div>
 <div class="progress" role="progressbar" aria-label="Field coverage" aria-valuemin="0" aria-valuemax="98" aria-valuenow="0"><div id="bar"></div></div>

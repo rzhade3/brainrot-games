@@ -16,7 +16,7 @@ let feedbackTimer: number | undefined;
 
 const app = document.getElementById('type-app')!;
 app.innerHTML = `
-  <header class="tp-header"><a href="../../">← Arcade</a><h1>Type Rot</h1><form id="tp-form" class="tp-input-area"><label for="tp-input">Your word</label><div class="tp-input-row"><input id="tp-input" type="text" disabled autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="Type a word · Space / Enter" aria-describedby="tp-feedback"><button id="tp-submit" type="submit" disabled aria-label="Submit word">↵</button></div><p id="tp-feedback" role="status" aria-live="polite"></p></form><div class="tp-stats"><span>Score <strong id="tp-score">0</strong></span></div><div class="tp-actions"><button id="tp-pause" type="button" disabled aria-label="Pause game">Pause</button><button id="tp-help" type="button" aria-label="How to play" aria-haspopup="dialog" aria-controls="tp-help-dialog">?</button></div></header>
+  <header class="tp-header"><a href="../../" aria-label="Back to arcade">←</a><h1>Type Rot</h1><form id="tp-form" class="tp-input-area"><label for="tp-input">Your word</label><div class="tp-input-row"><input id="tp-input" type="text" disabled autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="send" placeholder="Type a word · Space / Enter" aria-describedby="tp-feedback"><button id="tp-submit" type="submit" disabled aria-label="Submit word">↵</button></div><p id="tp-feedback" role="status" aria-live="polite"></p></form><div class="tp-stats"><span>Score <strong id="tp-score">0</strong></span></div><div class="tp-actions"><button id="tp-pause" type="button" disabled aria-label="Pause game">Ⅱ</button><button id="tp-help" type="button" aria-label="How to play" aria-haspopup="dialog" aria-controls="tp-help-dialog">?</button></div></header>
   <main class="tp-main" aria-label="Type Rot game">
 
     <div class="tp-arena" id="tp-arena"><canvas id="tp-canvas" aria-hidden="true"></canvas><span class="tp-edge" aria-hidden="true"></span><ul id="tp-words" class="tp-sr-only" aria-label="Words in play"></ul>
@@ -76,7 +76,7 @@ function setPhase(next: Phase): void {
   input.disabled = !playing;
   $<HTMLButtonElement>('submit').disabled = !playing;
   pauseButton.disabled = next === 'ready' || next === 'over';
-  pauseButton.textContent = next === 'paused' ? 'Resume' : 'Pause';
+  pauseButton.textContent = next === 'paused' ? '▶' : 'Ⅱ';
   pauseButton.setAttribute('aria-label', next === 'paused' ? 'Resume game' : 'Pause game');
   app.dataset.phase = next;
 }

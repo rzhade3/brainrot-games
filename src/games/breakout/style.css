@@ -27,7 +27,7 @@ dialog { width: min(460px, 92vw); max-height: 85dvh; border: 1px solid #444c60; 
 dialog h2 { margin-top: 0; } dialog::backdrop { background: #080b13b3; } dialog p, dd { color: #b2bcd1; font-size: 13px; } dl { display: grid; grid-template-columns: 50px 1fr; gap: 10px; font-size: 13px; } dt { font-weight: 800; } dd { margin: 0; } dialog button { margin-right: 8px; }
 .br-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 340px) { .br-preview { padding: 0 12px 16%; } .br-panel { padding: 12px; } h1 { font-size: 20px; } header { gap: 2px; } header a { min-width: 26px; } }
-@media (max-height: 600px) and (min-width: 600px) and (orientation: landscape) {
+@media (max-height: 600px) and (min-width: 480px) and (orientation: landscape) {
   .br-shell { width: min(850px, 100%); min-width: 0; }
   header { height: 44px; }
   main { display: grid; grid-template-columns: calc((100dvh - 72px) * .75) 1fr; column-gap: 24px; align-content: start; }

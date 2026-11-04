@@ -33,9 +33,9 @@ const root = document.getElementById('game-root')!;
 const hud = document.createElement('div');
 hud.className = 'as-ui';
 hud.innerHTML = `
-  <header class="as-header"><a href="../../">← Arcade</a><h1>Associations<span aria-hidden="true">.</span></h1><div class="as-actions"><button id="as-new" type="button">Retry</button><button id="as-help" type="button" aria-label="How to play" aria-haspopup="dialog" aria-controls="as-help-dialog">?</button></div></header>
+  <header class="as-header"><a href="../../" aria-label="Back to arcade">←</a><h1>Associations<span aria-hidden="true">.</span></h1><button id="as-help" type="button" aria-label="Game menu" aria-haspopup="dialog" aria-controls="as-help-dialog">☰</button></header>
   <div class="as-toolbar"><button class="as-level-open" id="as-level-open" type="button" aria-label="Choose level" aria-haspopup="dialog" aria-controls="as-level-select">Level <span id="as-level">1</span> <span aria-hidden="true">⌄</span></button><div class="as-stat"><span class="as-label">Moves left</span><strong class="as-val" id="as-moves">0</strong></div><div class="as-stat"><span class="as-label">Groups</span><strong class="as-val" id="as-groups">0/0</strong></div></div>
-  <dialog id="as-help-dialog" aria-labelledby="as-help-title"><div class="as-dialog-head"><h2 id="as-help-title">How to play</h2><button id="as-help-close" type="button" aria-label="Close help">×</button></div><ol class="as-instructions"><li><strong>Place a category.</strong> Move a lime category card to an empty slot.</li><li><strong>Match the words.</strong> Stack matching words on the category to complete its group.</li><li><strong>Watch your moves.</strong> Drawing from the house also costs a move.</li></ol><p>Tap a card, then its destination—or drag it. Face-up cards in a column move together.</p><p><strong>Peach cards marked ⇣ go in order.</strong> Build their stack last-to-first, then send it to the category first-to-last.</p><p class="as-help-keyboard">Keyboard: Enter or Space selects and places cards. D draws a card. Escape clears your selection.</p></dialog>
+  <dialog id="as-help-dialog" aria-labelledby="as-help-title"><div class="as-dialog-head"><h2 id="as-help-title">Game menu</h2><button id="as-help-close" type="button" aria-label="Close game menu">×</button></div><button id="as-new" class="as-primary" type="button">Retry level</button><h3>How to play</h3><ol class="as-instructions"><li><strong>Place a category.</strong> Move a lime category card to an empty slot.</li><li><strong>Match the words.</strong> Stack matching words on the category to complete its group.</li><li><strong>Watch your moves.</strong> Drawing from the house also costs a move.</li></ol><p>Tap a card, then its destination—or drag it. Face-up cards in a column move together.</p><p><strong>Peach cards marked ⇣ go in order.</strong> Build their stack last-to-first, then send it to the category first-to-last.</p><p class="as-help-keyboard">Keyboard: Enter or Space selects and places cards. D draws a card. Escape clears your selection.</p></dialog>
   <dialog class="as-result-dialog" id="as-modal" aria-labelledby="as-modal-title" hidden>
     <div class="as-modal-card">
       <div class="as-result-symbol" id="as-modal-emoji" aria-hidden="true">🃏</div>
@@ -651,7 +651,7 @@ levelSelectEl.addEventListener('click', (e) => {
   if (e.target === levelSelectEl) closeLevelSelector();
 });
 
-newBtn.addEventListener('click', () => startLevel(state.level));
+newBtn.addEventListener('click', () => { helpDialog.close(); startLevel(state.level); });
 stockEl.addEventListener('click', doDraw);
 
 // Keyboard: Enter/Space on a focused card selects it; on a slot or column it drops the selection there.
