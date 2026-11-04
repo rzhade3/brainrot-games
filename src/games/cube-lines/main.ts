@@ -15,10 +15,10 @@ const STORAGE_KEY = 'brainrot-cube-lines:v4';
 const root = document.querySelector<HTMLElement>('#cube-app')!;
 root.innerHTML = `
   <header class="cl-header">
-    <a class="cl-hub" href="../../" aria-label="Back to Brainrot Games">← Hub</a>
+    <a class="cl-hub" href="../../" aria-label="Back to Brainrot Games">← Arcade</a>
     <h1>Cube Lines</h1>
     <div class="cl-header-actions">
-      <button id="cl-levels" class="cl-level-button" type="button" aria-haspopup="dialog"><span id="cl-mode-label">Level</span> <span id="cl-level">1</span><span id="cl-total"> / 30</span></button>
+      <button id="cl-levels" class="cl-level-button" type="button" aria-haspopup="dialog" aria-controls="cl-level-dialog">Puzzles</button>
       <button id="cl-hint" type="button">Hint</button>
       <button id="cl-help" type="button" aria-label="How to play" title="How to play" aria-haspopup="dialog" aria-controls="cl-instructions">?</button>
     </div>
@@ -29,20 +29,18 @@ root.innerHTML = `
     <p><strong>Tap a line to release it.</strong> Its arrowhead needs a straight, clear path to the face's edge.
     The body follows, even around cube edges. One line can block several faces.</p>
     <p><strong>Drag to rotate.</strong> Pinch or scroll to zoom.</p>
-    <p><strong>Clear all six faces.</strong> No penalties. Free hints.</p>
+    <p><strong>Clear all six faces.</strong> Use Hint whenever you need it.</p>
   </dialog>
+  <main class="cl-game-body" aria-label="Cube Lines puzzle">
   <div class="cl-progress" id="cl-progress">
+    <span><span id="cl-mode-label">Level</span> <span id="cl-level">1</span><span id="cl-total"> / 30</span></span>
     <span id="cl-faces">0 / 6 faces clear</span>
     <span><strong id="cl-remaining">0</strong> lines left</span>
   </div>
-  <aside id="cl-coach" class="cl-coach" aria-label="First-move tip" hidden>
-    <p>Lines wrap around edges. Follow them by rotating the cube. The arrowhead needs a straight, clear exit.</p>
-    <button id="cl-coach-close" type="button" aria-label="Dismiss first-move tip">Got it</button>
-  </aside>
   <div class="cl-stage" id="cl-stage"></div>
   <section id="cl-result" class="cl-result" hidden aria-labelledby="cl-result-title">
     <h2 id="cl-result-title">Cube cleared.</h2>
-    <p id="cl-result-text">Every line found its way out.</p>
+    <p id="cl-result-text"></p>
     <button id="cl-next" class="cl-primary" type="button">Next level →</button>
   </section>
   <p class="cl-status" id="cl-status" role="status" aria-live="polite">Drag to rotate. Tap a line with a clear way out.</p>
@@ -54,27 +52,35 @@ root.innerHTML = `
   <div id="cl-error" class="cl-error" role="alert" hidden>
     <p id="cl-error-text"></p><button id="cl-reload" type="button">Reload puzzle</button>
   </div>
+  </main>
   <dialog id="cl-level-dialog" class="cl-dialog" aria-labelledby="cl-level-title">
-    <div class="cl-dialog-header"><h2 id="cl-level-title">Choose a puzzle</h2>
+    <div class="cl-dialog-header"><h2 id="cl-level-title">Puzzles</h2>
       <button id="cl-close" type="button" aria-label="Close level selector">×</button></div>
-    <button id="cl-endless" class="cl-endless-entry" type="button">Endless <span>New cubes, no finish line →</span></button>
-    <details id="cl-codes" class="cl-codes">
-      <summary>Play or share a puzzle code</summary>
-      <div id="cl-share" hidden>
-        <label for="cl-current-code">Current cube</label>
-        <div class="cl-code-row"><input id="cl-current-code" readonly spellcheck="false">
-          <button id="cl-copy-code" type="button">Copy code</button></div>
+    <div class="cl-dialog-body">
+    <div id="cl-chooser">
+      <div class="cl-mode-switch" role="group" aria-label="Puzzle mode">
+        <button id="cl-show-levels" type="button" aria-pressed="true" aria-controls="cl-campaign-panel">Levels</button>
+        <button id="cl-show-endless" type="button" aria-pressed="false" aria-controls="cl-endless-panel">Endless</button>
       </div>
+      <section id="cl-campaign-panel" aria-label="Campaign levels">
+        <p id="cl-level-help"></p>
+        <div id="cl-level-grid" class="cl-level-grid"></div>
+      </section>
+      <section id="cl-endless-panel" hidden aria-label="Endless puzzles">
+        <button id="cl-endless" class="cl-endless-entry" type="button">Start Endless →</button>
+      </section>
+    </div>
+    <section id="cl-code-panel" aria-label="Puzzle code">
       <form id="cl-code-form">
-        <label for="cl-code-input">Play a code</label>
+        <label for="cl-code-input">Puzzle code</label>
         <div class="cl-code-row"><input id="cl-code-input" required maxlength="40" placeholder="CL1-T1-0000002A"
-          autocapitalize="characters" autocomplete="off" spellcheck="false" aria-describedby="cl-code-status">
-          <button id="cl-play-code" type="submit">Play</button></div>
+          autocapitalize="characters" autocomplete="off" spellcheck="false" enterkeyhint="go" aria-describedby="cl-code-status">
+          <button id="cl-copy-code" type="button" disabled>Copy</button></div>
+        <button id="cl-play-code" class="cl-load-code" type="submit" hidden>Load cube</button>
       </form>
       <p id="cl-code-status" role="status" aria-live="polite">Shared cubes do not change your Endless progress.</p>
-    </details>
-    <p id="cl-level-help"></p>
-    <div id="cl-level-grid" class="cl-level-grid"></div>
+    </section>
+    </div>
   </dialog>
 `;
 
@@ -90,7 +96,6 @@ const hintButton = element<HTMLButtonElement>('hint');
 const dialog = element<HTMLDialogElement>('level-dialog');
 const saveWarning = element('save-warning');
 const instructions = element<HTMLDialogElement>('instructions');
-const coach = element('coach');
 let fatal = false;
 let view: CubeRenderer | undefined;
 let departingLineId: string | null = null;
@@ -105,6 +110,7 @@ const codeGenerator = new EndlessGenerator();
 let generating = false;
 let generationError: string | null = null;
 let waitingForNext = false;
+let currentPuzzleCode = '';
 
 function showHint(): void {
   if (fatal) return;
@@ -184,6 +190,7 @@ function updateCounts(): void {
   element('remaining').textContent = String(session.layout.lines.length);
   const cleared = FACES.filter(face => !session.layout.lines.some(line => line.cells.some(cell => cell.face === face))).length;
   element('faces').textContent = `${cleared} / 6 faces clear`;
+  refreshShareCode();
   hintButton.disabled = fatal || (mode === 'endless' && !endless) ||
     !session.layout.lines.some(line => line.id !== departingLineId);
 }
@@ -242,7 +249,7 @@ function attempt(id: string): void {
   if (!move.commit) {
     view!.slam(line, updateCounts);
     updateCounts();
-    status.textContent = 'Blocked. Clear the line in the way first. No penalty.';
+    status.textContent = 'Blocked. Remove the line in its path first.';
     return;
   }
   departingLineId = id;
@@ -256,12 +263,12 @@ function attempt(id: string): void {
     else if (mode === 'endless' && endless) endless.removed.push(id);
     else save.removed.push(id);
     save.introduced = true;
-    coach.hidden = true;
+
     view!.setLayout(session.layout, hintedLineId);
     persist();
     updateCounts();
     if (!session.layout.lines.length) finishLevel();
-    else if (!hintedLineId) status.textContent = `Line released. ${session.layout.lines.length} left across the cube.`;
+    else if (!hintedLineId) status.textContent = '';
   });
 }
 
@@ -278,9 +285,9 @@ function startLevel(level: number, restore = false): void {
   view?.resetView();
   result.hidden = true;
   nextButton.disabled = fatal;
-  coach.hidden = save.introduced;
+
   updateCounts();
-  status.textContent = 'Drag to rotate. Tap a line with a clear way out.';
+  status.textContent = save.introduced ? 'Drag to rotate. Tap a line with a clear way out.' : 'Lines wrap around edges. Drag to follow them; tap a line whose arrow has a clear exit.';
   persist();
   if (!session.layout.lines.length) finishLevel();
 }
@@ -354,8 +361,8 @@ function loadEndless(): void {
   view?.setLayout(session.layout);
   view?.resetView();
   result.hidden = true;
-  coach.hidden = save.introduced;
-  status.textContent = 'Drag to rotate. Tap a line with a clear way out.';
+
+  status.textContent = save.introduced ? 'Drag to rotate. Tap a line with a clear way out.' : 'Lines wrap around edges. Drag to follow them; tap a line whose arrow has a clear exit.';
   updateCounts();
   updateGeneration();
   persist();
@@ -375,7 +382,7 @@ function startEndless(): void {
     hintedLineId = null;
     view?.setLayout(session.layout);
     result.hidden = true;
-    coach.hidden = true;
+
     status.textContent = 'Endless creates a new puzzle for every cube.';
     updateCounts();
     persist();
@@ -395,7 +402,7 @@ function loadShared(): void {
   view?.setLayout(session.layout);
   view?.resetView();
   result.hidden = true;
-  coach.hidden = save.introduced;
+
   nextButton.disabled = fatal;
   status.textContent = 'Shared cube. Your Endless progress is unchanged.';
   updateCounts();
@@ -403,17 +410,36 @@ function loadShared(): void {
   if (!session.layout.lines.length) finishLevel();
 }
 
+function updateCodeActions(): void {
+  const input = element<HTMLInputElement>('code-input');
+  const value = input.value.trim();
+  let normalized = value;
+  try { normalized = formatPuzzleCode(parsePuzzleCode(value)); } catch { /* Validate on Load. */ }
+  element('play-code').hidden = !value || normalized === currentPuzzleCode;
+  element<HTMLButtonElement>('copy-code').disabled = !value;
+}
+
 function refreshShareCode(): void {
   const puzzle = mode === 'shared' ? shared?.puzzle : mode === 'endless' ? endless?.puzzle : null;
-  element('share').hidden = !puzzle || puzzle.preset === undefined;
-  if (!puzzle || puzzle.preset === undefined) return;
-  try {
-    element<HTMLInputElement>('current-code').value = formatPuzzleCode({ ...puzzle, preset: puzzle.preset });
-  } catch (error) {
-    element('share').hidden = true;
-    console.warn('Cube Lines could not share this puzzle.', error);
-    element('code-status').textContent = 'This saved generator edition cannot be shared by this version.';
+  currentPuzzleCode = '';
+  if (puzzle?.preset !== undefined) {
+    try {
+      currentPuzzleCode = formatPuzzleCode({ ...puzzle, preset: puzzle.preset });
+    } catch (error) {
+      console.warn('Cube Lines could not share this puzzle.', error);
+    }
   }
+  if (!dialog.open) {
+    element<HTMLInputElement>('code-input').value = currentPuzzleCode;
+    updateCodeActions();
+  }
+}
+
+function showPuzzleMode(endlessMode: boolean): void {
+  element('campaign-panel').hidden = endlessMode;
+  element('endless-panel').hidden = !endlessMode;
+  element('show-levels').setAttribute('aria-pressed', String(!endlessMode));
+  element('show-endless').setAttribute('aria-pressed', String(endlessMode));
 }
 
 function openLevels(): void {
@@ -421,9 +447,11 @@ function openLevels(): void {
   grid.replaceChildren();
   const unlocked = Math.min(layouts.length, save.completed + 1);
   element('level-help').textContent = save.completed === layouts.length
-    ? '✓ Cleared · All levels open for replay.'
-    : '✓ Cleared · Clear each cube to unlock the next.';
-  element('endless').setAttribute('aria-pressed', String(mode === 'endless'));
+    ? 'All levels cleared. Replay any cube.'
+    : 'Clear a cube to unlock the next.';
+  element('endless').textContent = endless ? 'Continue Endless →' : 'Start Endless →';
+  element('code-status').textContent = '';
+  showPuzzleMode(mode !== 'campaign');
   refreshShareCode();
   for (let level = 1; level <= layouts.length; level++) {
     const button = document.createElement('button');
@@ -471,6 +499,16 @@ else if (resumeEndless) startEndless();
 else if (renewed) status.textContent = 'Lines now wrap around cube edges. Cleared levels are kept; your in-progress cube starts fresh.';
 element('levels').addEventListener('click', openLevels);
 element('close').addEventListener('click', () => dialog.close());
+element('show-levels').addEventListener('click', () => showPuzzleMode(false));
+element('show-endless').addEventListener('click', () => showPuzzleMode(true));
+element('code-input').addEventListener('input', () => {
+  codeGenerator.cancel();
+  element('code-form').removeAttribute('aria-busy');
+  element<HTMLButtonElement>('play-code').disabled = fatal;
+  element('code-input').removeAttribute('aria-invalid');
+  element('code-status').textContent = '';
+  updateCodeActions();
+});
 dialog.addEventListener('close', () => {
   codeGenerator.cancel();
   element('code-form').removeAttribute('aria-busy');
@@ -480,7 +518,7 @@ dialog.addEventListener('close', () => {
 });
 element<HTMLFormElement>('code-form').addEventListener('submit', event => {
   event.preventDefault();
-  if (fatal) return;
+  if (fatal || element('play-code').hidden || element('code-form').getAttribute('aria-busy') === 'true') return;
   const input = element<HTMLInputElement>('code-input');
   let code: string;
   try {
@@ -507,19 +545,23 @@ element<HTMLFormElement>('code-form').addEventListener('submit', event => {
     element('code-status').textContent = `Could not create that cube. ${message} Your current puzzle is unchanged.`;
   });
 });
-element('copy-code').addEventListener('click', async () => {
-  const input = element<HTMLInputElement>('current-code');
+async function copyCurrentCode(): Promise<void> {
+  const input = element<HTMLInputElement>('code-input');
   const code = input.value;
   try {
     await navigator.clipboard.writeText(code);
-    element('code-status').textContent = 'Puzzle code copied. It opens the complete cube, not your current moves.';
+    const message = 'Code copied.';
+    status.textContent = message;
+    element('code-status').textContent = message;
   } catch (error) {
     console.warn('Cube Lines could not copy the puzzle code.', error);
+    if (!dialog.open) openLevels();
     input.focus();
     input.select();
-    element('code-status').textContent = 'Clipboard unavailable. Copy the selected code manually.';
+    element('code-status').textContent = 'Select and copy this code to share the full cube.';
   }
-});
+}
+element('copy-code').addEventListener('click', copyCurrentCode);
 element('endless').addEventListener('click', () => {
   dialog.close();
   startEndless();
@@ -533,12 +575,6 @@ element('reload').addEventListener('click', () => window.location.reload());
 hintButton.addEventListener('click', showHint);
 element('help').addEventListener('click', () => instructions.showModal());
 element('help-close').addEventListener('click', () => instructions.close());
-element('coach-close').addEventListener('click', () => {
-  coach.hidden = true;
-  save.introduced = true;
-  persist();
-  view?.canvas.focus({ preventScroll: true });
-});
 nextButton.addEventListener('click', () => {
   if (mode === 'shared') {
     startEndless();
@@ -577,4 +613,18 @@ if (import.meta.hot) import.meta.hot.dispose(() => {
   generator.cancel();
   codeGenerator.cancel();
   view?.dispose();
+});
+
+// Keep the code-entry sheet inside the area above the on-screen keyboard.
+function updateViewport(): void {
+  const viewport = window.visualViewport;
+  document.documentElement.style.setProperty('--cl-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
+  document.documentElement.style.setProperty('--cl-viewport-top', `${viewport?.offsetTop ?? 0}px`);
+}
+updateViewport();
+window.visualViewport?.addEventListener('resize', updateViewport);
+window.visualViewport?.addEventListener('scroll', updateViewport);
+if (import.meta.hot) import.meta.hot.dispose(() => {
+  window.visualViewport?.removeEventListener('resize', updateViewport);
+  window.visualViewport?.removeEventListener('scroll', updateViewport);
 });
