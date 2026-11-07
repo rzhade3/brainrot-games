@@ -51,11 +51,18 @@ test('puzzle codes roundtrip every exact preset and unsigned seed boundary', () 
     for (const seed of [0, 1, 42, 0x12345678, 0xffffffff]) {
       const code = { edition: 1, preset, seed };
       const text = formatPuzzleCode(code);
+      assert.match(text, /^[0-9A-HJKMNP-TV-Z]{7}$/);
       assert.deepEqual(parsePuzzleCode(text), code);
       assert.deepEqual(parsePuzzleCode(`  ${text.toLowerCase()}  `), code);
+      const legacy = `cl1-t${preset + 1}-${seed.toString(16).padStart(8, '0')}`;
+      assert.deepEqual(parsePuzzleCode(legacy), code);
     }
   }
-  assert.equal(formatPuzzleCode({ edition: 1, preset: 0, seed: 42 }), 'CL1-T1-0000002A');
+  assert.equal(formatPuzzleCode({ edition: 1, preset: 0, seed: 42 }), '000001A');
+  assert.equal(formatPuzzleCode({ edition: 1, preset: 5, seed: 0xffffffff }), 'QZZZZZZ');
+  for (const text of ['OOOOOIA', 'oooooLa']) {
+    assert.deepEqual(parsePuzzleCode(text), { edition: 1, preset: 0, seed: 42 });
+  }
   assert.equal(endlessPreset(0), 0);
   assert.equal(endlessPreset(5), 1);
   assert.equal(endlessPreset(20), 4);
@@ -64,7 +71,8 @@ test('puzzle codes roundtrip every exact preset and unsigned seed boundary', () 
 });
 
 test('invalid seed codes and unsupported editions fail without choosing a substitute', () => {
-  for (const text of ['', '42', 'CL1-T0-00000000', 'CL1-T7-00000000', 'CL1-T1-FFFFFFFFF',
+  for (const text of ['', '42', '00001A', '0000001A', '00000-A', '000001U', 'R000000', 'ZZZZZZZ',
+    'CL1-T0-00000000', 'CL1-T7-00000000', 'CL1-T1-FFFFFFFFF',
     'CL1-T1-0000000G', 'CL1-T1--0000001', 'CL1-T1-00000000 trailing']) {
     assert.throws(() => parsePuzzleCode(text), /full puzzle code/);
   }

@@ -36,14 +36,11 @@ root.innerHTML = `
   <div class="cl-stage" id="cl-stage"></div>
   <section id="cl-result" class="cl-result" hidden aria-labelledby="cl-result-title">
     <h2 id="cl-result-title">Cube cleared.</h2>
-    <p id="cl-result-text"></p>
+    <p id="cl-result-text" role="status"></p>
     <button id="cl-next" class="cl-primary" type="button">Next level →</button>
   </section>
   <p class="cl-status" id="cl-status" role="status" aria-live="polite">Drag to rotate. Tap a line with a clear way out.</p>
-  <div id="cl-generation" class="cl-generation" hidden>
-    <p id="cl-generation-status" role="status" aria-live="polite"></p>
-    <button id="cl-generation-retry" type="button" hidden>Retry generation</button>
-  </div>
+  <button id="cl-generation-retry" class="cl-generation-retry" type="button" hidden>Retry generation</button>
   <p id="cl-save-warning" class="cl-warning" role="alert" hidden></p>
   <div id="cl-error" class="cl-error" role="alert" hidden>
     <p id="cl-error-text"></p><button id="cl-reload" type="button">Reload puzzle</button>
@@ -73,7 +70,7 @@ root.innerHTML = `
     <section id="cl-code-panel" aria-label="Puzzle code">
       <form id="cl-code-form">
         <label for="cl-code-input">Puzzle code</label>
-        <div class="cl-code-row"><input id="cl-code-input" required maxlength="40" placeholder="CL1-T1-0000002A"
+        <div class="cl-code-row"><input id="cl-code-input" required maxlength="40" placeholder="000001A"
           autocapitalize="characters" autocomplete="off" spellcheck="false" enterkeyhint="go" aria-describedby="cl-code-status">
           <button id="cl-copy-code" type="button" disabled>Copy</button></div>
         <button id="cl-play-code" class="cl-load-code" type="submit" hidden>Load cube</button>
@@ -215,11 +212,8 @@ function finishLevel(): void {
     persist();
     result.hidden = false;
     element('result-title').textContent = 'Cube cleared.';
-    element('result-text').textContent = '';
-    element('result-text').hidden = true;
-    nextButton.textContent = 'Next cube →';
-    nextButton.disabled = fatal;
     updateCounts();
+    updateGeneration();
     prefetchEndless();
     nextButton.focus({ preventScroll: true });
     return;
@@ -297,23 +291,23 @@ function stopGeneration(): void {
   generating = false;
   generationError = null;
   waitingForNext = false;
-  element('generation').hidden = true;
-  element('generation').removeAttribute('aria-busy');
+  element('generation-retry').hidden = true;
   stage.setAttribute('aria-busy', 'false');
 }
 
 function updateGeneration(): void {
+  if (mode !== 'endless') return;
   const initial = !endless;
-  const show = mode === 'endless' && (initial || waitingForNext || !!generationError);
-  element('generation').hidden = !show;
-  element('generation').setAttribute('aria-busy', String(generating));
-  element('generation-status').textContent = generationError
-    ? (initial ? 'Could not create a cube. Retry with a new seed, or choose a campaign level.'
-      : 'Could not prepare the next cube. Your current cube is safe.')
-    : 'Creating a fresh cube…';
-  element('generation-retry').hidden = !generationError;
-  stage.setAttribute('aria-busy', String(initial && generating && mode === 'endless'));
-  nextButton.disabled = fatal || waitingForNext;
+  stage.setAttribute('aria-busy', String(initial && generating));
+  element('generation-retry').hidden = !initial || !generationError || fatal;
+  if (initial) {
+    status.textContent = generationError ? 'Could not prepare a cube. Try again.' : generating ? 'Preparing your first cube…' : '';
+  } else if (endless?.finished) {
+    element('result-text').textContent = generationError ? 'Could not prepare the next cube.' :
+      waitingForNext ? 'Preparing the next cube…' : '';
+    nextButton.textContent = generationError ? 'Retry next cube' : 'Next cube →';
+    nextButton.disabled = fatal || waitingForNext;
+  }
 }
 
 function prefetchEndless(): void {
@@ -383,8 +377,8 @@ function startEndless(): void {
     view?.setLayout(session.layout);
     result.hidden = true;
 
-    status.textContent = 'Endless creates a new puzzle for every cube.';
     updateCounts();
+    updateGeneration();
     persist();
     prefetchEndless();
   }
@@ -473,6 +467,7 @@ function openLevels(): void {
 function fail(message: string): void {
   fatal = true;
   stopGeneration();
+  updateGeneration();
   codeGenerator.cancel();
   element('code-form').removeAttribute('aria-busy');
   element<HTMLButtonElement>('play-code').disabled = true;
