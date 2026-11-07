@@ -214,10 +214,21 @@ test('worker enforces recent seed/layout exclusions, progression and bounded fai
     response = run({ cleared: 0, recent: [], code: 'CL1-T1-00000000' });
     assert.equal(response.ok, true, 'explicit replay is not restricted by catalog heuristics');
     if (response.ok) assert.equal(response.puzzle.seed, 0);
-    seeds = [];
-    response = run({ cleared: 0, recent: [{ seed: 0, signature: 'already used' }] });
-    assert.equal(response.ok, false);
-    if (!response.ok) assert.match(response.error, /generation budget/);
+    const [recentSeed, matchingLayoutSeed, fallbackSeed] = CATALOG.presets[5];
+    // All eight seeds generate valid T6 cubes that fail the extra catalog screen.
+    seeds = [0, 2, 4, 5, 6, 7, 8, 9];
+    response = run({
+      cleared: 52,
+      recent: [
+        { seed: recentSeed, signature: 'already used' },
+        { seed: 123456, signature: puzzleSignature(generateLevel(endlessSpec(25), matchingLayoutSeed)) },
+      ],
+    });
+    assert.deepEqual(response, {
+      ok: true,
+      puzzle: { edition: GENERATOR_EDITION, preset: 5, seed: fallbackSeed, layout: generateLevel(endlessSpec(25), fallbackSeed) },
+    }, 'an exhausted fresh search reuses a screened cube at the scheduled preset, excluding recent seeds and layouts');
+    assert.deepEqual(seeds, [], 'the worker tries fresh seeds before reusing catalog cubes');
     const seen: string[] = [];
     for (let i = 0; i < CATALOG.presets[0].length; i++) {
       seeds = [42];
@@ -292,7 +303,8 @@ test('worker enforces recent seed/layout exclusions, progression and bounded fai
     response = run({ cleared: 0, recent: [] });
     assert.equal(response.ok, false);
     if (!response.ok) assert.match(response.error, /generation budget/);
-    assert.equal(seeds.length, 1, 'exhausted seeds still consume the eight-attempt budget');
+    assert.equal(exhaustionMock.mock.callCount(), 8 + CATALOG.presets[0].length,
+      'exhaustion is bounded to eight fresh seeds and one pass through the curated pool');
     const beforeExplicit = random.mock.callCount();
     response = run({ cleared: 0, recent: [], code: 'CL1-T1-00000001' });
     assert.equal(response.ok, false);

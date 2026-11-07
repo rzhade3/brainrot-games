@@ -58,10 +58,10 @@
 .cl-result { position: absolute; top: 50%; left: 50%; width: calc(100% - var(--cl-gutter-left) - var(--cl-gutter-right)); transform: translate(-50%, -50%); text-align: center; padding: 28px; border: 1px solid var(--cl-border); border-radius: 22px; background: #21172ff5; box-shadow: 0 24px 70px #0008; }
 .cl-result h2 { margin: 0 0 12px; color: var(--cl-accent); font-size: clamp(1.8rem, 5vw, 2.8rem); letter-spacing: -0.05em; }
 .cl-result p { color: var(--cl-muted); line-height: 1.5; margin: 0 0 20px; }
+.cl-result p:empty { margin: 0; }
 .cl-warning, .cl-error { flex-shrink: 0; margin: 0; color: #ffc797; font-size: 0.9rem; line-height: 1.5; }
 .cl-error { padding: 16px; border: 1px solid #ffad7160; border-radius: 12px; background: #321f2b; }
-.cl-generation { position: absolute; top: 45%; left: 50%; width: calc(100% - var(--cl-gutter-left) - var(--cl-gutter-right)); transform: translateX(-50%); padding: 20px; text-align: center; border-radius: 16px; background: var(--cl-bg); }
-.cl-generation p { color: var(--cl-muted); line-height: 1.5; }
+.cl-generation-retry { align-self: center; flex-shrink: 0; }
 .cl-dialog {
   width: min(440px, calc(100% - 24px)); max-height: min(85dvh, calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 24px));
   padding: 24px; overflow-y: auto; border: 1px solid #ffffff26; border-radius: 24px;
