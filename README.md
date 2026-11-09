@@ -24,6 +24,7 @@ Use the production preview to test installation and offline behavior; the develo
 
 | Game | Goal |
 | --- | --- |
+| [Pop Clinic](games/pop-clinic/) | Complete tiny makeovers with snips, pops, and peels. |
 | [Hole City](docs/hole-city.md) | Swallow a city and outgrow your rivals. |
 | [Cube Lines](docs/cube-lines.md) | Rotate a cube and release blocked arrows. |
 | [Untangle](src/games/untangle/) | Move dots until no strings cross. |
@@ -42,7 +43,7 @@ Scores and supported puzzle saves stay on the device. Hole City and Cube Lines r
 2. Register the entry page in `vite.config.ts`.
 3. Add its metadata to [src/catalog.ts](src/catalog.ts).
 
-The homepage derives cards, filters, and counts from the catalog. Keep its description at 12 words or fewer. Optional `preview` names an SVG in `public/assets/arcade/` without the extension; omit it for an emoji fallback. Optional `score` supplies an existing score key and display unit; omit it for games without a meaningful high score. Add a category only when needed—unused categories are hidden.
+The homepage derives cards, filters, and counts from the catalog. Keep its description at 12 words or fewer. Optional `preview` names an SVG without the extension or a WebP with its extension in `public/assets/arcade/`; omit it for an emoji fallback. Optional `score` supplies an existing score key and display unit; omit it for games without a meaningful high score. Add a category only when needed—unused categories are hidden.
 
 Homepage styles live in `src/arcade.css`. Keep new game styles alongside their implementation so changing one game does not restyle the others. Older Phaser games still use `src/style.css`.
 

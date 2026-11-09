@@ -7,7 +7,7 @@ function card(game: GameEntry): string {
   const best = game.score ? bestScores[game.score.key] : undefined;
   return `<li class="arcade-item" data-category="${game.category}">
     <a class="arcade-card" href="/games/${game.id}/" style="--game-color:${game.color}" aria-labelledby="title-${game.id}" aria-describedby="description-${game.id}">
-      <div class="arcade-preview" aria-hidden="true"><span>${game.emoji}</span>${game.preview ? `<img src="/assets/arcade/${game.preview}.svg" alt="" width="400" height="220" loading="lazy">` : ''}</div>
+      <div class="arcade-preview" aria-hidden="true"><span>${game.emoji}</span>${game.preview ? `<img src="/assets/arcade/${game.preview.endsWith('.webp') ? game.preview : `${game.preview}.svg`}" alt="" width="400" height="220" loading="lazy">` : ''}</div>
       <div class="arcade-card-body"><span class="arcade-category">${game.category}</span><h3 id="title-${game.id}">${game.title}</h3><p id="description-${game.id}">${game.description}</p>
       <div class="arcade-card-foot">${typeof best === 'number' && Number.isFinite(best) && best > 0 ? `<span class="arcade-best">Best: ${best.toLocaleString()} ${game.score!.unit}</span>` : '<span></span>'}<span class="arcade-play">Play <span aria-hidden="true">↗</span></span></div></div>
     </a></li>`;

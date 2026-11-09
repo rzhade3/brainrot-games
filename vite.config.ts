@@ -8,6 +8,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
+        popClinic: resolve(__dirname, 'games/pop-clinic/index.html'),
         holeCity: resolve(__dirname, 'games/hole-city/index.html'),
         fieldwork: resolve(__dirname, 'games/fieldwork/index.html'),
         breakout: resolve(__dirname, 'games/breakout/index.html'),
@@ -24,7 +25,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'icons/*.png', 'assets/typing/JetBrainsMono-OFL.txt'],
+      includeAssets: ['favicon.svg', 'icons/*.png', 'assets/typing/JetBrainsMono-OFL.txt', 'assets/pop-clinic/*.wav'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webp,woff2}'],
       },
