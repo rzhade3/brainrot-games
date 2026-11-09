@@ -1,11 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#0d0221"/>
-  <g stroke="#ff2e97" stroke-width="3" stroke-linecap="round">
-    <line x1="22" y1="24" x2="44" y2="20"/>
-    <line x1="44" y1="20" x2="32" y2="44"/>
-  </g>
-  <line x1="32" y1="44" x2="22" y2="24" stroke="#3ddc97" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="22" cy="24" r="6" fill="#00e5ff"/>
-  <circle cx="44" cy="20" r="6" fill="#00e5ff"/>
-  <circle cx="32" cy="44" r="6" fill="#00e5ff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#121313"/>
+  <path fill="#d6fb73" d="M20 8h24l4 4v22l4 6v12l-4 4H16l-4-4V40l4-6V12z"/>
+  <rect x="20" y="16" width="24" height="16" rx="2" fill="#242820"/>
+  <rect x="23" y="19" width="18" height="10" rx="1" fill="#c8bcff"/>
+  <path fill="#f4efff" d="M25 21h6v2h-6z"/>
+  <path fill="#9fbd51" d="M12 48h40v4l-4 4H16l-4-4z"/>
+  <path fill="#242820" d="M24 39h4v5h4v4H20v-4h4z"/>
+  <circle cx="26" cy="39" r="4.5" fill="#242820"/>
+  <circle cx="26" cy="38" r="3" fill="#ffb8ac"/>
+  <circle cx="40" cy="43" r="3.5" fill="#242820"/>
 </svg>
