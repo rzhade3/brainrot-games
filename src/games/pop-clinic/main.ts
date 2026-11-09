@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import './style.css';
 import { isDentalLift, isPalmFragment, patients, patientSaveSlots, toolNames, type DentalSurface, type Mark, type Point, type Step, type Tool } from './cases';
 import { drawCue, finishTreatmentArt, makeCoverage, makeRunoffCoverage, moveTool, portrait, renderField, setMark, setStudContact, showDrain, showDrainPop, showFileDust, showFiling, showOintment, showPaint, showPalmLift, showTreatmentImpact, showWipe, targetOf, toolIcon } from './art';

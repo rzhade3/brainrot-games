@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import { getBestScore, submitScore } from '../../core/scores';
 import './style.css';
 import { getLevelCardCount } from './layouts';

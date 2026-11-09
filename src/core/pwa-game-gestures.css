@@ -1,0 +1,16 @@
+html.pwa-game {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.pwa-game canvas {
+  touch-action: none;
+}
+
+/* Keep controls reachable in games whose content can exceed a short viewport. */
+.pwa-game [data-pwa-scroll] {
+  max-height: 100dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+}

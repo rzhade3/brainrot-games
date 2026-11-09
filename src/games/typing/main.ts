@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import dictionaryText from './dictionary.txt?raw';
 import { getBestScore, submitScore } from '../../core/scores';
 import { submitWord, type Word } from './engine';

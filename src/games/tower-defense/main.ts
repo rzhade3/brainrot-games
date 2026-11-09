@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import { createGame } from '../../core/createGame';
 import TowerDefenseScene from './TowerDefenseScene';
 import { createHud } from './hud';
