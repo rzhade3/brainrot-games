@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import './style.css';
 import { getBestScore, submitScore } from '../../core/scores';
 import { Breakout, W, MAX_BALLS, LABELS, COLORS } from './engine';

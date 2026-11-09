@@ -1,3 +1,4 @@
+import "../../core/pwa-game-gestures";
 import "./style.css";
 import { Farm, H, makeField, TOOLS, W } from "./engine";
 import { onMap, type Point } from "./camera";

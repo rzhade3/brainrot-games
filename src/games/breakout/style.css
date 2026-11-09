@@ -30,6 +30,7 @@ button:hover { background: #363e50; } button:disabled { opacity: .35; cursor: de
 @container (max-width: 280px) { .br-header { gap: 4px; } .br-score { margin-right: 2px; } .br-score b { font-size: 14px; } }
 .br-level { display: flex; justify-content: space-between; align-items: center; height: 36px; } .br-wave { display: flex; align-items: baseline; gap: 10px; } #wave { color: #939eb4; font-size: 12px; font-variant-numeric: tabular-nums; } .br-level h2 { font-size: 13px; margin: 0; font-weight: 500; color: #b2bcd1; } #lives { color: #bcf58b; letter-spacing: 5px; font-size: 15px; white-space: nowrap; }
 .br-arena { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid #343c4f; background: #121420; }
+.pwa-game .br-arena { overscroll-behavior: none; }
 canvas { display: block; width: 100%; aspect-ratio: 3 / 4; touch-action: none; }
 canvas:focus-visible { outline-offset: -3px; }
 .br-ready canvas { cursor: crosshair; }

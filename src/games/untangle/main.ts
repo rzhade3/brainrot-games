@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import Phaser from 'phaser';
 import './style.css';
 import UntangleScene from './UntangleScene';

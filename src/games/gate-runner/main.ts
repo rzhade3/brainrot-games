@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import './style.css';
 import { GateRunner, offers, UPGRADE_INFO, type GameEvent } from './engine';
 import { draw } from './render';

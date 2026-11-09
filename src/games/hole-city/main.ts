@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import './style.css';

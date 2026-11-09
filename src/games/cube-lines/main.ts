@@ -1,3 +1,4 @@
+import '../../core/pwa-game-gestures';
 import '../../style.css';
 import './style.css';
 import data from './layouts.json';

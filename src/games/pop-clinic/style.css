@@ -120,6 +120,7 @@ h1, h2, h3, p { margin: 0; }
   user-select: none;
 }
 .stage:has(+ #procedure[hidden]) { cursor: default; touch-action: auto; }
+.pwa-game .stage { overscroll-behavior: none; }
 #scene { width: 100%; height: 100%; display: block; pointer-events: none; }
 .toe-edit { transition: opacity .12s ease-out; }
 .field-label, .toast {
