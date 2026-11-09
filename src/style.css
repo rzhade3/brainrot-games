@@ -64,21 +64,29 @@ body {
 
 /* Shared game page styles */
 .game-page {
-  margin: 0;
+  --game-top: max(12px, env(safe-area-inset-top, 0px));
+  position: fixed;
+  inset: 0;
+  min-height: 0;
   overflow: hidden;
+  background: var(--bg);
+}
+
+.game-page > main {
+  height: 100%;
 }
 
 #game-root {
-  width: 100vw;
-  height: 100dvh;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .back-link {
-  position: fixed;
-  top: env(safe-area-inset-top, 12px);
+  position: absolute;
+  top: var(--game-top);
   left: 12px;
   z-index: var(--z-nav);
   padding: 0.5rem 0.9rem;
@@ -103,7 +111,7 @@ body {
 
 /* ── Shared HUD patterns ──────────────────────────────── */
 .hud-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: var(--z-overlay);
@@ -112,7 +120,7 @@ body {
 
 .hud-bar {
   position: absolute;
-  top: env(safe-area-inset-top, 12px);
+  top: var(--game-top);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -168,8 +176,8 @@ body {
 /* ── Onboard hint overlay ─────────────────────────────── */
 /* First-play instructions leave the global navigation available. */
 .onboard-hint {
-  position: fixed;
-  inset: calc(max(12px, env(safe-area-inset-top)) + 64px) 0 0;
+  position: absolute;
+  inset: calc(var(--game-top) + 64px) 0 0;
   z-index: calc(var(--z-overlay) + 1);
   display: flex;
   flex-direction: column;
@@ -291,7 +299,7 @@ body {
    the stats bar centred whether or not a right-hand button is present. */
 .hud-topbar {
   position: absolute;
-  top: env(safe-area-inset-top, 12px);
+  top: var(--game-top);
   left: 0;
   right: 0;
   display: grid;
@@ -385,7 +393,7 @@ body {
 
 .td-castle {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 12px) + 66px);
+  top: calc(var(--game-top) + 66px);
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -423,7 +431,7 @@ body {
 
 .td-bottom {
   position: absolute;
-  bottom: env(safe-area-inset-bottom, 14px);
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   display: flex;
