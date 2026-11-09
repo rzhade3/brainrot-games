@@ -1,6 +1,54 @@
-export type Kind = 'bin' | 'person' | 'tree' | 'car' | 'house' | 'tower' | 'landmark';
-export interface Item { x: number; z: number; size: number; points: number; kind: Kind; eaten: boolean; falling?: boolean }
-export interface Hole { x: number; z: number; score: number; radius: number; name: string; color: number; respawn: number }
+import { addCityTraffic, releaseCart } from './traffic';
+
+const fallProfiles = {
+  person: { footprint: .32, duration: .06, depth: 1.6 },
+  bin: { footprint: .61, duration: .08, depth: 1.3 },
+  tree: { footprint: 1.55, duration: .18, depth: 4.6 },
+  car: { footprint: 1.9, duration: .24, depth: 1.8 },
+  house: { duration: .4, depth: 9 },
+  tower: { duration: .55, depth: 22 },
+  landmark: { duration: .7, depth: 38 },
+  fruit: { footprint: .5, duration: .06, depth: 1.2 },
+  can: { footprint: .4, duration: .08, depth: 1.4 },
+  milk: { footprint: .5, duration: .08, depth: 1.5 },
+  bread: { footprint: .6, duration: .08, depth: 1.6 },
+  basket: { footprint: 1.6, duration: .18, depth: 2 },
+  cart: { footprint: 2.4, duration: .24, depth: 3.5 },
+  shopper: { footprint: 1.2, duration: .16, depth: 4 },
+  'promo-bin': { footprint: 2.2, duration: .24, depth: 3.3 },
+  checkout: { footprint: 3.6, duration: .4, depth: 5.5 },
+  'bakery-case': { footprint: 3.9, duration: .4, depth: 5.5 },
+  'parked-car': { footprint: 3.8, duration: .4, depth: 5 },
+  'produce-stand': { footprint: 5, duration: .55, depth: 6 },
+  fridge: { footprint: 4.6, duration: .55, depth: 8 },
+  shelf: { footprint: 7.6, duration: .7, depth: 9 },
+  'delivery-van': { footprint: 5.5, duration: .7, depth: 10 },
+} satisfies Record<string, { footprint?: number; duration: number; depth: number }>;
+export type Kind = keyof typeof fallProfiles;
+export interface ItemRoute {
+  time: number;
+  duration: number;
+  segments: { x: number; z: number; dx: number; dz: number; duration: number; heading: number }[];
+  shopper?: { direction: 1 | -1; alert: number; phase: number; stride: number };
+}
+export interface Item {
+  x: number; z: number; size: number; points: number; kind: Kind; eaten: boolean; falling?: boolean;
+  elevation?: number;
+  variant?: number;
+  stockedOn?: Item;
+  stack?: { rise: number; supports: Item[] };
+  heading?: number;
+  route?: ItemRoute;
+  pushedCart?: Item;
+  beingPushed?: boolean;
+}
+export function itemElevation(item: Item) {
+  if (item.stockedOn?.eaten) return 0;
+  const stack = item.stack;
+  const stackedHeight = stack && stack.supports.filter(support => !support.eaten).length >= 2 ? stack.rise : 0;
+  return (item.elevation ?? 0) + stackedHeight;
+}
+export interface Hole { x: number; z: number; score: number; radius: number; name: string; color: number; respawn: number; vx?: number; vz?: number }
 export const LIMIT = 86;
 export const MILESTONES = [
   { score: 0, radius: 1.65, name: 'Street snacks', menu: 'TREES' },
@@ -26,13 +74,21 @@ export const spawnPoints = [
   { x: 0, z: 73 }, { x: -60, z: 73 }, { x: 60, z: 73 },
   { x: -60, z: -73 }, { x: 0, z: -73 }, { x: 60, z: -73 },
 ];
-export function canEat(hole: Hole, item: Item) { return !item.eaten && !item.falling && item.size < hole.radius && Math.hypot(hole.x - item.x, hole.z - item.z) < hole.radius - item.size * .35; }
+// Stock can slide off a fixture into a hole beside it.
+const suctionReach = (item: Item) => item.elevation && !item.stockedOn?.eaten ? 1.2 : 0;
+function biteSize(item: Item) { return item.pushedCart?.size ?? item.size; }
+export function isEdible(hole: Hole, item: Item) { return !item.eaten && !item.falling && !item.beingPushed && biteSize(item) < hole.radius; }
+export function canEat(hole: Hole, item: Item) { return isEdible(hole, item) && Math.hypot(hole.x - item.x, hole.z - item.z) < hole.radius + suctionReach(item) - biteSize(item) * .35; }
 export function feed(hole: Hole, points: number) { hole.score += points; hole.radius = radiusFor(hole.score); }
-export function move(hole: Hole, x: number, z: number, dt: number) {
-  const length = Math.hypot(x, z); if (!length) return;
-  const speed = (15 - Math.min(hole.radius, 15) * .12) * Math.min(length, 1) * dt;
-  hole.x = Math.max(-LIMIT, Math.min(LIMIT, hole.x + x / length * speed));
-  hole.z = Math.max(-LIMIT, Math.min(LIMIT, hole.z + z / length * speed));
+export const clampPosition = (value: number) => Math.max(-LIMIT, Math.min(LIMIT, value));
+export const holeSpeed = (hole: Hole) => 15 - Math.min(hole.radius, 15) * .12;
+export function move(hole: Hole, x: number, z: number, dt: number, pace = 1) {
+  const step = holeSpeed(hole) * dt * pace / Math.max(1, Math.hypot(x, z));
+  const nextX = clampPosition(hole.x + x * step), nextZ = clampPosition(hole.z + z * step);
+  hole.vx = dt > 0 ? (nextX - hole.x) / dt : 0;
+  hole.vz = dt > 0 ? (nextZ - hole.z) / dt : 0;
+  hole.x = nextX;
+  hole.z = nextZ;
 }
 export function city(seed = 718): Item[] {
   const items: Item[] = [];
@@ -59,47 +115,22 @@ export function city(seed = 718): Item[] {
   // Large civic buildings around the perimeter remain worthwhile in the final lap.
   for (const side of [-1, 1]) for (const z of [-60, -20, 20, 60])
     add(side * 84, z, 'landmark', 12, 360);
+  addCityTraffic(items);
   return items;
 }
 
 export const canSwallow = (hunter: Hole, prey: Hole) =>
   hunter !== prey && hunter.respawn <= 0 && prey.respawn <= 0 && hunter.radius > prey.radius * 1.3;
+export const captureReach = (hunter: Hole, prey: Hole) => hunter.radius - prey.radius * .4;
 
 export type FinishReason = 'time' | 'cleared' | 'stalled';
 export function matchResult(items: Item[], holes: Hole[], remaining: number): FinishReason | undefined {
   if (items.every(item => item.eaten)) return 'cleared';
   if (remaining <= 0) return 'time';
   // Include returning holes: their respawn absence must not end a match.
-  if (items.some(item => !item.eaten && holes.some(hole => item.size < hole.radius))) return;
+  if (items.some(item => !item.eaten && !item.beingPushed && holes.some(hole => biteSize(item) < hole.radius))) return;
   if (holes.some(hunter => holes.some(prey => hunter !== prey && hunter.radius > prey.radius * 1.3 && Math.floor(prey.score * .2) > 0))) return;
   return 'stalled';
-}
-
-/** Seek food or nearby prey, but escape a larger hole before continuing to eat. */
-export function rivalDirection(hole: Hole, holes: Hole[], items: Item[]): { x: number; z: number } {
-  const threats = holes.filter(other => canSwallow(other, hole))
-    .sort((a, b) => Math.hypot(a.x - hole.x, a.z - hole.z) - Math.hypot(b.x - hole.x, b.z - hole.z));
-  const threat = threats[0];
-  if (threat && Math.hypot(threat.x - hole.x, threat.z - hole.z) < threat.radius + 9) {
-    let x = hole.x - threat.x, z = hole.z - threat.z;
-    // Turn along the boundary instead of getting pinned while fleeing.
-    if ((hole.x >= LIMIT - 1 && x > 0) || (hole.x <= -LIMIT + 1 && x < 0)) { z += x; x = 0; }
-    if ((hole.z >= LIMIT - 1 && z > 0) || (hole.z <= -LIMIT + 1 && z < 0)) { x -= z; z = 0; }
-    return { x: x || (z ? 0 : 1), z };
-  }
-  let target: { x: number; z: number } | undefined, best = Infinity;
-  for (const item of items) {
-    if (item.eaten || item.falling || item.size >= hole.radius) continue;
-    const cost = Math.hypot(item.x - hole.x, item.z - hole.z) / (1 + item.points * .025);
-    if (cost < best) { best = cost; target = item; }
-  }
-  for (const prey of holes) {
-    if (!canSwallow(hole, prey) || prey.score < 30) continue;
-    const distance = Math.hypot(prey.x - hole.x, prey.z - hole.z);
-    const cost = distance / (1 + Math.floor(prey.score * .2) * .025);
-    if (cost < best) { best = cost; target = prey; }
-  }
-  return target ? { x: target.x - hole.x, z: target.z - hole.z } : { x: 0, z: 0 };
 }
 
 /** Transfer existing points instead of creating an unlimited source from respawns. */
@@ -109,6 +140,7 @@ export function swallow(hunter: Hole, prey: Hole): number {
   prey.score -= stolen;
   prey.radius = radiusFor(prey.score);
   prey.respawn = 5;
+  prey.vx = prey.vz = 0;
   prey.x = prey.x > 0 ? -73 : 73;
   prey.z = prey.z > 0 ? -73 : 73;
   return stolen;
@@ -117,8 +149,14 @@ export function swallow(hunter: Hole, prey: Hole): number {
 
 /** Conservative horizontal footprint of each rendered model, including its crown/roof. */
 export function footprint(item: Item): number {
-  return item.kind === 'tree' ? 1.55 : item.kind === 'car' ? 1.9 :
-    item.kind === 'person' ? .32 : item.kind === 'bin' ? .61 : Math.SQRT2 * (item.size * 1.25 + .3) / 2;
+  const profile = fallProfiles[item.kind];
+  return 'footprint' in profile ? profile.footprint : Math.SQRT2 * (item.size * 1.25 + .3) / 2;
+}
+export function biteReach(hole: Hole, item: Item) {
+  return hole.radius + suctionReach(item) - Math.max(biteSize(item), footprint(item)) * .35;
+}
+export function biteCommitTime(item: Item) {
+  return (itemElevation(item) > 0 ? .21 : fallProfiles[item.kind].duration) * .45;
 }
 export interface Falling {
   item: Item;
@@ -131,22 +169,25 @@ export interface Falling {
   secured: boolean;
   duration: number;
   depth: number;
+  reach: number;
 }
-export function supports(hole: Hole, item: Item): boolean {
-  return hole.respawn <= 0 && item.size < hole.radius &&
-    Math.hypot(hole.x-item.x, hole.z-item.z) + footprint(item) * .35 < hole.radius;
+export function supports(hole: Hole, item: Item, reach = suctionReach(item)): boolean {
+  return hole.respawn <= 0 && biteSize(item) < hole.radius &&
+    Math.hypot(hole.x-item.x, hole.z-item.z) + footprint(item) * .35 < hole.radius + reach;
 }
 export function beginFall(item: Item, hole: Hole): Falling | undefined {
   if (!canEat(hole,item) || !supports(hole,item)) return;
+  releaseCart(item);
   item.falling = true;
-  const duration = { person: .06, bin: .08, tree: .18, car: .24, house: .4, tower: .55, landmark: .7 }[item.kind];
-  const depth = { person: 1.6, bin: 1.3, tree: 4.6, car: 1.8, house: 9, tower: 22, landmark: 38 }[item.kind];
-  return { item, hole, phase: 'falling', elapsed: 0, drop: 0, returnFrom: 0, outsideTime: 0, secured: false, duration, depth };
+  const { duration, depth } = fallProfiles[item.kind];
+  const elevation = itemElevation(item);
+  return { item, hole, phase: 'falling', elapsed: 0, drop: 0, returnFrom: 0, outsideTime: 0, secured: false,
+    duration: elevation > 0 ? .21 : duration, depth: depth + elevation, reach: suctionReach(item) };
 }
 /** Allow rim overlap, a brief escape grace, and an early point of no return. */
 export function advanceFall(fall: Falling, dt: number): 'pending' | 'caught' | 'eaten' | 'done' {
   if (fall.phase === 'done') return 'done';
-  const covered = supports(fall.hole,fall.item);
+  const covered = supports(fall.hole,fall.item,fall.reach);
   if (fall.phase === 'falling') {
     if (covered && fall.elapsed + dt >= fall.duration * .45) fall.secured = true;
     fall.outsideTime = covered ? 0 : fall.outsideTime + dt;
