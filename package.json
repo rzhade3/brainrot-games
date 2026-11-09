@@ -22,7 +22,8 @@
     "test:hole-city": "node --import tsx --test src/games/hole-city/*.test.ts",
     "test:untangle": "node --import tsx --test src/games/untangle/*.test.ts",
     "test:typing": "node --import tsx --test src/games/typing/*.test.ts",
-    "benchmark:assets": "npm run build -- --manifest && node scripts/benchmark-assets.mjs docs/asset-benchmark.json"
+    "benchmark:assets": "npm run build -- --manifest && node scripts/benchmark-assets.mjs docs/asset-benchmark.json",
+    "test:pop-clinic": "node --import tsx --test src/games/pop-clinic/*.test.ts"
   },
   "dependencies": {
     "phaser": "^3.80.1",
