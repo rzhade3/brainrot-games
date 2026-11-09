@@ -41,15 +41,16 @@ export type CreateGameOptions = {
  */
 export function createGame(options: CreateGameOptions): Phaser.Game {
   const dpr = getRenderScale();
+  const root = document.getElementById('game-root')!;
 
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.CANVAS,
-    parent: 'game-root',
+    parent: root,
     backgroundColor: options.backgroundColor ?? '#0d0221',
     scale: {
       mode: Phaser.Scale.NONE,
-      width: Math.floor(window.innerWidth * dpr),
-      height: Math.floor(window.innerHeight * dpr),
+      width: Math.floor(root.clientWidth * dpr),
+      height: Math.floor(root.clientHeight * dpr),
       zoom: 1 / dpr,
     },
     render: {
@@ -57,15 +58,20 @@ export function createGame(options: CreateGameOptions): Phaser.Game {
       roundPixels: false,
     },
     scene: options.scene,
+    callbacks: {
+      postBoot(game) {
+        const observer = new ResizeObserver(() => {
+          const width = Math.floor(root.clientWidth * dpr);
+          const height = Math.floor(root.clientHeight * dpr);
+          if (width > 0 && height > 0 && (width !== game.scale.width || height !== game.scale.height)) {
+            game.scale.resize(width, height);
+          }
+        });
+        observer.observe(root);
+        game.events.once(Phaser.Core.Events.DESTROY, () => observer.disconnect());
+      },
+    },
   };
 
-  const game = new Phaser.Game(config);
-
-  const resize = () => {
-    game.scale.resize(Math.floor(window.innerWidth * dpr), Math.floor(window.innerHeight * dpr));
-  };
-  window.addEventListener('resize', resize);
-  window.addEventListener('orientationchange', resize);
-
-  return game;
+  return new Phaser.Game(config);
 }
