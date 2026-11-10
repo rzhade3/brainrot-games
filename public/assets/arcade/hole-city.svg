@@ -1,37 +1,40 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
   <rect width="400" height="220" fill="#eedbb6"/>
-  <!-- One quiet street keeps the hole, rather than the road layout, in focus. -->
-  <path d="M0 118h400v46H0z" fill="#b6b8a5"/>
-  <path d="M0 115h400M0 167h400" stroke="#f9efd9" stroke-width="5"/>
-  <path d="M0 141h400" stroke="#f6ecd4" stroke-width="2" stroke-dasharray="14 16"/>
-  <!-- Roofs and shaded sides give the buildings a small, readable silhouette. -->
-  <g stroke="#6c7967" stroke-width="1.5" stroke-linejoin="round">
-    <path d="m53 53 30-12 35 14v56l-30 13-35-14z" fill="#e7cda5"/>
-    <path d="m88 67 30-12v56l-30 13z" fill="#c1b18e"/>
-    <path d="m53 53 30-12 35 14-30 12z" fill="#fff0d1"/>
-    <path d="m290 36 24-10 31 13v74l-25 10-30-13z" fill="#94b3a0"/>
-    <path d="m320 49 25-10v74l-25 10z" fill="#6b9180"/>
-    <path d="m290 36 24-10 31 13-25 10z" fill="#bfd0b4"/>
+  <!-- The block, road, and building footprints share the same two ground axes. -->
+  <path d="m28 120 172-86 172 86v9l-172 86-172-86z" fill="#c1a981"/>
+  <path d="m28 120 172-86 172 86-172 86z" fill="#f8eccf"/>
+  <path d="m79 145.5 172-86 72 36-172 86z" fill="#9da89a"/>
+  <path d="m79 145.5 172-86m-100 122 172-86" fill="none" stroke="#fff1d6" stroke-width="3"/>
+  <path d="m115 163.5 172-86" fill="none" stroke="#f4e8ca" stroke-width="2" stroke-dasharray="9 9"/>
+
+  <g stroke="#465e54" stroke-width="2" stroke-linejoin="round">
+    <path d="m79 57 37-18.5 32 16v55l-37 18.5-32-16z" fill="#edbd90"/>
+    <path d="m111 73 37-18.5v55l-37 18.5z" fill="#bd805e"/>
+    <path d="m79 57 37-18.5 32 16-37 18.5z" fill="#ffddb1"/>
+    <path d="m277 91 28-14 32 16v41l-28 14-32-16z" fill="#9cb8a2"/>
+    <path d="m309 107 28-14v41l-28 14z" fill="#6f947f"/>
+    <path d="m277 91 28-14 32 16-28 14z" fill="#cde0b8"/>
   </g>
-  <g fill="#5a776d">
-    <path d="m63 71 7 3v10l-7-3zm14 6 7 3v10l-7-3zm-14 13 7 3v10l-7-3zm14 6 7 3v10l-7-3z"/>
-    <path d="m299 55 6 2v9l-6-2zm12 5 5 2v9l-5-2zm-12 14 6 2v9l-6-2zm12 5 5 2v9l-5-2zm-12 14 6 2v9l-6-2z" fill="#e3ebca"/>
+  <g fill="#465e54">
+    <path d="m87 72 6 3v9l-6-3zm11 5.5 6 3v9l-6-3zm-11 10 6 3v9l-6-3zm11 5.5 6 3v9l-6-3z"/>
+    <path d="m285 106 7 3.5v9l-7-3.5zm12 6 7 3.5v9l-7-3.5z"/>
   </g>
-  <!-- A tree and a tiny car establish the scale of the appetite. -->
-  <path d="M256 90v23" stroke="#8d7452" stroke-width="5"/>
-  <circle cx="256" cy="84" r="16" fill="#76956b"/>
-  <circle cx="250" cy="79" r="10" fill="#91ac7c"/>
-  <g transform="translate(347 131)" fill="#a66b54">
-    <rect width="29" height="14" rx="5"/>
-    <rect x="8" y="2" width="12" height="10" rx="2" fill="#e5d9bd"/>
+  <path d="M346 128v-13" stroke="#745e45" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="346" cy="108" r="10" fill="#779867"/>
+
+  <ellipse cx="204" cy="141" rx="73" ry="36.5" fill="#30493f" stroke="#f3b953" stroke-width="5"/>
+  <ellipse cx="204" cy="141" rx="66" ry="31" fill="#152b26"/>
+  <path d="M144 152c12 14 34 21 60 21s48-7 60-21" fill="none" stroke="#6f886e" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- A car straddles the near edge of the opening. -->
+  <g fill="#433831">
+    <ellipse cx="155" cy="164" rx="3.5" ry="5"/>
+    <ellipse cx="170" cy="157" rx="3.5" ry="5"/>
   </g>
-  <ellipse cx="195" cy="177" rx="88" ry="20" fill="#b5a37e" opacity=".35"/>
-  <ellipse cx="195" cy="162" rx="79" ry="35" fill="#20332f" stroke="#edb44e" stroke-width="6"/>
-  <ellipse cx="195" cy="166" rx="65" ry="24" fill="#101f1e"/>
-  <!-- A snack on the rim hints at the action without adding visual noise. -->
-  <g transform="rotate(16 195 114)" stroke="#526d61" stroke-width="1.5" stroke-linejoin="round">
-    <path d="m180 96 14-6 17 7v25l-14 6-17-7z" fill="#92b39b"/>
-    <path d="m197 103 14-6v25l-14 6z" fill="#648d78"/>
-    <path d="m180 96 14-6 17 7-14 6z" fill="#c1d4b5"/>
+  <g stroke="#704d40" stroke-width="2" stroke-linejoin="round">
+    <path d="m132 152 27-13.5 17 8.5v6l-27 13.5-17-8.5z" fill="#c4654c"/>
+    <path d="m132 152 27-13.5 17 8.5-27 13.5z" fill="#f08d68"/>
+    <path d="m139 148 6-8 11-5.5 11 5.5-4 7-12 6z" fill="#c5d8cd"/>
   </g>
+  <path d="m181 152 5 2m1 7 3 1" stroke="#edbd78" stroke-width="2.5" stroke-linecap="round"/>
 </svg>

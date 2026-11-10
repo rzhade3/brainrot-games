@@ -1,1 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#c3d1fc"/><g stroke="#6475a4" stroke-width="2"><rect x="93" y="65" width="65" height="100" rx="8" transform="rotate(-14 125 115)" fill="#eef3ff"/><rect x="238" y="65" width="65" height="100" rx="8" transform="rotate(14 270 115)" fill="#eef3ff"/><rect x="165" y="47" width="70" height="120" rx="8" fill="#f9fbff"/></g><path d="m200 81 15 19-15 19-15-19z" fill="#8299df"/><g fill="#52699e"><rect x="179" y="136" width="42" height="4" rx="2"/><rect x="179" y="146" width="30" height="4" rx="2"/><circle cx="124" cy="111" r="10"/><path d="m270 97 12 20h-24z"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <rect width="400" height="220" fill="#c3d1fc"/>
+  <rect x="65" y="50" width="270" height="143" rx="19" fill="#aabcf0"/>
+  <g fill="#8198ce" opacity=".42">
+    <rect x="89" y="100" width="100" height="76" rx="9"/>
+    <rect x="211" y="100" width="100" height="76" rx="9"/>
+  </g>
+  <g stroke="#3d4e7e" stroke-width="2.5">
+    <rect x="89" y="93" width="100" height="76" rx="9" fill="#d9efa4"/>
+    <rect x="211" y="93" width="100" height="76" rx="9" fill="#d9efa4"/>
+    <rect x="89" y="123" width="100" height="46" rx="9" fill="#fbf6e8"/>
+    <rect x="211" y="123" width="100" height="46" rx="9" fill="#fbf6e8"/>
+  </g>
+  <g text-anchor="middle" fill="#2f405e" font-family="system-ui, sans-serif" font-weight="800">
+    <g font-size="12" letter-spacing="1.2">
+      <text x="139" y="113">FRUIT</text>
+      <text x="261" y="113">SPACE</text>
+    </g>
+    <g font-size="17">
+      <text x="139" y="152">Plum</text>
+      <text x="261" y="152">Moon</text>
+    </g>
+  </g>
+  <path d="M168 58q-20-1-29 20m-3-7 3 7 7-3" fill="none" stroke="#3d4e7e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="rotate(10 220 55)">
+    <rect x="174" y="37" width="92" height="42" rx="9" fill="#7189c5" opacity=".3"/>
+    <rect x="174" y="32" width="92" height="42" rx="9" fill="#ffe2aa" stroke="#3d4e7e" stroke-width="2.5"/>
+    <text x="220" y="59" text-anchor="middle" fill="#2f405e" font-family="system-ui, sans-serif" font-size="18" font-weight="800">Pear</text>
+  </g>
+</svg>

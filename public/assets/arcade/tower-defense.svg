@@ -1,1 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#f0cb86"/><path d="M0 154h400" stroke="#d8af69" stroke-width="35"/><path d="M223 154h83" stroke="#fff1d3" stroke-width="3" stroke-dasharray="5 8"/><g fill="#667d75" stroke="#344b46" stroke-width="2"><path d="M123 170V84h19V68h18v16h22V68h18v16h20v86z"/><path d="M113 93V57h14v14h16V57h14v36zm81 0V57h14v14h16V57h14v36z"/></g><path d="M159 170v-29a12 12 0 0 1 24 0v29" fill="#344b46"/><path d="M168 67V33l41 9-41 12" fill="#f7f0cc" stroke="#344b46" stroke-width="2"/><g fill="#be6450"><circle cx="311" cy="154" r="9"/><circle cx="341" cy="154" r="9"/><circle cx="371" cy="154" r="9"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-45 0 490 220">
+  <defs>
+    <g id="raider">
+      <path d="m5 5-8 9m15-7 4 7" fill="none" stroke="#693d38" stroke-width="3" stroke-linecap="round"/>
+      <path d="M0-3h14V7H0z" fill="#a74f3d"/>
+      <circle cx="6" cy="-9" r="6" fill="#a74f3d"/>
+      <path d="M-5-3h9v8c0 3-3 5-4.5 6C-2 10-5 8-5 5z" fill="#f1a16f" stroke="#693d38" stroke-width="2"/>
+    </g>
+  </defs>
+  <rect x="-45" width="490" height="220" fill="#f0cb86"/>
+  <path d="M-45 169h490v51H-45z" fill="#e4b875"/>
+  <path d="M-45 169h490" stroke="#a97449" stroke-width="2"/>
+  <path d="M206 180h176" stroke="#f9dfa7" stroke-width="2" stroke-dasharray="7 10"/>
+
+  <ellipse cx="130" cy="175" rx="79" ry="9" fill="#976e50" opacity=".22"/>
+  <path d="M126 99V44m1 1h43l-10 10 10 10h-43z" fill="#be5947" stroke="#394e46" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M62 169V79h12v12h11V79h12v31h10V98h14v12h14V98h14v12h10V79h12v12h11V79h12v90z" fill="#789084" stroke="#394e46" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M97 114v52m62-52v52" stroke="#536c61" stroke-width="2"/>
+  <path d="M112 168v-22a16 16 0 0 1 32 0v22z" fill="#394e46"/>
+  <path d="M77 116v11m102-11v11" stroke="#394e46" stroke-width="5" stroke-linecap="round"/>
+  <path d="M68 145h12m91 5h16" stroke="#9eb0a0" stroke-width="2.5" stroke-linecap="round"/>
+
+  <path d="M270 115q-19-16-52-4m8-9-8 9 12 3" fill="none" stroke="#915f45" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#raider" transform="translate(243 153)"/>
+  <use href="#raider" transform="translate(289 153)"/>
+  <use href="#raider" transform="translate(335 153)"/>
+</svg>

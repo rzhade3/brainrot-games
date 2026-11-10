@@ -1,1 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#b7d8fc"/><path d="m100 220 43-220h114l43 220" fill="#6a94ba"/><path d="m130 220 26-220m114 220L244 0" stroke="#eaf5ff" stroke-width="2" stroke-dasharray="10 9"/><g fill="#224b6e"><circle cx="178" cy="163" r="8"/><circle cx="202" cy="163" r="8"/><circle cx="226" cy="163" r="8"/><path d="M171 174h14v22h-14zm24 0h14v22h-14zm24 0h14v22h-14z"/></g><path d="M138 98V49h57v49m13 0V49h57v49" fill="none" stroke="#f4fbff" stroke-width="5"/><rect x="141" y="50" width="52" height="33" rx="3" fill="#bff4cb"/><rect x="210" y="50" width="52" height="33" rx="3" fill="#ffb0a8"/><text x="167" y="73" text-anchor="middle" fill="#234c47" font-family="system-ui" font-size="20" font-weight="800">×2</text><text x="236" y="73" text-anchor="middle" fill="#713f45" font-family="system-ui" font-size="20" font-weight="800">−5</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <defs>
+    <g id="runner">
+      <path d="m-6 0-7 9 4 6M7-2l7 7 5-7" fill="none" stroke="#345674" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="m-4 16-2 12-8 5M5 16l6 9-3 13" fill="none" stroke="#203e5c" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="m-14 33-4 1m26 4 3 2" fill="none" stroke="#e5f5ff" stroke-width="4" stroke-linecap="round"/>
+      <path d="M-8-2q8-4 16 0L7 16q-7 4-14 0z" fill="#426fc0" stroke="#284c81" stroke-width="2"/>
+      <path d="M-7 1q7-3 14 0" fill="none" stroke="#92c7ff" stroke-width="2" stroke-linecap="round"/>
+      <circle cy="-10" r="6.5" fill="#d39265"/>
+      <path d="M-6-10a6 6 0 0 1 12 0v2l-4-2-8 2z" fill="#293b4d"/>
+    </g>
+  </defs>
+  <rect width="400" height="220" fill="#b7d8fc"/>
+  <path d="M20 109h55m-48 31h48m258-39h48m-43 56h39M18 185h30m304 12h30" stroke="#e7f4ff" stroke-width="3" stroke-linecap="round"/>
+  <path d="m40 220 92-184h136l92 184z" fill="#7098b6"/>
+  <path d="m50 220 87-176h126l87 176z" fill="#9dbbd2"/>
+  <path d="M200 102v118" fill="none" stroke="#d9ecf7" stroke-width="3" stroke-dasharray="7 11"/>
+
+  <g stroke-width="3" stroke-linejoin="round">
+    <path d="M125 108V62h67v46" fill="none" stroke="#2e675e"/>
+    <path d="M208 108V62h67v46" fill="none" stroke="#8a4e50"/>
+    <rect x="125" y="60" width="67" height="31" rx="5" fill="#b9efc5" stroke="#2e675e"/>
+    <rect x="208" y="60" width="67" height="31" rx="5" fill="#ffc4b2" stroke="#8a4e50"/>
+  </g>
+  <g font-family="system-ui, sans-serif" font-size="21" font-weight="850" text-anchor="middle">
+    <text x="158.5" y="83" fill="#224b45">×2</text>
+    <text x="241.5" y="83" fill="#713c42">−5</text>
+  </g>
+
+  <g fill="#426580" opacity=".35">
+    <ellipse cx="158" cy="159" rx="16" ry="5"/>
+    <ellipse cx="212" cy="174" rx="19" ry="5"/>
+    <ellipse cx="171" cy="198" rx="22" ry="6"/>
+  </g>
+  <use href="#runner" transform="translate(158 131) scale(.72)"/>
+  <use href="#runner" transform="translate(212 141) scale(-.82 .82)"/>
+  <use href="#runner" transform="translate(171 157)"/>
+</svg>
