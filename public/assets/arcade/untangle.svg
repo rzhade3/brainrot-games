@@ -1,1 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#bfe9d6"/><g fill="none" stroke-width="3"><path d="m113 64 178 79M113 64l48 112M269 56l-108 120M269 56l-72 78M99 139l192 4" stroke="#ba5b4e"/><path d="m113 64 156-8 22 87-94-9-36 42-62-37" stroke="#408b73"/></g><g fill="#faf9ee" stroke="#294c40" stroke-width="2"><circle cx="113" cy="64" r="11"/><circle cx="269" cy="56" r="11"/><circle cx="291" cy="143" r="11"/><circle cx="197" cy="134" r="11"/><circle cx="161" cy="176" r="11"/><circle cx="99" cy="139" r="11"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <rect width="400" height="220" fill="#bfe9d6"/>
+  <path d="m132 50 122-4 51 65-44 61-120 7-46-65z" fill="#d6f1df" stroke="#458874" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="261" cy="172" r="19" fill="none" stroke="#83c6a8" stroke-width="4"/>
+  <path d="m132 50 129 122M254 46 141 179" stroke="#b6534d" stroke-width="4" stroke-linecap="round"/>
+  <g fill="#faf9ee" stroke="#294c40" stroke-width="2.5">
+    <circle cx="132" cy="50" r="9"/>
+    <circle cx="254" cy="46" r="9"/>
+    <circle cx="305" cy="111" r="9"/>
+    <circle cx="261" cy="172" r="11"/>
+    <circle cx="141" cy="179" r="9"/>
+    <circle cx="95" cy="114" r="9"/>
+  </g>
+</svg>

@@ -1,1 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#f5c8e6"/><rect x="80" y="43" width="240" height="135" rx="12" fill="#ffe8f7" stroke="#9e658d" stroke-width="2"/><text x="105" y="83" fill="#4e2c4c" font-family="monospace" font-size="23" font-weight="700">brainrot_</text><path d="M105 95h135" stroke="#d66bac" stroke-width="3"/><g fill="#f3bbdf" stroke="#ad7198" stroke-width="1.5"><rect x="105" y="118" width="30" height="26" rx="4"/><rect x="145" y="118" width="30" height="26" rx="4"/><rect x="185" y="118" width="30" height="26" rx="4"/><rect x="225" y="118" width="65" height="26" rx="4"/></g><g fill="#643d5d" font-family="monospace" font-size="15" text-anchor="middle"><text x="120" y="136">A</text><text x="160" y="136">S</text><text x="200" y="136">D</text><text x="258" y="136">↵</text></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <rect width="400" height="220" fill="#f5c8e6"/>
+  <rect x="75" y="39" width="250" height="149" rx="14" fill="#b872a5" opacity=".26"/>
+  <rect x="75" y="32" width="250" height="149" rx="14" fill="#fff0f9" stroke="#985a86" stroke-width="2.5"/>
+  <path d="M96 51v67" stroke="#d9709c" stroke-width="3" stroke-linecap="round"/>
+  <path d="M184 61h17m31 0h9m34 0h24M261 101h18m10 0h11" stroke="#d79ac3" stroke-width="2.5" stroke-linecap="round"/>
+  <g font-family="ui-monospace, monospace" font-weight="700">
+    <text x="116" y="67" fill="#8e537f" font-size="16">pixel</text>
+    <text x="115" y="108" fill="#4e2c4c" font-size="28"><tspan fill="#9b3478">brain</tspan>rot</text>
+  </g>
+  <path d="M96 128h208" stroke="#e7b9d8" stroke-width="2"/>
+  <rect x="96" y="139" width="154" height="28" rx="6" fill="#f2d2e9"/>
+  <rect x="261" y="139" width="43" height="28" rx="6" fill="#763863"/>
+  <text x="107" y="158" fill="#763863" font-family="ui-monospace, monospace" font-weight="700" font-size="15">brain</text>
+  <path d="M156 146v14" stroke="#9b3478" stroke-width="2" stroke-linecap="round"/>
+  <path d="M290 148v7h-15m4-4-4 4 4 4" fill="none" stroke="#fff0f9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

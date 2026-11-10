@@ -1,1 +1,16 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#d5dfa5"/><g stroke="#879b52" stroke-width="3"><path d="M80 45h240v133H80z" fill="#b6c979"/><path d="M96 45v133m20-133v133m20-133v133m20-133v133m20-133v133m20-133v133m20-133v133m20-133v133m20-133v133m20-133v133m20-133v133"/></g><path d="M105 65h150v85H150v-45h65" fill="none" stroke="#f9f4d5" stroke-width="15" stroke-linejoin="round"/><g transform="translate(204 91)"><rect width="26" height="23" rx="4" fill="#3c6953"/><rect x="6" y="4" width="14" height="9" rx="2" fill="#dff2d9"/><path d="M-4 1v9m34-9v9m-34 7v11m34-11v11" stroke="#293f32" stroke-width="7"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <rect width="400" height="220" fill="#d5dfa5"/>
+  <rect x="82" y="40" width="236" height="144" rx="13" fill="#9ead67"/>
+  <rect x="82" y="35" width="236" height="144" rx="13" fill="#b9ca80" stroke="#687d48" stroke-width="2.5"/>
+  <path d="M101 50v113m22-113v113m22-113v113m22-113v113m22-113v113m22-113v113m22-113v113m22-113v113m22-113v113m22-113v113" fill="none" stroke="#869c58" stroke-width="3" stroke-linecap="round"/>
+  <path d="M112 57v93q0 9 9 9h26q9 0 9-9V65q0-9 9-9h26q9 0 9 9v85q0 9 9 9h26q9 0 9-9v-40" fill="none" stroke="#eadaad" stroke-width="16" stroke-linecap="round"/>
+  <path d="M112 58v92q0 9 9 9h26q9 0 9-9V65q0-9 9-9h26q9 0 9 9v85q0 9 9 9h26q9 0 9-9v-40" fill="none" stroke="#f7edca" stroke-width="2" stroke-linecap="round"/>
+  <g transform="translate(244 103)">
+    <path d="M-8 12h16v12H-8z" fill="#8d643e" stroke="#544735" stroke-width="2"/>
+    <path d="M-6 23v4m6-4v4m6-4v4" stroke="#544735" stroke-width="2" stroke-linecap="round"/>
+    <path d="M-11-11v8m22-8v8m-24 7v11m26-11v11" stroke="#293f32" stroke-width="7" stroke-linecap="round"/>
+    <rect x="-8" y="-15" width="16" height="30" rx="4" fill="#3c6953" stroke="#293f32" stroke-width="2"/>
+    <rect x="-5" y="-4" width="10" height="10" rx="2" fill="#dff2d9"/>
+    <path d="M-4-11h8" stroke="#83a17a" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

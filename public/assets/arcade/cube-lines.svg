@@ -1,1 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#c8bcff"/><g stroke="#35274b" stroke-linejoin="round" stroke-width="3"><path d="m200 32 83 44v85l-83 44-83-44V76z" fill="#f5f0ff"/><path d="m117 76 83 44 83-44m-83 44v85" fill="none"/><path d="m145 75 26 14 28-15 28 15 27-15m-108 38v29l27 14v24m51-56 28-15v28l-28 15v23" fill="none" stroke-width="5"/><path d="m141 122 5-10 5 15m95-22 6 3 1 10" fill="none"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <rect width="400" height="220" fill="#c8bcff"/>
+  <ellipse cx="200" cy="196" rx="99" ry="13" fill="#8d77cb" opacity=".28"/>
+  <g stroke="#3c315c" stroke-width="3" stroke-linejoin="round">
+    <path d="m110 69 90 45v88l-90-45z" fill="#e8deff"/>
+    <path d="m200 114 90-45v88l-90 45z" fill="#cfc4f3"/>
+    <path d="m200 24 90 45-90 45-90-45z" fill="#f8f3ff"/>
+  </g>
+  <!-- Each pair of paths is drawn in the coordinates of its cube face. -->
+  <g fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="matrix(1 .5 -1 .5 200 24)" stroke="#6044aa">
+      <path d="M19 66V22h47m-8-8 8 8-8 8" vector-effect="non-scaling-stroke"/>
+      <path d="M73 42v25H40m8-8-8 8 8 8" vector-effect="non-scaling-stroke"/>
+    </g>
+    <g transform="matrix(1 .5 0 1 110 69)" stroke="#8a356d">
+      <path d="M18 20h46v15m-7-7 7 7 7-7" vector-effect="non-scaling-stroke"/>
+      <path d="M18 66h23V53h31m-7-7 7 7-7 7" vector-effect="non-scaling-stroke"/>
+    </g>
+    <g transform="matrix(1 -.5 0 1 200 114)" stroke="#3c5294">
+      <path d="M72 34V20H20m7-7-7 7 7 7" vector-effect="non-scaling-stroke"/>
+      <path d="M20 48v20h49m-7-7 7 7-7 7" vector-effect="non-scaling-stroke"/>
+    </g>
+  </g>
+</svg>

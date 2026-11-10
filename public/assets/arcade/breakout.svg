@@ -1,1 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220"><rect width="400" height="220" fill="#ffb8ac"/><g stroke="#a44f50" stroke-width="2" fill="#f67e75"><rect x="82" y="39" width="52" height="22" rx="3"/><rect x="143" y="39" width="52" height="22" rx="3"/><rect x="204" y="39" width="52" height="22" rx="3"/><rect x="265" y="39" width="52" height="22" rx="3"/><rect x="82" y="70" width="52" height="22" rx="3"/><rect x="143" y="70" width="52" height="22" rx="3"/><rect x="265" y="70" width="52" height="22" rx="3"/></g><path d="m153 172 71-87 36 34" fill="none" stroke="#fff7e9" stroke-width="3" stroke-dasharray="5 6"/><circle cx="260" cy="119" r="8" fill="#fff7e9"/><circle cx="204" cy="110" r="5" fill="#fff7e9"/><rect x="113" y="179" width="89" height="11" rx="6" fill="#432a3d"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 220">
+  <defs>
+    <rect id="brick" width="41" height="21" rx="4"/>
+  </defs>
+  <rect width="400" height="220" fill="#ffb8ac"/>
+  <g fill="#ec7f72" stroke="#964851" stroke-width="2">
+    <use href="#brick" x="82" y="38"/>
+    <use href="#brick" x="131" y="38"/>
+    <use href="#brick" x="180" y="38" fill="#fcd59e"/>
+    <use href="#brick" x="229" y="38"/>
+    <use href="#brick" x="278" y="38"/>
+    <use href="#brick" x="82" y="67" fill="#ffd3ad"/>
+    <use href="#brick" x="131" y="67"/>
+    <use href="#brick" x="229" y="67"/>
+    <use href="#brick" x="278" y="67" fill="#ffd3ad"/>
+  </g>
+  <path d="m159 172 41-83m0 0 60 45m-60-45 3 63" fill="none" stroke="#ac5963" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 6"/>
+  <path d="m200 74 3 8 8 3-8 3-3 8-3-8-8-3 8-3z" fill="#fff6de"/>
+  <g fill="#fff6de" stroke="#964851" stroke-width="2">
+    <circle cx="260" cy="134" r="8"/>
+    <circle cx="203" cy="152" r="8"/>
+  </g>
+  <rect x="111" y="179" width="96" height="11" rx="5.5" fill="#502f42"/>
+  <path d="M124 182h70" stroke="#9d6577" stroke-width="2" stroke-linecap="round"/>
+</svg>
