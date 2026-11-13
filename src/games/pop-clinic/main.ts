@@ -1,7 +1,7 @@
 import '../../core/pwa-game-gestures';
 import './style.css';
 import { isDentalLift, isPalmFragment, patients, patientSaveSlots, toolNames, type DentalSurface, type Mark, type Point, type Step, type Tool } from './cases';
-import { drawCue, finishTreatmentArt, makeCoverage, makeRunoffCoverage, moveTool, portrait, renderField, setMark, setStudContact, showDrain, showDrainPop, showFileDust, showFiling, showOintment, showPaint, showPalmLift, showTreatmentImpact, showWipe, targetOf, toolIcon } from './art';
+import { drawCue, finishTreatmentArt, frameField, makeCoverage, makeRunoffCoverage, moveTool, portrait, renderField, setMark, setStudContact, showDrain, showDrainPop, showFileDust, showFiling, showOintment, showPaint, showPalmLift, showTreatmentImpact, showWipe, targetOf, toolIcon } from './art';
 import { dentalGripTouches, showDentalGuides, showDentalLift } from './dental';
 import { releaseAt, resolvePull, type PullPath } from './pull';
 import { playContact, playFileContact, playSound, preloadRecordedSounds, setSoundEnabled, stopFileContact, treatmentImpact, unlockAudio } from './sound';
@@ -22,16 +22,15 @@ app.innerHTML = `
       <img id="portrait" width="40" height="40" alt="">
       <div class="patient-details"><p class="eyebrow" id="patient-name"></p><h2 id="case-title"></h2></div>
       <button class="text-button" id="open-gallery">Casebook</button>
-      <div class="speech-bubble patient-speech" id="patient-speech" hidden>
-        <p id="patient-line"></p>
-        <p id="patient-next"></p>
-      </div>
+      <p class="speech-bubble patient-speech" id="patient-speech" hidden></p>
     </div>
-    <div class="stage" id="stage" role="group" aria-label="Procedure table" aria-describedby="hint">
-      <svg id="scene" viewBox="0 0 600 600" aria-hidden="true"></svg>
-      <span class="field-label" id="field-label"></span>
-      <span class="toast" id="toast" hidden></span>
-      <div class="meter" id="meter" hidden aria-hidden="true"><div class="meter-track"><i id="fill"></i></div><span id="meter-label"></span></div>
+    <div class="playfield">
+      <div class="stage" id="stage" role="group" aria-label="Procedure table" aria-describedby="instruction hint">
+        <svg id="scene" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg>
+        <span class="field-label" id="field-label"></span>
+        <span class="toast" id="toast" hidden></span>
+        <div class="meter" id="meter" hidden aria-hidden="true"><div class="meter-track"><i id="fill"></i></div><span id="meter-label"></span></div>
+      </div>
     </div>
     <div id="procedure">
       <div class="instruction">
@@ -41,7 +40,6 @@ app.innerHTML = `
       <div class="tool-grid" id="tool-grid" role="group" aria-label="Choose a tool"></div>
     </div>
     <section class="result" id="result" aria-label="Case result" hidden>
-      <p class="eyebrow">Discharge note</p>
       <h3>Case closed!</h3>
       <div class="result-tools">
         <button class="small-button" id="compare" aria-pressed="false">See before</button>
@@ -51,14 +49,17 @@ app.innerHTML = `
     </section>
   </section>
   <dialog id="gallery" aria-labelledby="gallery-title">
-    <header><div><p class="eyebrow">Clinic records</p><h2 id="gallery-title">Casebook</h2></div><form method="dialog"><button class="small-button" aria-label="Close casebook">Close ×</button></form></header>
-    <div class="casebook-reaction" id="casebook-reaction" hidden>
-      <img id="casebook-portrait" width="36" height="36" alt="">
-      <div class="speech-bubble" id="casebook-speech">
-        <p class="eyebrow" id="casebook-patient"></p>
-        <p id="casebook-line"></p>
+    <header>
+      <h2 id="gallery-title">Casebook</h2>
+      <form method="dialog"><button class="small-button" aria-label="Close casebook">Close ×</button></form>
+      <div class="casebook-reaction" id="casebook-reaction" hidden>
+        <img id="casebook-portrait" width="36" height="36" alt="">
+        <div class="speech-bubble" id="casebook-speech">
+          <p class="eyebrow" id="casebook-patient"></p>
+          <p id="casebook-line"></p>
+        </div>
       </div>
-    </div>
+    </header>
     <div id="records"></div>
   </dialog>
   <div id="live" class="sr-only" role="status"></div>
@@ -148,21 +149,18 @@ function toast(message: string): void {
   toastTimer = setTimeout(() => { label.hidden = true; }, 1050);
 }
 
-function patientSpeaks(line: string, suggestion?: Step): void {
-  const followUp = suggestion ? `Next: ${suggestion.title} · ${toolNames[suggestion.tool]}` : '';
-  element('patient-line').textContent = line;
-  const prompt = element('patient-next');
-  prompt.textContent = followUp;
-  prompt.hidden = !followUp;
-  element('patient-speech').hidden = false;
-  announce(`${phase === 'result' ? 'Case closed. ' : ''}${patient().name}: ${line}${followUp ? ` ${followUp}` : ''}`);
+function patientSpeaks(line: string): string {
+  const speech = element('patient-speech');
+  speech.textContent = line;
+  speech.hidden = false;
+  return `${patient().name}: ${line}`;
 }
 
 function updatePatient(): void {
   const current = patient();
   app.style.setProperty('--patient', current.color);
   element<HTMLImageElement>('portrait').src = portrait(current.portrait);
-  element('patient-name').textContent = `${current.name} · ${patientIndex + 1}/${patients.length}`;
+  element('patient-name').textContent = `${current.name} · Case ${patientIndex + 1}/${patients.length}`;
   element('case-title').textContent = current.title;
 }
 
@@ -204,20 +202,19 @@ function startCase(index: number, { greet = true } = {}): void {
   element('toast').hidden = true;
   element('result').hidden = true;
   element('procedure').hidden = false;
-  stage.setAttribute('aria-describedby', 'hint');
+  stage.setAttribute('aria-describedby', 'instruction hint');
   updatePatient();
-  startArea();
-  if (greet) patientSpeaks(patient().intro);
+  startArea(greet ? patient().intro : undefined);
 }
 
-function startArea(): void {
+function startArea(line?: string): void {
   treatments = startTreatments(area());
   marks = new Set(area().initial);
   renderField(scene, area().field, marks);
   const label = element('field-label');
   label.hidden = patient().areas.length === 1;
   label.textContent = `Area ${areaIndex + 1}/${patient().areas.length}`;
-  renderTreatment();
+  renderTreatment(line);
 }
 
 const multiSpotPrompts: Partial<Record<Tool, readonly [string, string]>> = {
@@ -229,39 +226,36 @@ const multiSpotPrompts: Partial<Record<Tool, readonly [string, string]>> = {
   scoop: ['Pick what to scoop', 'Catch the decay or the caramel and lift.'],
 };
 
-function renderTreatment(announceInstructions = true): void {
+function renderTreatment(line?: string, suggestion?: Step): void {
   const available = ready();
   const equippedTreatments = available.filter(treatment => step(treatment).tool === selectedTool);
   if (area().field.anatomy === 'mouth') showDentalGuides(scene, equippedTreatments.map(step));
   const equipped = equippedTreatments[0];
   const prompt = selectedTool && equippedTreatments.length > 1 ? multiSpotPrompts[selectedTool] : undefined;
-  const suggested = equipped ?? (available.length === 1 ? available[0] : undefined);
-  const current = suggested && step(suggested);
+  const current = equipped ? step(equipped) : suggestion ?? (available.length === 1 ? step(available[0]) : undefined);
   const completed = treatments.reduce((sum, treatment) => sum + treatment.next, 0)
     + patient().areas.slice(0, areaIndex).reduce((sum, entry) => sum + entry.treatments.flat().length, 0);
   const total = patient().areas.reduce((sum, entry) => sum + entry.treatments.flat().length, 0);
-  const title = prompt?.[0] ?? current?.title ?? 'Pick a spot';
+  const title = prompt?.[0] ?? current?.title ?? (selectedTool ? 'Try another tool' : 'Choose a tool');
   const hint = prompt?.[1] ?? (equipped && current ? current.hint
-    : selectedTool === 'whiten' ? 'Finish the repairs before whitening.' : 'Pick a tool for an exposed spot.');
+    : current ? `Select ${toolNames[current.tool]}.`
+      : selectedTool === 'whiten' ? 'Finish the repairs before whitening.' : '');
+  const reaction = line ? `${patientSpeaks(line)} ` : '';
+  const hintLabel = element('hint');
   element('step-label').textContent = `${completed}/${total} done`;
   if (areaStatus(treatments, marks) === 'blocked') {
     element('instruction').textContent = 'Treatment blocked';
-    element('hint').textContent = 'This case can’t continue. Open the casebook to replay.';
-    announce('Treatment blocked.');
+    hintLabel.textContent = 'Open Casebook to replay.';
+    hintLabel.hidden = false;
+    announce(`${reaction}Treatment blocked.`);
     return;
   }
   element('instruction').textContent = title;
-  element('hint').textContent = hint;
+  hintLabel.textContent = hint;
+  hintLabel.hidden = !hint;
   if (equipped && current && equippedTreatments.length === 1 && !(current.action === 'scrub' && current.reveal)) drawCue(scene, current, equipped.hits);
   else scene.querySelector('#cue')!.replaceChildren();
-  if (announceInstructions) {
-    if (equipped && !element('patient-speech').hidden) {
-      const prompt = element('patient-next');
-      prompt.textContent = hint;
-      prompt.hidden = false;
-    }
-    announce(`${title}. ${hint}`);
-  }
+  announce(`${reaction}${title}.${hint ? ` ${hint}` : ''}`);
 }
 
 function renderResult(): void {
@@ -284,15 +278,15 @@ function showResult(fromGallery: boolean): void {
   element('procedure').hidden = true;
   element('result').hidden = false;
   const upcoming = patients[patientIndex + 1];
-  next.querySelector('span')!.textContent = fromGallery || !upcoming ? 'Open casebook' : `Next patient · ${upcoming.title}`;
+  next.querySelector('span')!.textContent = fromGallery || !upcoming ? 'Open casebook' : 'Next patient';
   renderResult();
+  announce(`Case closed. ${patientSpeaks(patient().reaction)}`);
 }
 
 function finish(): void {
   play('finish');
   updatePatient();
   showResult(false);
-  patientSpeaks(patient().reaction);
   if (!gallery.open) next.focus({ preventScroll: true });
 }
 
@@ -365,7 +359,6 @@ element('records').addEventListener('click', event => {
   startCase(index, { greet: false });
   finalMarks = resolved.filter(remaining => remaining !== undefined);
   showResult(true);
-  patientSpeaks(patient().reaction);
   compare.focus({ preventScroll: true });
 });
 
@@ -388,15 +381,10 @@ function complete(treatment: Treatment, at: Point, pull?: PullPath): void {
   element('toast').hidden = true;
   if (areaStatus(treatments, marks) !== 'finished') {
     const available = ready();
-    renderTreatment(false);
-    if (available.length) {
-      const steps = available.map(step);
-      const suggestion = available.includes(treatment) ? step(treatment)
-        : steps.find(candidate => !previouslyReady.has(candidate))
-          ?? steps.find(candidate => candidate.tool === current.tool)
-          ?? steps[0];
-      patientSpeaks(current.success, suggestion);
-    }
+    const steps = available.map(step);
+    const suggestion = available.includes(treatment) ? step(treatment)
+      : steps.find(candidate => !previouslyReady.has(candidate)) ?? steps[0];
+    renderTreatment(current.success, suggestion);
     return;
   }
 
@@ -414,8 +402,7 @@ function complete(treatment: Treatment, at: Point, pull?: PullPath): void {
     else {
       areaIndex++;
       phase = 'treating';
-      startArea();
-      patientSpeaks(current.success, ready().map(step)[0]);
+      startArea(current.success);
     }
   }, reducedMotion.matches ? 80 : 390);
 }
@@ -721,8 +708,8 @@ function release(): void {
 }
 
 function point(event: PointerEvent): Point {
-  const rect = scene.getBoundingClientRect();
-  return [(event.clientX - rect.left) * 600 / rect.width, (event.clientY - rect.top) * 600 / rect.height];
+  const { x, y } = new DOMPoint(event.clientX, event.clientY).matrixTransform(scene.getScreenCTM()!.inverse());
+  return [x, y];
 }
 
 stage.addEventListener('pointerdown', event => {
@@ -750,6 +737,10 @@ document.addEventListener('visibilitychange', () => {
 
 updateSound();
 startCase(patientIndex);
+new ResizeObserver(() => {
+  if (gesture) cancelGesture();
+  frameField(scene, area().field.anatomy);
+}).observe(scene);
 if (unlocked() === patients.length) openGallery();
 // Keep the first paint free of the other close-ups, then warm the clinic queue.
 window.addEventListener('load', () => {

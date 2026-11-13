@@ -1,4 +1,4 @@
-import { isDentalLift, isGravelEntry, isPalmFragment, isPalmOintment, isPalmPad, isSplinter, palmSites, type DentalSite, type DentalSurface, type EyeMark, type Field, type Mark, type PalmFragment, type PalmMark, type PalmOintment, type Point, type Step, type Tool, type WipeMark } from './cases';
+import { isDentalLift, isGravelEntry, isPalmFragment, isPalmOintment, isPalmPad, isSplinter, palmSites, type Anatomy, type DentalSite, type DentalSurface, type EyeMark, type Field, type Mark, type PalmFragment, type PalmMark, type PalmOintment, type Point, type Step, type Tool, type WipeMark } from './cases';
 import { dentalArt, dentalBrushWidth, finishDentalLift } from './dental';
 import { brushCoverageInset, Coverage, sampleLine, sampleSurface } from './coverage';
 import type { PullPath } from './pull';
@@ -333,7 +333,19 @@ function updateToeArt(scene: SVGSVGElement, active: ReadonlySet<Mark>): void {
   }
 }
 
+const wideFrameTop: Record<Anatomy, number> = { toe: 40, ear: 95, mouth: 75, eye: 90, palm: 105 };
+
+export function frameField(scene: SVGSVGElement, anatomy: Anatomy): void {
+  const { width, height } = scene.getBoundingClientRect();
+  if (!width || !height) return;
+  const viewHeight = Math.min(600, Math.max(450, 600 * height / width));
+  // Reveal more of the same artwork as the window grows taller.
+  const top = wideFrameTop[anatomy] * (600 - viewHeight) / 150;
+  scene.setAttribute('viewBox', `0 ${top} 600 ${viewHeight}`);
+}
+
 export function renderField(scene: SVGSVGElement, field: Field, active: ReadonlySet<Mark>): void {
+  frameField(scene, field.anatomy);
   const toe = field.anatomy === 'toe';
   const base = toe ? 'toe-ingrown' : field.anatomy === 'palm' ? 'palm-clean' : field.anatomy;
   const edits = toe ? toeEdits.map(({ frame, after }) =>
