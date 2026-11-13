@@ -181,6 +181,43 @@ test('rivals hunt smaller holes when food runs out and flee larger holes', () =>
   assert.equal(plan.target, undefined);
   assert.notEqual(plan.scoutDestination, undefined);
 });
+
+test('a fleeing rival takes a safe food route instead of doubling back toward the hunter', () => {
+  const hunter = { ...player(), score: 450, radius: radiusFor(450) };
+  const prey = { ...player(), x: 10, score: 30, radius: radiusFor(30) };
+  const blocked: Item = { x: -10, z: 0, kind: 'bin', size: .65, points: 100, eaten: false };
+  const safe: Item = { ...blocked, x: 20, points: 3 };
+  const plan = createRivalPlan(718, 1);
+  const dt = 1 / 60;
+
+  for (let step = 0; step < 30; step++) {
+    const previousX = prey.x;
+    moveRival(prey, [hunter, prey], [blocked, safe], plan, dt, false);
+    assert.ok(prey.x > previousX, 'the rival doubled back toward the hunter');
+  }
+  assert.equal(plan.target, safe);
+
+  hunter.z = 30;
+  safe.eaten = true;
+  moveRival(prey, [hunter, prey], [blocked, safe], plan, dt, false);
+  assert.equal(plan.target, blocked);
+});
+
+test('a rival scouts outside the danger zone when its only food route is blocked', () => {
+  const hunter = { ...player(), score: 450, radius: radiusFor(450) };
+  const prey = { ...player(), x: 10, score: 30, radius: radiusFor(30) };
+  const blocked: Item = { x: -10, z: 0, kind: 'bin', size: .65, points: 3, eaten: false };
+  const plan = createRivalPlan(718, 1);
+  const dt = 1 / 60;
+
+  for (let step = 0; step < 120; step++) {
+    moveRival(prey, [hunter, prey], [blocked], plan, dt, false);
+  }
+  assert.equal(plan.target, undefined);
+  assert.ok(plan.scoutDestination);
+  assert.ok(Math.hypot(prey.x, prey.z) > 20);
+});
+
 test('rivals still eat reachable food when there is no prey', () => {
   const h = player();
   const item = { ...city().find(item => item.kind === 'bin')!, x: -5, z: 0 };

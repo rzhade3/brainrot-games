@@ -12,6 +12,7 @@ export interface RivalPlan {
 }
 const rivalPace = .922;
 const scoutPace = .56;
+const escapeBuffer = 10;
 const stop = { x: 0, z: 0 };
 const escapeHeadings = Array.from({ length: 12 }, (_, i) => ({ x: Math.cos(i * Math.PI / 6), z: Math.sin(i * Math.PI / 6) }));
 const scoutSectors = Array.from({ length: 25 }, (_, index) => ({
@@ -23,9 +24,24 @@ export function createRivalPlan(seed: number, rivalIndex: number): RivalPlan {
   return { reconsiderIn: 0, scoutSeed: (seed ^ Math.imul(rivalIndex + 1, 0x9e3779b1)) >>> 0 };
 }
 
-function scout(hole: Hole, holes: Hole[], plan: RivalPlan): Point {
+// A safe destination can still lead through the area that triggers an escape.
+function routeIsSafe(hole: Hole, x: number, z: number, predators: Hole[]): boolean {
+  const dx = x - hole.x, dz = z - hole.z;
+  const lengthSquared = dx * dx + dz * dz;
+  return predators.every(predator => {
+    const px = predator.x - hole.x, pz = predator.z - hole.z;
+    const along = lengthSquared ? Math.max(0, Math.min(1, (px * dx + pz * dz) / lengthSquared)) : 0;
+    const gapX = px - dx * along, gapZ = pz - dz * along;
+    const danger = captureReach(predator, hole) + escapeBuffer;
+    return gapX * gapX + gapZ * gapZ >= danger * danger;
+  });
+}
+
+function scout(hole: Hole, holes: Hole[], plan: RivalPlan, predators: Hole[]): Point {
   const distanceTo = (point: Point) => Math.hypot(point.x - hole.x, point.z - hole.z);
-  if (!plan.scoutDestination || distanceTo(plan.scoutDestination) < 2) {
+  const destination = plan.scoutDestination;
+  if (!destination || distanceTo(destination) < 2 || !routeIsSafe(hole, destination.x, destination.z, predators)) {
+    plan.scoutDestination = undefined;
     const recent = plan.recentSectors ??= [];
     const random = () => {
       const seed = plan.scoutSeed ?? holes.indexOf(hole) + 1;
@@ -37,7 +53,7 @@ function scout(hole: Hole, holes: Hole[], plan: RivalPlan): Point {
       if (recent.includes(index) || distanceTo(center) < 24) continue;
       const point = { x: center.x + (random() - .5) * 18, z: center.z + (random() - .5) * 18 };
       const distance = distanceTo(point);
-      if (distance < 24) continue;
+      if (distance < 24 || !routeIsSafe(hole, point.x, point.z, predators)) continue;
       let crowding = 0;
       for (const other of holes) {
         if (other === hole || other.respawn > 0) continue;
@@ -47,11 +63,13 @@ function scout(hole: Hole, holes: Hole[], plan: RivalPlan): Point {
       const value = random() * 25 - Math.abs(distance - 48) * .45 - crowding * .75;
       if (value > best) { best = value; sector = index; plan.scoutDestination = point; }
     }
-    recent.push(sector);
-    if (recent.length > 4) recent.shift();
+    if (plan.scoutDestination) {
+      recent.push(sector);
+      if (recent.length > 4) recent.shift();
+    }
   }
-  const aim = plan.scoutDestination!;
-  return { x: aim.x - hole.x, z: aim.z - hole.z };
+  const aim = plan.scoutDestination;
+  return aim ? { x: aim.x - hole.x, z: aim.z - hole.z } : stop;
 }
 
 function escape(hole: Hole, predators: Hole[]): Point {
@@ -100,7 +118,7 @@ function chooseTarget(hole: Hole, holes: Hole[], items: Item[], predators: Hole[
     return (1 + item.points * .045 + bonus + growthBonus) * safety(item.x, item.z) / (.4 + travel + biteCommitTime(item));
   };
   for (const item of items) {
-    if (!isEdible(hole, item)) continue;
+    if (!isEdible(hole, item) || !routeIsSafe(hole, item.x, item.z, predators)) continue;
     const distance = Math.hypot(item.x - hole.x, item.z - hole.z);
     const value = foodValue(item, distance);
     if (value > best) { best = value; target = item; }
@@ -122,7 +140,7 @@ function chooseTarget(hole: Hole, holes: Hole[], items: Item[], predators: Hole[
     if (!canSwallow(hole, prey) || prey.score < 30) continue;
     const aim = intercept(hole, prey);
     const gap = Math.hypot(aim.x - hole.x, aim.z - hole.z) - captureReach(hole, prey);
-    if (gap > 25) continue;
+    if (gap > 25 || !routeIsSafe(hole, aim.x, aim.z, predators)) continue;
     const dx = prey.x - hole.x, dz = prey.z - hole.z;
     const outwardSpeed = (dx * (prey.vx ?? 0) + dz * (prey.vz ?? 0)) / Math.max(1, Math.hypot(dx, dz));
     const pursuitSpeed = gap <= 4 ? speed : Math.max(speed * .18, speed - Math.max(0, outwardSpeed));
@@ -134,7 +152,7 @@ function chooseTarget(hole: Hole, holes: Hole[], items: Item[], predators: Hole[
 
 export function rivalDirection(hole: Hole, holes: Hole[], items: Item[], plan: RivalPlan = { reconsiderIn: 0 }, dt = 0, holding = false): Point {
   const predators = holes.filter(other => canSwallow(other, hole));
-  if (predators.some(other => Math.hypot(other.x - hole.x, other.z - hole.z) < captureReach(other, hole) + 10)) {
+  if (predators.some(other => Math.hypot(other.x - hole.x, other.z - hole.z) < captureReach(other, hole) + escapeBuffer)) {
     plan.reconsiderIn = 0;
     plan.scoutDestination = undefined;
     plan.idleFor = 0;
@@ -151,7 +169,7 @@ export function rivalDirection(hole: Hole, holes: Hole[], items: Item[], plan: R
   }
   if (!plan.target) {
     plan.idleFor = (plan.idleFor ?? 0) + dt;
-    return plan.idleFor >= .4 ? scout(hole, holes, plan) : stop;
+    return plan.idleFor >= .4 ? scout(hole, holes, plan, predators) : stop;
   }
   plan.idleFor = 0;
   plan.scoutDestination = undefined;
