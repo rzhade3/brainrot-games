@@ -13,6 +13,7 @@ export interface GameEntry {
 
 // Add a game here. Its route is /games/{id}/; preview artwork is optional.
 export const games: readonly GameEntry[] = [
+  { id: 'chroma-circuit', title: 'Chroma Circuit', category: 'Puzzles', description: 'Send color-matched shooters around the belt to clear pixel-art mosaics.', emoji: '🎨', color: '#e4d4fa', preview: 'chroma-circuit.webp', score: { key: 'chroma-circuit', unit: 'mosaics' } },
   { id: 'pop-clinic', title: 'Pop Clinic', category: 'Arcade', description: 'Snip, pop, and peel through a queue of tiny makeovers.', emoji: '🩹', color: '#ffc1ac', preview: 'pop-clinic' },
   { id: 'hole-city', title: 'Hole City', category: 'Arcade', description: 'Swallow the city and outgrow your rivals before time runs out.', emoji: '🕳️', color: '#eedbb6', preview: 'hole-city', score: { key: 'hole-city-classic-v2', unit: 'pts' } },
   { id: 'cube-lines', title: 'Cube Lines', category: 'Puzzles', description: 'Rotate the cube to find a clear exit for every arrow.', emoji: '🧊', color: '#c8bcff', preview: 'cube-lines', score: { key: 'cube-lines', unit: 'levels' } },

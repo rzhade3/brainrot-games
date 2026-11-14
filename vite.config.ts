@@ -8,6 +8,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
+        chromaCircuit: resolve(__dirname, 'games/chroma-circuit/index.html'),
         popClinic: resolve(__dirname, 'games/pop-clinic/index.html'),
         holeCity: resolve(__dirname, 'games/hole-city/index.html'),
         fieldwork: resolve(__dirname, 'games/fieldwork/index.html'),
