@@ -37,6 +37,12 @@ Use the production preview to test installation and offline behavior; the develo
 
 Scores and supported puzzle saves stay on the device. Hole City and Cube Lines require WebGL.
 
+## Author levels with Codex
+
+The [repo-local skills](.agents/skills/) cover all 11 playable games. Ask for the content you want to add, or invoke a skill explicitly with a prompt like “Use `$breakout-levels` to add a brick chamber” or “Use `$chroma-circuit-levels` to add a mosaic.” Each skill points to the playable entry point, progress or replay details where relevant, and the game’s validation commands. The Top Down route is a placeholder awaiting gameplay.
+
+Use [`$merge-agent`](.agents/skills/merge-agent/SKILL.md) to integrate changes from another worktree, check whether local `main` is in sync, or publish tested commits to GitHub.
+
 ## Add a game
 
 1. Add an entry page in `games/<id>/` and implementation in `src/games/<id>/`.
